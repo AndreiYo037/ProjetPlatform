@@ -1,0 +1,59 @@
+"""Application settings.
+
+Every external dependency is addressed through here so a test can point the
+app at a scratch database and a fake Google client without patching imports.
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="PROJET_", env_file=".env", extra="ignore")
+
+    # Core
+    database_url: str = "sqlite+pysqlite:///./projet.db"
+    app_base_url: str = "http://localhost:8000"
+    environment: str = "development"
+
+    # Content (the markdown seed source of truth)
+    content_dir: Path = REPO_ROOT / "content"
+
+    # Storage
+    storage_root: Path = REPO_ROOT / ".storage"
+    storage_signing_key: str = "dev-insecure-change-me"
+    signed_url_ttl_seconds: int = 600
+
+    # Google Workspace. Absent credentials select the fake driver, which is what
+    # every test and a fresh clone run against.
+    google_driver: str = "auto"  # auto | real | fake
+    google_service_account_file: Path | None = None
+    google_service_account_json: str | None = None
+    google_delegated_subject: str = "programs@projet.sg"
+
+    # Outbox
+    outbox_max_attempts: int = 5
+    outbox_backoff_base_seconds: int = 30
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.database_url.startswith("sqlite")
+
+    @property
+    def use_real_google(self) -> bool:
+        if self.google_driver == "real":
+            return True
+        if self.google_driver == "fake":
+            return False
+        return bool(self.google_service_account_file or self.google_service_account_json)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()

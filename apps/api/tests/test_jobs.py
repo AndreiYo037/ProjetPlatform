@@ -1,0 +1,195 @@
+"""Scheduled work, and the deadline sweep in particular.
+
+With submission on day 6 and judging on day 7 there are roughly twelve hours
+between them and nothing that needs a human can sit in that gap. The sweep is
+what makes the pitch schedule exist without admin doing anything.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import select
+
+from projet.jobs.definitions import (
+    deadline_sweep,
+    due_programmes,
+    expire_offers,
+    no_submission_report,
+    preflight,
+    recheck_submission_links,
+    response_time_indicator,
+)
+from projet.models import Application, Outbox, Thread
+from projet.models.enums import (
+    AccessStatus,
+    ApplicationStatus,
+    AuthorRole,
+    ParticipantStatus,
+    ProgrammeStatus,
+    SubmissionStatus,
+    ThreadType,
+)
+from projet.outbox.provisioning import SESSION_REMOVAL
+from projet.outbox.snapshots import SNAPSHOT_EFFECT
+from projet.services.teams import ensure_submission, ensure_team_for_participant
+
+
+def _submit(session, participant, *, working: bool = True):
+    team = ensure_team_for_participant(session, participant)
+    submission = ensure_submission(session, team)
+    for link in submission.links:
+        link.drive_url = f"https://drive.google.com/file/d/{'x' * 30}/view"
+        link.drive_file_id = "x" * 30
+        link.detected_mime = "application/pdf"
+        link.access_status = AccessStatus.OK if working else AccessStatus.DENIED
+    session.flush()
+    return submission
+
+
+def test_offers_expire_and_release_their_seat(session, programme, participant_factory):
+    participant = participant_factory()
+    application = session.get(Application, participant.application_id)
+    application.status = ApplicationStatus.OFFERED
+    application.offer_expires_at = datetime.now(UTC) - timedelta(hours=1)
+    session.flush()
+
+    assert expire_offers(session) == 1
+    assert application.status == ApplicationStatus.EXPIRED
+
+
+def test_a_live_offer_is_left_alone(session, programme, participant_factory):
+    participant = participant_factory()
+    application = session.get(Application, participant.application_id)
+    application.status = ApplicationStatus.OFFERED
+    application.offer_expires_at = datetime.now(UTC) + timedelta(hours=10)
+    session.flush()
+
+    assert expire_offers(session) == 0
+    assert application.status == ApplicationStatus.OFFERED
+
+
+def test_deadline_sweep_locks_submissions_and_queues_snapshots(
+    session, programme, judging_session, participant_factory
+):
+    participant = participant_factory()
+    participant.judging_session_id = judging_session.id
+    submission = _submit(session, participant)
+    programme.submit_deadline_at = datetime.now(UTC) - timedelta(minutes=1)
+    session.flush()
+
+    result = deadline_sweep(session)
+
+    assert result.programmes_processed == 1
+    assert submission.status == SubmissionStatus.LOCKED
+    assert submission.locked_at is not None
+    assert participant.status == ParticipantStatus.SUBMITTED
+    assert result.snapshots_queued == 2
+    queued = {row.effect_type for row in session.scalars(select(Outbox))}
+    assert SNAPSHOT_EFFECT in queued
+
+
+def test_non_submitters_are_flagged_and_taken_off_their_session(
+    session, programme, judging_session, participant_factory
+):
+    """FR-811c — the deadline passes, non-submitters drop off their slot, and
+    the schedule is already correct."""
+    submitted = participant_factory()
+    submitted.judging_session_id = judging_session.id
+    _submit(session, submitted)
+
+    absent = participant_factory()
+    absent.judging_session_id = judging_session.id
+
+    broken = participant_factory()
+    broken.judging_session_id = judging_session.id
+    _submit(session, broken, working=False)
+
+    programme.submit_deadline_at = datetime.now(UTC) - timedelta(minutes=1)
+    session.flush()
+    result = deadline_sweep(session)
+
+    assert result.non_submitters == 2
+    assert absent.status == ParticipantStatus.NO_SUBMISSION
+    assert broken.status == ParticipantStatus.NO_SUBMISSION, (
+        "a link we cannot open is not a submission"
+    )
+    removals = [r for r in session.scalars(select(Outbox)) if r.effect_type == SESSION_REMOVAL]
+    assert len(removals) == 2
+    assert no_submission_report(session, programme.id)
+
+
+def test_the_sweep_claims_each_programme_exactly_once(session, programme, participant_factory):
+    """A restart mid-sweep must not re-run anything, which is why the claim is a
+    column and not an in-memory flag."""
+    participant_factory()
+    programme.submit_deadline_at = datetime.now(UTC) - timedelta(minutes=1)
+    session.flush()
+
+    first = deadline_sweep(session)
+    second = deadline_sweep(session)
+
+    assert first.programmes_processed == 1
+    assert second.programmes_processed == 0
+    assert programme.deadline_processed_at is not None
+    assert programme.status == ProgrammeStatus.SUBMITTED
+
+
+def test_a_programme_before_its_deadline_is_not_due(session, programme):
+    programme.submit_deadline_at = datetime.now(UTC) + timedelta(days=1)
+    session.flush()
+    assert due_programmes(session) == []
+
+
+def test_nightly_recheck_catches_a_link_unshared_after_submission(
+    session, programme, participant_factory, google
+):
+    """A link shareable on day 2 can be un-shared by day 5, and nobody finds out
+    unless we look."""
+    participant = participant_factory()
+    submission = _submit(session, participant)
+    url = submission.links[0].drive_url
+    google.stage_denied(url)
+
+    broken = recheck_submission_links(session, google)
+
+    assert len(broken) >= 1
+    assert broken[0].access_status == AccessStatus.DENIED
+
+
+def test_response_time_indicator_surfaces_a_quiet_rep(session, programme):
+    """FR-614b — visibility without obligation."""
+    session.add(
+        Thread(
+            programme_id=programme.id,
+            type=ThreadType.QUESTION_CHALLENGE,
+            title="Is revenue net or gross?",
+            author_role=AuthorRole.PARTICIPANT,
+            created_at=datetime.now(UTC) - timedelta(hours=30),
+        )
+    )
+    session.flush()
+
+    indicator = response_time_indicator(session, programme.id)
+
+    assert indicator["outstanding"] == 1
+    assert indicator["oldest_age_hours"] >= 29
+
+
+def test_preflight_lists_only_the_participants_with_a_problem(
+    session, programme, judging_session, participant_factory
+):
+    """FR-1501 — a checklist of failures, not a green tick."""
+    ready = participant_factory()
+    ready.judging_session_id = judging_session.id
+    ready.gmail_thread_id = "thread-1"
+
+    not_ready = participant_factory()
+    not_ready.person.google_email = None
+    session.flush()
+
+    failures = preflight(session, programme.id)
+    ids = {row["participant_id"] for row in failures}
+
+    assert not_ready.id in ids
+    assert ready.id not in ids

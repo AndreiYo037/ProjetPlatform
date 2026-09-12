@@ -1,0 +1,40 @@
+/* Participant surfaces are mobile-first and the scoring screen must work at
+   500px (FR-905), so the base styles start narrow rather than adapting down. */
+:root {
+  --bg: #ffffff;
+  --fg: #16181d;
+  --muted: #5c6270;
+  --line: #e3e6ec;
+  --ok: #10796b;
+  --warn: #9a5b00;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101216;
+    --fg: #eceef2;
+    --muted: #99a0ae;
+    --line: #262a33;
+    --ok: #4fd1bd;
+    --warn: #e0a34a;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+main {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
