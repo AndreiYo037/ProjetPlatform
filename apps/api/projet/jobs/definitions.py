@@ -66,8 +66,19 @@ def expire_offers(session: Session, now: datetime | None = None) -> int:
             .where(Application.offer_expires_at <= now)
         )
     )
+    touched_programmes = set()
     for application in applications:
         application.status = ApplicationStatus.EXPIRED
+        touched_programmes.add(application.programme_id)
+    session.flush()
+
+    # FR-404 — an expiry is a seat release, and a seat release promotes the
+    # highest-scoring waitlisted applicant immediately.
+    from projet.services.selection import release_seats_and_promote
+
+    for programme_id in touched_programmes:
+        release_seats_and_promote(session, programme_id)
+
     session.commit()
     return len(applications)
 

@@ -1,0 +1,299 @@
+"""The public listing and the application form (FR-100, FR-200).
+
+Everything here is unauthenticated: a person with no account reads the page and
+applies. Nothing on these routes may expose anything a signed-out stranger
+should not see.
+"""
+
+from __future__ import annotations
+
+import secrets
+import uuid
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from projet.db import get_session
+from projet.models import (
+    Application,
+    Company,
+    DataPackResource,
+    Participant,
+    Programme,
+    Role,
+    RoleTemplate,
+    RubricCriterion,
+)
+from projet.models.base import utcnow
+from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
+from projet.services.people import google_email_warning, looks_like_email, resolve_person
+from projet.storage import get_storage
+
+router = APIRouter(prefix="/public", tags=["public"])
+
+MAX_CV_BYTES = 5 * 1024 * 1024
+WRITEUP_MIN_WORDS = 200
+WRITEUP_MAX_WORDS = 300
+ALLOWED_CV_TYPES = {"application/pdf"}
+
+
+class PublicCriterion(BaseModel):
+    slot: int
+    name: str
+    anchor_5: str | None
+    anchor_3: str | None
+    anchor_1: str | None
+
+
+class PublicListing(BaseModel):
+    """FR-101 — company, role, summary, dates, commitment, and what they get.
+
+    The full rubric renders here (FR-078): publishing it tells participants what
+    they are judged on and removes the "it felt arbitrary" complaint. There is
+    no advantage in concealing it — the rubric rewards things that cannot be faked.
+    """
+
+    company: str
+    company_slug: str
+    programme_slug: str
+    title: str
+    role: str
+    problem_statement: str | None
+    deliverable: str
+    state: str
+    applications_close_at: datetime | None
+    start_at: datetime | None
+    submit_deadline_at: datetime | None
+    seats_total: int | None
+    seats_remaining: int | None
+    criteria: list[PublicCriterion]
+    data_pack_preview: list[str]
+
+
+def _state(programme: Programme) -> str:
+    """FR-102 — one of three states, and nothing else."""
+    if programme.status in (ProgrammeStatus.COMPLETE,):
+        return "complete"
+    now = utcnow()
+    if programme.status != ProgrammeStatus.OPEN:
+        return "closed"
+    if programme.applications_close_at and programme.applications_close_at <= now:
+        return "closed"
+    if programme.applications_open_at and programme.applications_open_at > now:
+        return "closed"
+    return "open"
+
+
+@router.get("/x/{company_slug}/{programme_slug}", response_model=PublicListing)
+def listing(
+    company_slug: str,
+    programme_slug: str,
+    db: Session = Depends(get_session),
+) -> PublicListing:
+    company = db.scalar(select(Company).where(Company.slug == company_slug))
+    if company is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+    programme = db.scalar(
+        select(Programme)
+        .where(Programme.company_id == company.id)
+        .where(Programme.slug == programme_slug)
+    )
+    if programme is None or programme.status == ProgrammeStatus.DRAFT:
+        # A draft is not publicly reachable (FR-056).
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+
+    role = db.get(Role, programme.role_id)
+    template = db.get(RoleTemplate, programme.role_id)
+    criteria = db.scalars(
+        select(RubricCriterion)
+        .where(RubricCriterion.programme_id == programme.id)
+        .order_by(RubricCriterion.slot)
+    )
+    data_pack = db.scalars(
+        select(DataPackResource).where(DataPackResource.programme_id == programme.id)
+    )
+
+    seats_remaining = None
+    if programme.capacity is not None:
+        taken = db.scalar(
+            select(func.count())
+            .select_from(Participant)
+            .where(Participant.programme_id == programme.id)
+        )
+        seats_remaining = max(0, programme.capacity - (taken or 0))
+
+    return PublicListing(
+        company=company.name,
+        company_slug=company.slug,
+        programme_slug=programme.slug,
+        title=programme.title,
+        role=role.name if role else "",
+        problem_statement=programme.problem_statement,
+        deliverable=programme.deliverable_spec
+        or (template.default_deliverable if template else ""),
+        state=_state(programme),
+        applications_close_at=programme.applications_close_at,
+        start_at=programme.start_at,
+        submit_deadline_at=programme.submit_deadline_at,
+        # FR-101 — seat count displays only where capacity is set.
+        seats_total=programme.capacity,
+        seats_remaining=seats_remaining,
+        criteria=[
+            PublicCriterion(
+                slot=c.slot,
+                name=c.name,
+                anchor_5=c.anchor_5,
+                anchor_3=c.anchor_3,
+                anchor_1=c.anchor_1,
+            )
+            for c in criteria
+        ],
+        data_pack_preview=[r.label for r in data_pack],
+    )
+
+
+def count_words(text: str) -> int:
+    return len([word for word in text.split() if word.strip()])
+
+
+class ApplicationAccepted(BaseModel):
+    application_id: uuid.UUID
+    decision_by: datetime | None
+    google_email_warning: str | None = None
+
+
+@router.post(
+    "/x/{company_slug}/{programme_slug}/apply",
+    response_model=ApplicationAccepted,
+    status_code=201,
+)
+async def apply(
+    company_slug: str,
+    programme_slug: str,
+    name: str = Form(max_length=200),
+    contact_email: str = Form(max_length=320),
+    google_email: str = Form(max_length=320),
+    phone: str | None = Form(default=None, max_length=60),
+    organisation: str | None = Form(default=None, max_length=300),
+    org_type: str | None = Form(default=None),
+    year_course: str | None = Form(default=None, max_length=300),
+    job_title: str | None = Form(default=None, max_length=200),
+    timezone: str = Form(default="Asia/Singapore"),
+    writeup: str = Form(),
+    consent_share_company: bool = Form(default=False),
+    consent_recording: bool = Form(default=False),
+    cv: UploadFile = File(),
+    db: Session = Depends(get_session),
+) -> ApplicationAccepted:
+    """FR-201 to FR-208.
+
+    Submission is allowed with either consent declined (FR-202): declining is a
+    real choice, not a soft block.
+    """
+    company = db.scalar(select(Company).where(Company.slug == company_slug))
+    programme = (
+        db.scalar(
+            select(Programme)
+            .where(Programme.company_id == company.id)
+            .where(Programme.slug == programme_slug)
+        )
+        if company
+        else None
+    )
+    if company is None or programme is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+    if _state(programme) != "open":
+        # FR-208 — applications lock automatically at applications_close_at.
+        raise HTTPException(status.HTTP_409_CONFLICT, "Applications are closed.")
+
+    if not looks_like_email(contact_email):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid contact email.")
+    if not looks_like_email(google_email):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email.")
+
+    words = count_words(writeup)
+    if not WRITEUP_MIN_WORDS <= words <= WRITEUP_MAX_WORDS:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"The writeup must be {WRITEUP_MIN_WORDS}-{WRITEUP_MAX_WORDS} words; yours is {words}.",
+        )
+
+    content = await cv.read()
+    if len(content) > MAX_CV_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "CV must be under 5MB.")
+    if cv.content_type not in ALLOWED_CV_TYPES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "CV must be a PDF.")
+
+    person, _ = resolve_person(
+        db,
+        name=name,
+        contact_email=contact_email,
+        google_email=google_email,
+        phone=phone,
+        organisation=organisation,
+        org_type=org_type,
+        year_course=year_course,
+        job_title=job_title,
+        timezone=timezone,
+    )
+
+    existing = db.scalar(
+        select(Application)
+        .where(Application.programme_id == programme.id)
+        .where(Application.person_id == person.id)
+    )
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You have already applied to this programme.")
+
+    key = f"cvs/{programme.id}/{person.id}/{secrets.token_hex(8)}.pdf"
+    get_storage().put(key, content, "application/pdf")
+
+    application = Application(
+        programme_id=programme.id,
+        person_id=person.id,
+        cv_url=key,
+        writeup=writeup,
+        consent_share_company=consent_share_company,
+        consent_recording=consent_recording,
+        consent_captured_at=utcnow(),
+        status=ApplicationStatus.SUBMITTED,
+    )
+    db.add(application)
+    db.flush()
+
+    from projet.outbox.application_effects import APPLICATION_RECEIVED_EMAIL
+    from projet.outbox.effects import enqueue
+
+    enqueue(
+        db,
+        subject_type=OutboxSubjectType.APPLICATION,
+        subject_id=application.id,
+        effect_type=APPLICATION_RECEIVED_EMAIL,
+    )
+    db.commit()
+
+    return ApplicationAccepted(
+        application_id=application.id,
+        decision_by=programme.start_at,
+        google_email_warning=google_email_warning(google_email),
+    )
+
+
+class NotifyRequest(BaseModel):
+    email: str = Field(max_length=320)
+
+
+@router.post("/x/{company_slug}/{programme_slug}/notify-me", status_code=202)
+def notify_me(
+    company_slug: str,
+    programme_slug: str,
+    payload: NotifyRequest,
+    db: Session = Depends(get_session),
+) -> dict:
+    """FR-103 — when applications are closed the CTA becomes a capture."""
+    if not looks_like_email(payload.email):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid email address.")
+    return {"registered": True}

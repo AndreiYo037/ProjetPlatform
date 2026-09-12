@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     google_service_account_json: str | None = None
     google_delegated_subject: str = "programs@projet.sg"
 
+    # Problem-statement drafting (FR-061). Absent, the endpoint reports that
+    # drafting is unavailable rather than failing obscurely.
+    anthropic_api_key: str | None = None
+
     # Outbox
     outbox_max_attempts: int = 5
     outbox_backoff_base_seconds: int = 30

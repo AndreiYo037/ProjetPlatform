@@ -1,19 +1,23 @@
 """FastAPI application.
 
-This slice exposes health and the OpenAPI contract only. Product endpoints land
-in Milestone 1; what matters here is that the schema, the outbox and the
-scheduler are real and observable.
+Milestone 1: company accounts, programme setup, the public listing, application
+intake, the applicant pipeline, and offers with waitlist promotion.
 """
 
 from __future__ import annotations
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from projet import __version__
+from projet.api.applications import router as applications_router
 from projet.api.auth import router as auth_router
+from projet.api.companies import router as companies_router
+from projet.api.programmes import router as programmes_router
+from projet.api.public import router as public_router
+from projet.api.roles import router as roles_router
 from projet.config import get_settings
 from projet.db import get_session
 from projet.models import Role
@@ -40,6 +44,29 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(auth_router)
+    app.include_router(companies_router)
+    app.include_router(roles_router)
+    app.include_router(programmes_router)
+    app.include_router(applications_router)
+    app.include_router(public_router)
+
+    @app.get("/files/{key:path}", tags=["files"])
+    def serve_file(key: str, sig: str) -> Response:
+        """Section 8 — CVs and snapshots are not publicly addressable.
+
+        The signature is scoped to the exact key and expires, so a leaked URL
+        stops working and cannot be edited to reach a different file.
+        """
+        from projet.storage import StorageError, get_storage, verify_signature
+
+        if not verify_signature(key, sig):
+            raise HTTPException(403, "That link has expired.")
+        try:
+            content = get_storage().get(key)
+        except StorageError:
+            raise HTTPException(404, "Not found.") from None
+        media_type = "application/pdf" if key.endswith(".pdf") else "application/octet-stream"
+        return Response(content, media_type=media_type)
 
     @app.get("/healthz", tags=["ops"])
     def healthz() -> dict:

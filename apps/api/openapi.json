@@ -218,6 +218,2109 @@
         }
       }
     },
+    "/companies": {
+      "post": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Create Company",
+        "description": "FR-014 \u2014 admin creates the company and its first user, the owner.\nThe owner invites everyone else themselves.",
+        "operationId": "create_company_companies_post",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanySummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/companies/{company_id}/home": {
+      "get": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Company Home",
+        "operationId": "company_home_companies__company_id__home_get",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyHome"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/companies/{company_id}/candidates": {
+      "get": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Candidate Pool",
+        "description": "FR-018 \u2014 everyone who consented, across every programme this company has\nrun. Consent is enforced by the query, not by this route (section 8).",
+        "operationId": "candidate_pool_companies__company_id__candidates_get",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CandidateOut"
+                  },
+                  "title": "Response Candidate Pool Companies  Company Id  Candidates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/companies/{company_id}/users": {
+      "get": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "List Users",
+        "operationId": "list_users_companies__company_id__users_get",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CompanyUserOut"
+                  },
+                  "title": "Response List Users Companies  Company Id  Users Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Invite User",
+        "description": "FR-016 \u2014 the owner invites a colleague directly. No admin in the loop.",
+        "operationId": "invite_user_companies__company_id__users_post",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyUserInvite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyUserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/companies/{company_id}/users/{user_id}": {
+      "delete": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Disable User",
+        "description": "Disabled rather than deleted: their scores and testimonials must keep\ntheir attribution.",
+        "operationId": "disable_user_companies__company_id__users__user_id__delete",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/assignments": {
+      "put": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Assign Rep",
+        "description": "FR-015 \u2014 this is what scopes a rep to their own challenge.",
+        "operationId": "assign_rep_programmes__programme_id__assignments_put",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles/clusters": {
+      "get": {
+        "tags": [
+          "roles"
+        ],
+        "summary": "List Clusters",
+        "operationId": "list_clusters_roles_clusters_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ClusterOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Clusters Roles Clusters Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles/search": {
+      "get": {
+        "tags": [
+          "roles"
+        ],
+        "summary": "Search Roles",
+        "description": "FR-043 \u2014 search runs across names and aliases, so \"data analyst\" or \"BI\"\nlands on Data Analytics rather than creating a near-duplicate.",
+        "operationId": "search_roles_roles_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RoleSummary"
+                  },
+                  "title": "Response Search Roles Roles Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/roles/{role_id}/implications": {
+      "get": {
+        "tags": [
+          "roles"
+        ],
+        "summary": "Role Implications",
+        "description": "FR-053 \u2014 what picking this role commits them to, before they commit.\n\nThe deliverable, the sources, the two role-specific criteria and the\nlow-friction asks. Seeing the artifact spec now is what prevents discovering\nafter the cohort ran that it was not what they wanted.",
+        "operationId": "role_implications_roles__role_id__implications_get",
+        "parameters": [
+          {
+            "name": "role_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Role Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleImplications"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes": {
+      "get": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "List Programmes",
+        "operationId": "list_programmes_programmes_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProgrammeOut"
+                  },
+                  "title": "Response List Programmes Programmes Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Create Programme",
+        "description": "Admin creates the programme shell; the rubric is composed immediately\nfrom the role template so slots 2 and 3 arrive pre-filled (FR-055).",
+        "operationId": "create_programme_programmes_post",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgrammeCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgrammeDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}": {
+      "get": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Get Programme",
+        "operationId": "get_programme_programmes__programme_id__get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgrammeDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Update Programme",
+        "operationId": "update_programme_programmes__programme_id__patch",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgrammeUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgrammeDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/criteria/{criterion_id}": {
+      "patch": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Update Criterion",
+        "description": "FR-072/074/076 \u2014 anchors are editable, universal names are not, and\nnothing is editable once judging has started.",
+        "operationId": "update_criterion_programmes__programme_id__criteria__criterion_id__patch",
+        "parameters": [
+          {
+            "name": "criterion_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Criterion Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CriterionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CriterionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/publication-check": {
+      "get": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Publication Check",
+        "operationId": "publication_check_programmes__programme_id__publication_check_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationCheck"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/publish": {
+      "post": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Publish Programme",
+        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric.\nAdmin-gated: a company can draft, but only admin publishes (FR-019).",
+        "operationId": "publish_programme_programmes__programme_id__publish_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgrammeDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/judging-sessions": {
+      "post": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Add Judging Session",
+        "description": "Session times are fixed at setup and published in the brief, because\nparticipants are assigned to one at acceptance (FR-811b).",
+        "operationId": "add_judging_session_programmes__programme_id__judging_sessions_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JudgingSessionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Add Judging Session Programmes  Programme Id  Judging Sessions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/data-pack": {
+      "get": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Get Data Pack",
+        "description": "FR-057/069 \u2014 one list, provenance visible per resource.",
+        "operationId": "get_data_pack_programmes__programme_id__data_pack_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Data Pack Programmes  Programme Id  Data Pack Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Add Data Pack Resource",
+        "description": "FR-066 \u2014 the public-data pack is the default, not the constraint.\nA company that will share real data produces a better challenge.",
+        "operationId": "add_data_pack_resource_programmes__programme_id__data_pack_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataPackResourceCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Add Data Pack Resource Programmes  Programme Id  Data Pack Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/problem-statement/draft": {
+      "post": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Draft Problem Statement Endpoint",
+        "description": "FR-061 \u2014 draft from the role plus research on the company.\n\nAdmin-only and never auto-published: the draft lands in a review queue\n(FR-063), and admin rewrites before anything reaches the company.",
+        "operationId": "draft_problem_statement_endpoint_programmes__programme_id__problem_statement_draft_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/problem-statement/drafts": {
+      "get": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "List Drafts",
+        "operationId": "list_drafts_programmes__programme_id__problem_statement_drafts_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DraftOut"
+                  },
+                  "title": "Response List Drafts Programmes  Programme Id  Problem Statement Drafts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/problem-statement": {
+      "put": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Set Problem Statement",
+        "description": "FR-063/FR-067 \u2014 admin reviews and rewrites, and a company that knows\nexactly what it wants can say so and have that be what runs.",
+        "operationId": "set_problem_statement_programmes__programme_id__problem_statement_put",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProblemStatementUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProgrammeDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/applications": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "List Applications",
+        "description": "FR-301 \u2014 filterable by status, sortable by score.",
+        "operationId": "list_applications_programmes__programme_id__applications_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "score",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApplicationOut"
+                  },
+                  "title": "Response List Applications Programmes  Programme Id  Applications Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/seats": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Seats",
+        "operationId": "seats_programmes__programme_id__seats_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeatsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/applications/{application_id}": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Get Application",
+        "operationId": "get_application_programmes__programme_id__applications__application_id__get",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Application Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/applications/{application_id}/score": {
+      "patch": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Score",
+        "description": "FR-302 \u2014 auto-saving inline scoring. Admin-only: the prescreen rubric is\nnever shown to companies or applicants (FR-079).",
+        "operationId": "score_programmes__programme_id__applications__application_id__score_patch",
+        "parameters": [
+          {
+            "name": "application_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Application Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoreRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/applications/disposition": {
+      "post": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Disposition",
+        "description": "FR-304 \u2014 bulk offer, waitlist and reject, each firing its email.",
+        "operationId": "disposition_programmes__programme_id__applications_disposition_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DispositionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispositionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accept": {
+      "post": {
+        "tags": [
+          "applications",
+          "public"
+        ],
+        "summary": "Accept",
+        "description": "FR-401 \u2014 tokenised, no login. One click from an email.",
+        "operationId": "accept_accept_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcceptResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/decline": {
+      "post": {
+        "tags": [
+          "applications",
+          "public"
+        ],
+        "summary": "Decline",
+        "description": "FR-403 \u2014 declining releases the seat and fires waitlist promotion\nimmediately.",
+        "operationId": "decline_decline_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeclineRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Decline Decline Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/x/{company_slug}/{programme_slug}": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_public_x__company_slug___programme_slug__get",
+        "parameters": [
+          {
+            "name": "company_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Company Slug"
+            }
+          },
+          {
+            "name": "programme_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Programme Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicListing"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/x/{company_slug}/{programme_slug}/apply": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Apply",
+        "description": "FR-201 to FR-208.\n\nSubmission is allowed with either consent declined (FR-202): declining is a\nreal choice, not a soft block.",
+        "operationId": "apply_public_x__company_slug___programme_slug__apply_post",
+        "parameters": [
+          {
+            "name": "company_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Company Slug"
+            }
+          },
+          {
+            "name": "programme_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Programme Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_apply_public_x__company_slug___programme_slug__apply_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationAccepted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/x/{company_slug}/{programme_slug}/notify-me": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Notify Me",
+        "description": "FR-103 \u2014 when applications are closed the CTA becomes a capture.",
+        "operationId": "notify_me_public_x__company_slug___programme_slug__notify_me_post",
+        "parameters": [
+          {
+            "name": "company_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Company Slug"
+            }
+          },
+          {
+            "name": "programme_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Programme Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Notify Me Public X  Company Slug   Programme Slug  Notify Me Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/files/{key}": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Serve File",
+        "description": "Section 8 \u2014 CVs and snapshots are not publicly addressable.\n\nThe signature is scoped to the exact key and expires, so a leaked URL\nstops working and cannot be edited to reach a different file.",
+        "operationId": "serve_file_files__key__get",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Key"
+            }
+          },
+          {
+            "name": "sig",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Sig"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/healthz": {
       "get": {
         "tags": [
@@ -292,6 +2395,43 @@
   },
   "components": {
     "schemas": {
+      "AcceptRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "AcceptRequest"
+      },
+      "AcceptResponse": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Participant Id"
+          },
+          "programme_title": {
+            "type": "string",
+            "title": "Programme Title"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "programme_title",
+          "message"
+        ],
+        "title": "AcceptResponse"
+      },
       "ActorResponse": {
         "properties": {
           "actor_type": {
@@ -342,6 +2482,1157 @@
         ],
         "title": "ActorResponse"
       },
+      "ApplicationAccepted": {
+        "properties": {
+          "application_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Application Id"
+          },
+          "decision_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision By"
+          },
+          "google_email_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Email Warning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "application_id",
+          "decision_by"
+        ],
+        "title": "ApplicationAccepted"
+      },
+      "ApplicationDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "person_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Person Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "contact_email": {
+            "type": "string",
+            "title": "Contact Email"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "year_course": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Course"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "score_relevance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Relevance"
+          },
+          "score_specificity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Specificity"
+          },
+          "score_capability": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Capability"
+          },
+          "score_followthrough": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Followthrough"
+          },
+          "score_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Total"
+          },
+          "consent_share_company": {
+            "type": "boolean",
+            "title": "Consent Share Company"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "offer_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Expires At"
+          },
+          "writeup": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Writeup"
+          },
+          "cv_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Url"
+          },
+          "google_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "person_id",
+          "name",
+          "contact_email",
+          "organisation",
+          "year_course",
+          "job_title",
+          "status",
+          "score_relevance",
+          "score_specificity",
+          "score_capability",
+          "score_followthrough",
+          "score_total",
+          "consent_share_company",
+          "created_at"
+        ],
+        "title": "ApplicationDetail",
+        "description": "FR-303 \u2014 writeup and CV side by side, without leaving the list."
+      },
+      "ApplicationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "person_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Person Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "contact_email": {
+            "type": "string",
+            "title": "Contact Email"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "year_course": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Course"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "score_relevance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Relevance"
+          },
+          "score_specificity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Specificity"
+          },
+          "score_capability": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Capability"
+          },
+          "score_followthrough": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Followthrough"
+          },
+          "score_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Total"
+          },
+          "consent_share_company": {
+            "type": "boolean",
+            "title": "Consent Share Company"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "offer_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "person_id",
+          "name",
+          "contact_email",
+          "organisation",
+          "year_course",
+          "job_title",
+          "status",
+          "score_relevance",
+          "score_specificity",
+          "score_capability",
+          "score_followthrough",
+          "score_total",
+          "consent_share_company",
+          "created_at"
+        ],
+        "title": "ApplicationOut"
+      },
+      "AssignmentRequest": {
+        "properties": {
+          "company_user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Company User Id"
+          },
+          "can_score": {
+            "type": "boolean",
+            "title": "Can Score",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_user_id"
+        ],
+        "title": "AssignmentRequest"
+      },
+      "Body_apply_public_x__company_slug___programme_slug__apply_post": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Name"
+          },
+          "contact_email": {
+            "type": "string",
+            "maxLength": 320,
+            "title": "Contact Email"
+          },
+          "google_email": {
+            "type": "string",
+            "maxLength": 320,
+            "title": "Google Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "org_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Type"
+          },
+          "year_course": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Course"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone",
+            "default": "Asia/Singapore"
+          },
+          "writeup": {
+            "type": "string",
+            "title": "Writeup"
+          },
+          "consent_share_company": {
+            "type": "boolean",
+            "title": "Consent Share Company",
+            "default": false
+          },
+          "consent_recording": {
+            "type": "boolean",
+            "title": "Consent Recording",
+            "default": false
+          },
+          "cv": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Cv"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "contact_email",
+          "google_email",
+          "writeup",
+          "cv"
+        ],
+        "title": "Body_apply_public_x__company_slug___programme_slug__apply_post"
+      },
+      "CandidateOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "year_course": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year Course"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CandidateOut"
+      },
+      "ClusterOut": {
+        "properties": {
+          "cluster": {
+            "type": "string",
+            "title": "Cluster"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleSummary"
+            },
+            "type": "array",
+            "title": "Roles"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cluster",
+          "roles"
+        ],
+        "title": "ClusterOut",
+        "description": "FR-052 \u2014 cluster first, then role.\n\nA flat list of 75 is unusable; picking \"Finance\" then \"Venture Capital\" is\ntwo taps and prevents mis-tagging."
+      },
+      "CompanyCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "owner_name": {
+            "type": "string",
+            "title": "Owner Name"
+          },
+          "owner_email": {
+            "type": "string",
+            "title": "Owner Email"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier",
+            "default": "sme"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "slug",
+          "owner_name",
+          "owner_email"
+        ],
+        "title": "CompanyCreate"
+      },
+      "CompanyHome": {
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/CompanySummary"
+          },
+          "active_programmes": {
+            "items": {
+              "$ref": "#/components/schemas/ProgrammeOut"
+            },
+            "type": "array",
+            "title": "Active Programmes"
+          },
+          "past_programmes": {
+            "items": {
+              "$ref": "#/components/schemas/ProgrammeOut"
+            },
+            "type": "array",
+            "title": "Past Programmes"
+          },
+          "team": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyUserOut"
+            },
+            "type": "array",
+            "title": "Team"
+          },
+          "candidate_pool_size": {
+            "type": "integer",
+            "title": "Candidate Pool Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company",
+          "active_programmes",
+          "past_programmes",
+          "team",
+          "candidate_pool_size"
+        ],
+        "title": "CompanyHome",
+        "description": "FR-017 \u2014 what a company user sees on signing in."
+      },
+      "CompanySummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logo Url"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "tier"
+        ],
+        "title": "CompanySummary"
+      },
+      "CompanyUserInvite": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "title": "Email"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role",
+            "default": "rep"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email"
+        ],
+        "title": "CompanyUserInvite"
+      },
+      "CompanyUserOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "email",
+          "role",
+          "status"
+        ],
+        "title": "CompanyUserOut"
+      },
+      "CriterionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "slot": {
+            "type": "integer",
+            "title": "Slot"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "anchor_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 5"
+          },
+          "anchor_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 3"
+          },
+          "anchor_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 1"
+          },
+          "is_universal": {
+            "type": "boolean",
+            "title": "Is Universal",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "slot",
+          "name"
+        ],
+        "title": "CriterionOut"
+      },
+      "CriterionUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "anchor_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 5"
+          },
+          "anchor_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 3"
+          },
+          "anchor_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 1"
+          }
+        },
+        "type": "object",
+        "title": "CriterionUpdate"
+      },
+      "DataPackResourceCreate": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "url_or_storage_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Or Storage Key"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance",
+            "default": "company_supplied"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label"
+        ],
+        "title": "DataPackResourceCreate"
+      },
+      "DeclineRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "DeclineRequest"
+      },
+      "DispositionRequest": {
+        "properties": {
+          "application_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Application Ids"
+          },
+          "action": {
+            "type": "string",
+            "pattern": "^(offer|waitlist|reject)$",
+            "title": "Action"
+          },
+          "feedback": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feedback"
+          }
+        },
+        "type": "object",
+        "required": [
+          "application_ids",
+          "action"
+        ],
+        "title": "DispositionRequest"
+      },
+      "DispositionResult": {
+        "properties": {
+          "updated": {
+            "type": "integer",
+            "title": "Updated"
+          },
+          "skipped": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "updated"
+        ],
+        "title": "DispositionResult"
+      },
+      "DraftOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "context": {
+            "type": "string",
+            "title": "Context"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "outputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Outputs"
+          },
+          "grounding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grounding"
+          },
+          "based_on_live_listing": {
+            "type": "boolean",
+            "title": "Based On Live Listing"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "rendered": {
+            "type": "string",
+            "title": "Rendered"
+          },
+          "accepted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "context",
+          "question",
+          "outputs",
+          "grounding",
+          "based_on_live_listing",
+          "model",
+          "rendered"
+        ],
+        "title": "DraftOut"
+      },
+      "DraftRequest": {
+        "properties": {
+          "company_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Url"
+          },
+          "admin_notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Admin Notes",
+            "description": "Anything from the intake conversation worth grounding the draft in"
+          }
+        },
+        "type": "object",
+        "title": "DraftRequest"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -354,6 +3645,56 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "JudgingSessionCreate": {
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "location_or_meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Or Meet Link"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity",
+            "description": "Twelve pitches is a comfortable evening; thirty is four hours.",
+            "default": 12
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at"
+        ],
+        "title": "JudgingSessionCreate"
       },
       "MagicLinkRequest": {
         "properties": {
@@ -398,6 +3739,958 @@
           "message"
         ],
         "title": "MagicLinkResponse"
+      },
+      "NotifyRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "NotifyRequest"
+      },
+      "ProblemStatementUpdate": {
+        "properties": {
+          "problem_statement": {
+            "type": "string",
+            "title": "Problem Statement"
+          },
+          "deliverable_spec": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable Spec"
+          },
+          "from_draft_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Draft Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "problem_statement"
+        ],
+        "title": "ProblemStatementUpdate"
+      },
+      "ProgrammeCreate": {
+        "properties": {
+          "company_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Company Id"
+          },
+          "role_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Role Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Slug"
+          },
+          "delivery_mode": {
+            "type": "string",
+            "title": "Delivery Mode",
+            "default": "online"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "team_size_max": {
+            "type": "integer",
+            "title": "Team Size Max",
+            "default": 1
+          },
+          "applications_open_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Open At"
+          },
+          "applications_close_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Close At"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
+          "winners_count": {
+            "type": "integer",
+            "title": "Winners Count",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "company_id",
+          "role_id",
+          "title",
+          "slug"
+        ],
+        "title": "ProgrammeCreate"
+      },
+      "ProgrammeDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "delivery_mode": {
+            "type": "string",
+            "title": "Delivery Mode"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "team_size_max": {
+            "type": "integer",
+            "title": "Team Size Max"
+          },
+          "applications_open_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Open At"
+          },
+          "applications_close_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Close At"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "brief_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brief Url"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionOut"
+            },
+            "type": "array",
+            "title": "Criteria",
+            "default": []
+          },
+          "winners_count": {
+            "type": "integer",
+            "title": "Winners Count",
+            "default": 1
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "status",
+          "delivery_mode",
+          "team_size_max"
+        ],
+        "title": "ProgrammeDetail"
+      },
+      "ProgrammeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "delivery_mode": {
+            "type": "string",
+            "title": "Delivery Mode"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "team_size_max": {
+            "type": "integer",
+            "title": "Team Size Max"
+          },
+          "applications_open_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Open At"
+          },
+          "applications_close_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Close At"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "status",
+          "delivery_mode",
+          "team_size_max"
+        ],
+        "title": "ProgrammeOut"
+      },
+      "ProgrammeUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "brief_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brief Url"
+          },
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "team_size_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Size Max"
+          },
+          "applications_open_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Open At"
+          },
+          "applications_close_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Close At"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
+          "winners_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winners Count"
+          }
+        },
+        "type": "object",
+        "title": "ProgrammeUpdate"
+      },
+      "PublicCriterion": {
+        "properties": {
+          "slot": {
+            "type": "integer",
+            "title": "Slot"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "anchor_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 5"
+          },
+          "anchor_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 3"
+          },
+          "anchor_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "name",
+          "anchor_5",
+          "anchor_3",
+          "anchor_1"
+        ],
+        "title": "PublicCriterion"
+      },
+      "PublicListing": {
+        "properties": {
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "company_slug": {
+            "type": "string",
+            "title": "Company Slug"
+          },
+          "programme_slug": {
+            "type": "string",
+            "title": "Programme Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "problem_statement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Statement"
+          },
+          "deliverable": {
+            "type": "string",
+            "title": "Deliverable"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "applications_close_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Close At"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
+          "seats_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seats Total"
+          },
+          "seats_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seats Remaining"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCriterion"
+            },
+            "type": "array",
+            "title": "Criteria"
+          },
+          "data_pack_preview": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Pack Preview"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company",
+          "company_slug",
+          "programme_slug",
+          "title",
+          "role",
+          "problem_statement",
+          "deliverable",
+          "state",
+          "applications_close_at",
+          "start_at",
+          "submit_deadline_at",
+          "seats_total",
+          "seats_remaining",
+          "criteria",
+          "data_pack_preview"
+        ],
+        "title": "PublicListing",
+        "description": "FR-101 \u2014 company, role, summary, dates, commitment, and what they get.\n\nThe full rubric renders here (FR-078): publishing it tells participants what\nthey are judged on and removes the \"it felt arbitrary\" complaint. There is\nno advantage in concealing it \u2014 the rubric rewards things that cannot be faked."
+      },
+      "PublicationCheck": {
+        "properties": {
+          "ready": {
+            "type": "boolean",
+            "title": "Ready"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ready",
+          "problems"
+        ],
+        "title": "PublicationCheck"
+      },
+      "RoleImplications": {
+        "properties": {
+          "role": {
+            "$ref": "#/components/schemas/RoleSummary"
+          },
+          "default_deliverable": {
+            "type": "string",
+            "title": "Default Deliverable"
+          },
+          "universal_memo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Universal Memo"
+          },
+          "public_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Public Sources"
+          },
+          "student_tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Student Tools"
+          },
+          "judging_criteria": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Judging Criteria"
+          },
+          "company_asks_easy": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Company Asks Easy"
+          },
+          "delivery_risk_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Risk Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "default_deliverable",
+          "public_sources",
+          "student_tools",
+          "judging_criteria",
+          "company_asks_easy"
+        ],
+        "title": "RoleImplications",
+        "description": "FR-053 \u2014 what the company sees the moment they pick a role.\n\nThis is where the programme stops being abstract for the buyer, and it\nprevents the common failure where a company picks a role whose deliverable\nis not what they actually wanted."
+      },
+      "RoleSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "cluster": {
+            "type": "string",
+            "title": "Cluster"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "cluster"
+        ],
+        "title": "RoleSummary"
+      },
+      "ScoreRequest": {
+        "properties": {
+          "relevance": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevance"
+          },
+          "specificity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Specificity"
+          },
+          "capability": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capability"
+          },
+          "followthrough": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followthrough"
+          }
+        },
+        "type": "object",
+        "title": "ScoreRequest"
+      },
+      "SeatsOut": {
+        "properties": {
+          "capacity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity"
+          },
+          "taken": {
+            "type": "integer",
+            "title": "Taken"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "uncapped": {
+            "type": "boolean",
+            "title": "Uncapped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "capacity",
+          "taken",
+          "pending",
+          "remaining",
+          "uncapped"
+        ],
+        "title": "SeatsOut"
       },
       "ValidationError": {
         "properties": {

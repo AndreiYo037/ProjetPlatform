@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Integer,
@@ -53,6 +54,13 @@ class Programme(Base):
     slug: Mapped[str] = mapped_column(String(160))
     role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id"))
     brief_url: Mapped[str | None] = mapped_column(Text)
+    # FR-067 — the company can rewrite this and change the deliverables. The
+    # draft is a starting point, not what must run.
+    problem_statement: Mapped[str | None] = mapped_column(Text)
+    deliverable_spec: Mapped[str | None] = mapped_column(Text)
+    # FR-068 — set when a company supplies restricted material, which gates the
+    # data pack behind a confidentiality acknowledgement.
+    requires_confidentiality_ack: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # FR-056a — null means no cap; admin admits by judgement.
     capacity: Mapped[int | None] = mapped_column(Integer)
@@ -132,6 +140,30 @@ class RubricCriterion(Base):
     @property
     def is_complete(self) -> bool:
         return bool(self.name and self.anchor_5 and self.anchor_3 and self.anchor_1)
+
+
+class ProblemStatementDraft(Base):
+    """A drafted problem statement awaiting admin review (FR-063).
+
+    Drafts are never auto-published, so they need somewhere to live that is not
+    the programme itself. Keeping the grounding and the model that produced it
+    means a draft can be judged on what it was based on, not just how it reads.
+    """
+
+    __tablename__ = "problem_statement_draft"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    programme_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("programme.id", ondelete="CASCADE"))
+    title: Mapped[str] = mapped_column(String(300))
+    context: Mapped[str] = mapped_column(Text)
+    question: Mapped[str] = mapped_column(Text)
+    outputs: Mapped[list[str]] = mapped_column(JSONList, default=list)
+    grounding: Mapped[str | None] = mapped_column(Text)
+    based_on_live_listing: Mapped[bool] = mapped_column(Boolean, default=False)
+    model: Mapped[str | None] = mapped_column(String(80))
+    accepted_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
+    created_by: Mapped[uuid.UUID | None] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
 
 
 class DataPackResource(Base):

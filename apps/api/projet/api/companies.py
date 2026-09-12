@@ -1,0 +1,337 @@
+"""Company accounts, team management and company home (FR-010, FR-017).
+
+FR-016: adding a second judge is the owner inviting a colleague, not an admin
+request to Andrei. That is the whole point of companies having real accounts.
+"""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from projet.access import company_candidate_pool
+from projet.api.deps import (
+    require_actor,
+    require_company_manager,
+    require_platform,
+    visible_programmes,
+)
+from projet.api.schemas import (
+    CompanySummary,
+    CompanyUserInvite,
+    CompanyUserOut,
+    ProgrammeOut,
+    RoleSummary,
+)
+from projet.db import get_session
+from projet.models import Company, CompanyUser, Programme, ProgrammeAssignment, Role
+from projet.models.enums import (
+    CompanyUserRole,
+    CompanyUserStatus,
+    OutboxSubjectType,
+    ProgrammeStatus,
+)
+from projet.models.people import normalise_email
+from projet.outbox.auth_effects import MAGIC_LINK_EMAIL
+from projet.outbox.effects import enqueue
+from projet.services.auth import Actor, issue_magic_link, magic_link_url
+from projet.services.people import looks_like_email
+
+router = APIRouter(tags=["companies"])
+
+ACTIVE_STATUSES = (
+    ProgrammeStatus.OPEN,
+    ProgrammeStatus.CLOSED,
+    ProgrammeStatus.SELECTING,
+    ProgrammeStatus.CONFIRMED,
+    ProgrammeStatus.RUNNING,
+    ProgrammeStatus.SUBMITTED,
+    ProgrammeStatus.JUDGING,
+)
+
+
+class CompanyCreate(BaseModel):
+    name: str
+    slug: str
+    owner_name: str
+    owner_email: str
+    contact_name: str | None = None
+    tier: str = "sme"
+
+
+class CandidateOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    organisation: str | None = None
+    job_title: str | None = None
+    year_course: str | None = None
+
+
+class CompanyHome(BaseModel):
+    """FR-017 — what a company user sees on signing in."""
+
+    company: CompanySummary
+    active_programmes: list[ProgrammeOut]
+    past_programmes: list[ProgrammeOut]
+    team: list[CompanyUserOut]
+    candidate_pool_size: int
+
+
+def _company_or_404(db: Session, company_id: uuid.UUID, actor: Actor) -> Company:
+    company = db.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found.")
+    if not actor.is_platform and actor.company_id != company.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found.")
+    return company
+
+
+@router.post("/companies", response_model=CompanySummary, status_code=201)
+def create_company(
+    payload: CompanyCreate,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_platform),
+) -> Company:
+    """FR-014 — admin creates the company and its first user, the owner.
+    The owner invites everyone else themselves."""
+    if db.scalar(select(Company).where(Company.slug == payload.slug)):
+        raise HTTPException(status.HTTP_409_CONFLICT, "That slug is already taken.")
+    if not looks_like_email(payload.owner_email):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid owner email.")
+
+    company = Company(
+        name=payload.name,
+        slug=payload.slug,
+        contact_name=payload.contact_name or payload.owner_name,
+        contact_email=normalise_email(payload.owner_email),
+        tier=payload.tier,
+    )
+    db.add(company)
+    db.flush()
+    db.add(
+        CompanyUser(
+            company_id=company.id,
+            name=payload.owner_name,
+            email=normalise_email(payload.owner_email) or payload.owner_email,
+            role=CompanyUserRole.OWNER,
+            status=CompanyUserStatus.INVITED,
+        )
+    )
+    db.commit()
+    return company
+
+
+@router.get("/companies/{company_id}/home", response_model=CompanyHome)
+def company_home(
+    company_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_actor),
+) -> CompanyHome:
+    company = _company_or_404(db, company_id, actor)
+
+    programmes = list(
+        db.scalars(visible_programmes(db, actor).where(Programme.company_id == company.id))
+    )
+    roles = (
+        {
+            role.id: role
+            for role in db.scalars(select(Role).where(Role.id.in_([p.role_id for p in programmes])))
+        }
+        if programmes
+        else {}
+    )
+    active = [p for p in programmes if p.status in ACTIVE_STATUSES]
+    past = [p for p in programmes if p.status == ProgrammeStatus.COMPLETE]
+
+    team: list[CompanyUser] = []
+    if actor.is_platform or actor.role in {
+        CompanyUserRole.OWNER.value,
+        CompanyUserRole.ADMIN.value,
+    }:
+        team = list(db.scalars(select(CompanyUser).where(CompanyUser.company_id == company.id)))
+
+    # FR-018 — the pool is the retention mechanism, so its size is the headline.
+    pool_size = len(list(db.scalars(company_candidate_pool(company.id))))
+
+    return CompanyHome(
+        company=CompanySummary.model_validate(company),
+        active_programmes=[_programme_out(p, roles) for p in active],
+        past_programmes=[_programme_out(p, roles) for p in past],
+        team=[CompanyUserOut.model_validate(u) for u in team],
+        candidate_pool_size=pool_size,
+    )
+
+
+def _programme_out(programme: Programme, roles: dict) -> ProgrammeOut:
+    data = ProgrammeOut.model_validate(programme)
+    role = roles.get(programme.role_id)
+    if role is not None:
+        data.role = RoleSummary.model_validate(role)
+    return data
+
+
+@router.get("/companies/{company_id}/candidates", response_model=list[CandidateOut])
+def candidate_pool(
+    company_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_actor),
+) -> list[CandidateOut]:
+    """FR-018 — everyone who consented, across every programme this company has
+    run. Consent is enforced by the query, not by this route (section 8)."""
+    company = _company_or_404(db, company_id, actor)
+    people = db.scalars(company_candidate_pool(company.id))
+    return [
+        CandidateOut(
+            id=person.id,
+            name=person.name,
+            organisation=person.organisation,
+            job_title=person.job_title,
+            year_course=person.year_course,
+        )
+        for person in people
+    ]
+
+
+@router.get("/companies/{company_id}/users", response_model=list[CompanyUserOut])
+def list_users(
+    company_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> list[CompanyUser]:
+    company = _company_or_404(db, company_id, actor)
+    return list(db.scalars(select(CompanyUser).where(CompanyUser.company_id == company.id)))
+
+
+@router.post("/companies/{company_id}/users", response_model=CompanyUserOut, status_code=201)
+def invite_user(
+    company_id: uuid.UUID,
+    payload: CompanyUserInvite,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> CompanyUser:
+    """FR-016 — the owner invites a colleague directly. No admin in the loop."""
+    company = _company_or_404(db, company_id, actor)
+    email = normalise_email(payload.email)
+    if not looks_like_email(email):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid email address.")
+    try:
+        role = CompanyUserRole(payload.role)
+    except ValueError:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, f"Unknown role {payload.role!r}."
+        ) from None
+    promoting_to_owner = role == CompanyUserRole.OWNER and not actor.is_platform
+    if promoting_to_owner and actor.role != CompanyUserRole.OWNER.value:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an owner can add an owner.")
+
+    existing = db.scalar(
+        select(CompanyUser)
+        .where(CompanyUser.company_id == company.id)
+        .where(CompanyUser.email == email)
+    )
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That person is already on the team.")
+
+    user = CompanyUser(
+        company_id=company.id,
+        name=payload.name,
+        email=email or payload.email,
+        title=payload.title,
+        role=role,
+        status=CompanyUserStatus.INVITED,
+        invited_by=actor.id if actor.is_company_user else None,
+    )
+    db.add(user)
+    db.flush()
+
+    issued = issue_magic_link(db, email=user.email, redirect_path="/company")
+    if issued is not None:
+        token, raw = issued
+        enqueue(
+            db,
+            subject_type=OutboxSubjectType.MAGIC_LINK,
+            subject_id=token.id,
+            effect_type=MAGIC_LINK_EMAIL,
+            payload={"url": magic_link_url(raw, token.redirect_path)},
+        )
+    db.commit()
+    return user
+
+
+@router.delete("/companies/{company_id}/users/{user_id}", status_code=204)
+def disable_user(
+    company_id: uuid.UUID,
+    user_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> None:
+    """Disabled rather than deleted: their scores and testimonials must keep
+    their attribution."""
+    company = _company_or_404(db, company_id, actor)
+    user = db.get(CompanyUser, user_id)
+    if user is None or user.company_id != company.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found.")
+    if user.id == actor.id:
+        raise HTTPException(status.HTTP_409_CONFLICT, "You cannot disable your own account.")
+
+    owners = list(
+        db.scalars(
+            select(CompanyUser)
+            .where(CompanyUser.company_id == company.id)
+            .where(CompanyUser.role == CompanyUserRole.OWNER)
+            .where(CompanyUser.status != CompanyUserStatus.DISABLED)
+        )
+    )
+    if user.role == CompanyUserRole.OWNER and len(owners) <= 1:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "That is the last owner; promote someone else first.",
+        )
+
+    user.status = CompanyUserStatus.DISABLED
+    from projet.models.enums import ActorType
+    from projet.services.auth import revoke_all_sessions
+
+    revoke_all_sessions(db, ActorType.COMPANY_USER, user.id)
+    db.commit()
+
+
+class AssignmentRequest(BaseModel):
+    company_user_id: uuid.UUID
+    can_score: bool = True
+
+
+@router.put("/programmes/{programme_id}/assignments", status_code=204)
+def assign_rep(
+    programme_id: uuid.UUID,
+    payload: AssignmentRequest,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> None:
+    """FR-015 — this is what scopes a rep to their own challenge."""
+    programme = db.get(Programme, programme_id)
+    if programme is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Programme not found.")
+    if not actor.is_platform and programme.company_id != actor.company_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Programme not found.")
+
+    user = db.get(CompanyUser, payload.company_user_id)
+    if user is None or user.company_id != programme.company_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found in this company.")
+
+    existing = db.get(ProgrammeAssignment, (programme.id, user.id))
+    if existing is None:
+        db.add(
+            ProgrammeAssignment(
+                programme_id=programme.id,
+                company_user_id=user.id,
+                can_score=payload.can_score,
+            )
+        )
+    else:
+        existing.can_score = payload.can_score
+    db.commit()

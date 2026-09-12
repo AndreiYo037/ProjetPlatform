@@ -22,6 +22,7 @@ from projet.models.programme import (
     DataPackResource,
     Event,
     JudgingSession,
+    ProblemStatementDraft,
     Programme,
     RubricCriterion,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "Participant",
     "Person",
     "PlatformUser",
+    "ProblemStatementDraft",
     "Post",
     "ProfileSkill",
     "Programme",
