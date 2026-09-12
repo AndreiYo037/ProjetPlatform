@@ -8,14 +8,19 @@ scheduler are real and observable.
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from projet import __version__
+from projet.api.auth import router as auth_router
 from projet.config import get_settings
 from projet.db import get_session
 from projet.models import Role
-from projet.outbox import worker
+
+# Importing the effect modules registers their handlers; without this the worker
+# has no handler for an effect a route enqueued and marks the row failed.
+from projet.outbox import auth_effects, provisioning, snapshots, worker  # noqa: F401
 
 
 def create_app() -> FastAPI:
@@ -24,6 +29,17 @@ def create_app() -> FastAPI:
         version=__version__,
         description="Proof-of-work hiring infrastructure.",
     )
+
+    settings = get_settings()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        # Sessions are cookie-borne, so the browser must be allowed to send them.
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.include_router(auth_router)
 
     @app.get("/healthz", tags=["ops"])
     def healthz() -> dict:
@@ -50,7 +66,6 @@ def create_app() -> FastAPI:
     @app.get("/config", tags=["ops"])
     def config() -> dict:
         """Non-secret configuration, so a deploy can be checked at a glance."""
-        settings = get_settings()
         return {
             "environment": settings.environment,
             "google_driver": "real" if settings.use_real_google else "fake",

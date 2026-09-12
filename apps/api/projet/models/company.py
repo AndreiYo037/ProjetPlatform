@@ -1,4 +1,8 @@
-"""Companies, their users, programme scoping and magic-link tokens (FR-010)."""
+"""Companies, their users and programme scoping (FR-010).
+
+Authentication lives in models/auth.py — it spans all three actor types, not
+just company users.
+"""
 
 from __future__ import annotations
 
@@ -60,25 +64,6 @@ class ProgrammeAssignment(Base):
         ForeignKey("company_user.id", ondelete="CASCADE"), primary_key=True
     )
     can_score: Mapped[bool] = mapped_column(Boolean, default=True)
-
-
-class MagicLinkToken(Base):
-    """FR-011/FR-013 — single-use, expiring, deep-linkable.
-
-    Tokens are stored hashed: a leaked database row must not be a usable login.
-    """
-
-    __tablename__ = "magic_link_token"
-
-    id: Mapped[uuid.UUID] = uuid_pk()
-    company_user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("company_user.id", ondelete="CASCADE")
-    )
-    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
-    redirect_path: Mapped[str | None] = mapped_column(Text)
-    expires_at: Mapped[datetime] = mapped_column(TimestampTZ)
-    consumed_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
-    created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
 
 
 class AuditLog(Base):

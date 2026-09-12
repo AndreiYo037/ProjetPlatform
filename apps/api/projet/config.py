@@ -19,7 +19,9 @@ class Settings(BaseSettings):
 
     # Core
     database_url: str = "sqlite+pysqlite:///./projet.db"
-    app_base_url: str = "http://localhost:8000"
+    app_base_url: str = "http://localhost:3000"
+    api_base_url: str = "http://localhost:8000"
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     environment: str = "development"
 
     # Content (the markdown seed source of truth)

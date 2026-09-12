@@ -5,6 +5,23 @@ from __future__ import annotations
 from enum import StrEnum
 
 
+class ActorType(StrEnum):
+    """Who is acting. Three identities, one auth mechanism (FR-011).
+
+    Platform staff are deliberately a separate table from company users: a bug
+    in company scoping should never be able to escalate into cross-tenant access.
+    """
+
+    PLATFORM = "platform"
+    COMPANY_USER = "company_user"
+    PARTICIPANT = "participant"
+
+
+class PlatformRole(StrEnum):
+    ADMIN = "admin"
+    STAFF = "staff"
+
+
 class CompanyTier(StrEnum):
     SME = "sme"
     MIDMARKET = "midmarket"
@@ -169,3 +186,4 @@ class OutboxSubjectType(StrEnum):
     COMPANY_USER = "company_user"
     PROGRAMME = "programme"
     SUBMISSION_LINK = "submission_link"
+    MAGIC_LINK = "magic_link"

@@ -16,6 +16,20 @@ from projet.models import Person, normalise_email
 NON_GOOGLE_DOMAINS = ("outlook.", "hotmail.", "yahoo.", "proton.", "protonmail.", "icloud.")
 
 
+def looks_like_email(value: str | None) -> bool:
+    """Deliberately permissive.
+
+    A strict validator rejects valid-but-unusual addresses, and FR-204's whole
+    stance is to warn rather than block because organisations run Google on
+    custom domains. We only reject what cannot be an address at all.
+    """
+    normalised = normalise_email(value)
+    if not normalised or normalised.count("@") != 1:
+        return False
+    local, _, domain = normalised.partition("@")
+    return bool(local) and "." in domain and not domain.startswith(".") and not domain.endswith(".")
+
+
 def find_person(
     session: Session, *, contact_email: str, google_email: str | None = None
 ) -> Person | None:

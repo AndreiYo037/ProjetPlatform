@@ -1,10 +1,10 @@
 """All ORM models, re-exported so metadata is complete on a single import."""
 
+from projet.models.auth import AuthSession, MagicLinkToken, PlatformUser
 from projet.models.company import (
     AuditLog,
     Company,
     CompanyUser,
-    MagicLinkToken,
     ProgrammeAssignment,
 )
 from projet.models.messaging import Attachment, Post, Thread, ThreadMember, ThreadRead
@@ -33,6 +33,7 @@ __all__ = [
     "Application",
     "Attachment",
     "AuditLog",
+    "AuthSession",
     "Company",
     "CompanyUser",
     "Credential",
@@ -44,6 +45,7 @@ __all__ = [
     "Outbox",
     "Participant",
     "Person",
+    "PlatformUser",
     "Post",
     "ProfileSkill",
     "Programme",

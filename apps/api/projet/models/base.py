@@ -79,7 +79,9 @@ class UtcDateTime(TypeDecorator):
     impl = DateTime
     cache_ok = True
 
-    def __init__(self) -> None:
+    def __init__(self, timezone: bool = True) -> None:
+        # Alembic autogenerate renders this type as UtcDateTime(timezone=True),
+        # so the kwarg has to be accepted even though it is always True here.
         super().__init__(timezone=True)
 
     def process_bind_param(self, value, dialect):  # type: ignore[no-untyped-def]
