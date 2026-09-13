@@ -257,7 +257,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
             <p>
               <a
                 className="btn secondary"
-                href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}${detail.cv_url}`}
+                href={detail.cv_url.startsWith("http") ? detail.cv_url : `/backend${detail.cv_url}`}
                 target="_blank"
                 rel="noreferrer"
               >

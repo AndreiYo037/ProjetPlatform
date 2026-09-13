@@ -25,9 +25,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.config import get_settings
-from projet.models import AccountActionToken, AuthSession, CompanyUser, Person, PlatformUser
+from projet.models import AccountActionToken, AuthSession, Company, CompanyUser, Person, PlatformUser
 from projet.models.base import utcnow
-from projet.models.enums import AccountActionPurpose, ActorType, CompanyUserStatus
+from projet.models.enums import (
+    AccountActionPurpose,
+    ActorType,
+    CompanyUserRole,
+    CompanyUserStatus,
+)
 from projet.models.people import normalise_email
 
 ACTION_TOKEN_TTL = timedelta(hours=48)
@@ -46,6 +51,10 @@ _SCRYPT_DKLEN = 32
 
 class AuthError(RuntimeError):
     pass
+
+
+class SignupError(AuthError):
+    """A sign-up that cannot proceed — duplicate account or invalid input."""
 
 
 @dataclass(frozen=True)
@@ -312,6 +321,96 @@ def authenticate(
     if not verify_password(password, stored):
         return None
     return subject_id
+
+
+def _unique_company_slug(session: Session, name: str) -> str:
+    from projet.seeds.parsers.common import slugify
+
+    base = slugify(name) or "company"
+    slug = base
+    n = 2
+    while session.scalar(select(Company.id).where(Company.slug == slug)):
+        slug = f"{base}-{n}"
+        n += 1
+    return slug
+
+
+def _placeholder_name(email: str) -> str:
+    local = email.split("@", 1)[0]
+    cleaned = local.replace(".", " ").replace("_", " ").replace("-", " ").strip()
+    return cleaned.title() if cleaned else "Account"
+
+
+def register_account(
+    session: Session,
+    *,
+    actor_type: ActorType,
+    email: str,
+    password: str,
+) -> uuid.UUID:
+    """Email and password only. Names are filled in on the profile after login."""
+    if actor_type == ActorType.PLATFORM:
+        raise SignupError("Not found.")
+
+    password_error = validate_password(password)
+    if password_error:
+        raise SignupError(password_error)
+
+    normalised = normalise_email(email)
+    if not normalised:
+        raise SignupError("That does not look like an email address.")
+
+    placeholder = _placeholder_name(normalised)
+    if actor_type == ActorType.PARTICIPANT:
+        return _register_participant(session, name=placeholder, email=normalised, password=password)
+    return _register_company(session, name=placeholder, email=normalised, password=password)
+
+
+def _register_participant(session: Session, *, name: str, email: str, password: str) -> uuid.UUID:
+    existing_id = resolve_actor_of_type(session, email, ActorType.PARTICIPANT)
+    if existing_id is not None:
+        person = session.get(Person, existing_id)
+        if person is not None and person.password_hash:
+            raise SignupError("An account with that email already exists. Sign in instead.")
+        if person is not None:
+            person.password_hash = hash_password(password)
+            session.flush()
+            return person.id
+
+    person = Person(name=name, contact_email=email, password_hash=hash_password(password))
+    session.add(person)
+    session.flush()
+    return person.id
+
+
+def _register_company(session: Session, *, name: str, email: str, password: str) -> uuid.UUID:
+    existing = session.scalar(
+        select(CompanyUser)
+        .where(CompanyUser.email == email)
+        .where(CompanyUser.status != CompanyUserStatus.DISABLED)
+    )
+    if existing is not None:
+        raise SignupError("An account with that email already exists. Sign in instead.")
+
+    company = Company(
+        name="Untitled company",
+        slug=_unique_company_slug(session, "company"),
+        contact_name=name,
+        contact_email=email,
+    )
+    session.add(company)
+    session.flush()
+    owner = CompanyUser(
+        company_id=company.id,
+        name=name,
+        email=email,
+        password_hash=hash_password(password),
+        role=CompanyUserRole.OWNER,
+        status=CompanyUserStatus.ACTIVE,
+    )
+    session.add(owner)
+    session.flush()
+    return owner.id
 
 
 def set_password(

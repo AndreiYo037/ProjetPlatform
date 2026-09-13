@@ -21,6 +21,7 @@ from projet.models import (
     DataPackResource,
     JudgingSession,
     Participant,
+    Person,
     Post,
     Programme,
     Role,
@@ -48,6 +49,74 @@ from projet.services.submission import (
 )
 
 router = APIRouter(prefix="/me", tags=["participant"])
+
+
+class ProfileOut(BaseModel):
+    name: str
+    email: str
+    organisation: str | None = None
+    year_course: str | None = None
+    job_title: str | None = None
+    phone: str | None = None
+
+
+class ProfileUpdate(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    organisation: str | None = Field(default=None, max_length=300)
+    year_course: str | None = Field(default=None, max_length=300)
+    job_title: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=60)
+
+
+def _person(db: Session, actor: Actor) -> Person:
+    person = db.get(Person, actor.id)
+    if person is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Account not found.")
+    return person
+
+
+def _profile_out(person: Person) -> ProfileOut:
+    return ProfileOut(
+        name=person.name,
+        email=person.contact_email,
+        organisation=person.organisation,
+        year_course=person.year_course,
+        job_title=person.job_title,
+        phone=person.phone,
+    )
+
+
+@router.get("/profile", response_model=ProfileOut)
+def get_profile(
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProfileOut:
+    return _profile_out(_person(db, actor))
+
+
+@router.patch("/profile", response_model=ProfileOut)
+def update_profile(
+    payload: ProfileUpdate,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProfileOut:
+    person = _person(db, actor)
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Name is required.")
+        person.name = name
+    if payload.organisation is not None:
+        person.organisation = payload.organisation.strip() or None
+    if payload.year_course is not None:
+        person.year_course = payload.year_course.strip() or None
+    if payload.job_title is not None:
+        person.job_title = payload.job_title.strip() or None
+    if payload.phone is not None:
+        person.phone = payload.phone.strip() or None
+    db.commit()
+    db.refresh(person)
+    return _profile_out(person)
 
 
 class SlotOut(BaseModel):

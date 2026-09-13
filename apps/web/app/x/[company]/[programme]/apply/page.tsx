@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useMemo, useState } from "react";
-import { API_BASE_URL } from "@/lib/api";
+import { apiUrl } from "@/lib/api";
 
 const MIN_WORDS = 200;
 const MAX_WORDS = 300;
@@ -38,8 +38,8 @@ export default function ApplyPage({
     form.set("cv", cv);
     try {
       const response = await fetch(
-        `${API_BASE_URL}/public/x/${company}/${programme}/apply`,
-        { method: "POST", body: form },
+        apiUrl(`/public/x/${company}/${programme}/apply`),
+        { method: "POST", body: form, credentials: "include" },
       );
       const body = await response.json();
       if (!response.ok) throw new Error(body?.detail ?? "Could not submit your application.");

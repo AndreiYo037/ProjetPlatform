@@ -296,3 +296,84 @@ def test_the_wrong_admin_code_is_rejected_over_http(client, monkeypatch):
     response = client.post("/auth/admin-code", json={"code": "nope"})
     assert response.status_code == 401
     get_settings.cache_clear()
+
+
+def test_a_participant_can_sign_up_over_http(client):
+    response = client.post(
+        "/auth/signup",
+        json={
+            "actor_type": "participant",
+            "email": "ada@school.test",
+            "password": "hunter22",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["actor_type"] == "participant"
+    assert SESSION_COOKIE in response.cookies
+    assert client.get("/auth/me").json()["email"] == "ada@school.test"
+
+
+def test_a_company_can_sign_up_over_http(client):
+    response = client.post(
+        "/auth/signup",
+        json={
+            "actor_type": "company_user",
+            "email": "dana@startup.test",
+            "password": "hunter22",
+        },
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["actor_type"] == "company_user"
+    assert body["role"] == "owner"
+    assert body["company_id"] is not None
+
+
+def test_platform_signup_is_404(client):
+    response = client.post(
+        "/auth/signup",
+        json={
+            "actor_type": "platform",
+            "email": "staff@projet.sg",
+            "password": "hunter22",
+        },
+    )
+    assert response.status_code == 404
+
+
+def test_duplicate_signup_is_conflict(client):
+    payload = {
+        "actor_type": "participant",
+        "email": "ada@school.test",
+        "password": "hunter22",
+    }
+    assert client.post("/auth/signup", json=payload).status_code == 201
+    client.post("/auth/logout")
+    assert client.post("/auth/signup", json=payload).status_code == 409
+
+
+def test_a_participant_can_edit_their_profile_after_signup(client):
+    client.post(
+        "/auth/signup",
+        json={"actor_type": "participant", "email": "ada@school.test", "password": "hunter22"},
+    )
+    response = client.patch("/me/profile", json={"name": "Ada Lovelace", "organisation": "NUS"})
+    assert response.status_code == 200
+    assert response.json()["name"] == "Ada Lovelace"
+    assert response.json()["organisation"] == "NUS"
+
+
+def test_a_company_can_edit_its_profile_after_signup(client):
+    created = client.post(
+        "/auth/signup",
+        json={"actor_type": "company_user", "email": "dana@startup.test", "password": "hunter22"},
+    )
+    company_id = created.json()["company_id"]
+    response = client.patch(
+        f"/companies/{company_id}",
+        json={"name": "NewCo", "your_name": "Dana"},
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "NewCo"
+    home = client.get(f"/companies/{company_id}/home")
+    assert home.json()["team"][0]["name"] == "Dana"

@@ -85,6 +85,11 @@ class CompanyHome(BaseModel):
     candidate_pool_size: int
 
 
+class CompanyProfileUpdate(BaseModel):
+    name: str | None = None
+    your_name: str | None = None
+
+
 def _company_or_404(db: Session, company_id: uuid.UUID, actor: Actor) -> Company:
     company = db.get(Company, company_id)
     if company is None:
@@ -144,6 +149,32 @@ def create_company(
         payload={"url": account_action_url(token, raw)},
     )
     db.commit()
+    return company
+
+
+@router.patch("/companies/{company_id}", response_model=CompanySummary)
+def update_company_profile(
+    company_id: uuid.UUID,
+    payload: CompanyProfileUpdate,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> Company:
+    company = _company_or_404(db, company_id, actor)
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Company name is required.")
+        company.name = name
+    if payload.your_name is not None and actor.is_company_user:
+        user = db.get(CompanyUser, actor.id)
+        if user is not None:
+            label = payload.your_name.strip()
+            if not label:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Your name is required.")
+            user.name = label
+            company.contact_name = label
+    db.commit()
+    db.refresh(company)
     return company
 
 

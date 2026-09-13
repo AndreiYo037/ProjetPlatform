@@ -11,11 +11,12 @@ import uuid
 
 import pytest
 
-from projet.models import PlatformUser
+from projet.models import Company, CompanyUser, Person, PlatformUser
 from projet.models.base import utcnow
 from projet.models.enums import AccountActionPurpose, ActorType, CompanyUserStatus
 from projet.services.auth import (
     AuthError,
+    SignupError,
     account_action_url,
     authenticate,
     consume_account_action_token,
@@ -23,6 +24,7 @@ from projet.services.auth import (
     hash_password,
     issue_account_action_token,
     issue_password_reset,
+    register_account,
     resolve_actor_by_email,
     resolve_session,
     revoke_all_sessions,
@@ -445,3 +447,70 @@ def test_a_disabled_bootstrapped_admin_cannot_reauthenticate(session, monkeypatc
 
     assert authenticate_admin_code(session, "let-me-in") is None
     get_settings.cache_clear()
+
+
+def test_a_participant_can_sign_up_and_then_log_in(session):
+    subject_id = register_account(
+        session,
+        actor_type=ActorType.PARTICIPANT,
+        email="ada@school.test",
+        password="hunter22",
+    )
+    person = session.get(Person, subject_id)
+    assert person is not None
+    assert person.password_hash is not None
+    assert (
+        authenticate(
+            session, email="ada@school.test", password="hunter22", actor_type=ActorType.PARTICIPANT
+        )
+        == subject_id
+    )
+
+
+def test_a_company_signup_creates_an_owner(session):
+    subject_id = register_account(
+        session,
+        actor_type=ActorType.COMPANY_USER,
+        email="dana@startup.test",
+        password="hunter22",
+    )
+    owner = session.get(CompanyUser, subject_id)
+    assert owner is not None
+    assert owner.role.value == "owner"
+    assert owner.status == CompanyUserStatus.ACTIVE
+    company = session.get(Company, owner.company_id)
+    assert company is not None
+    assert company.name == "Untitled company"
+    assert company.slug.startswith("company")
+    assert (
+        authenticate(
+            session, email="dana@startup.test", password="hunter22", actor_type=ActorType.COMPANY_USER
+        )
+        == subject_id
+    )
+
+
+def test_a_duplicate_participant_email_is_refused(session):
+    register_account(
+        session,
+        actor_type=ActorType.PARTICIPANT,
+        email="ada@school.test",
+        password="hunter22",
+    )
+    with pytest.raises(SignupError, match="already exists"):
+        register_account(
+            session,
+            actor_type=ActorType.PARTICIPANT,
+            email="ada@school.test",
+            password="hunter22",
+        )
+
+
+def test_platform_signup_is_not_offered(session):
+    with pytest.raises(SignupError, match="Not found"):
+        register_account(
+            session,
+            actor_type=ActorType.PLATFORM,
+            email="staff@projet.sg",
+            password="hunter22",
+        )

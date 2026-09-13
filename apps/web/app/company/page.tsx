@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
-import { getCompanyHome, type CompanyHome } from "@/lib/api";
+import { getCompanyHome, updateCompanyProfile, type CompanyHome } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
 
 export default function CompanyHomePage() {
@@ -41,6 +41,7 @@ export default function CompanyHomePage() {
         {home.candidate_pool_size} candidate{home.candidate_pool_size === 1 ? "" : "s"} you
         have watched present, across every programme you have run.
       </p>
+      <CompanyProfile home={home} onSaved={load} />
 
       <h2>Active programmes</h2>
       {home.active_programmes.length === 0 ? (
@@ -74,37 +75,67 @@ export default function CompanyHomePage() {
           ))}
         </>
       )}
-
-      {home.team.length > 0 && (
-        <>
-          <h2>Team</h2>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Access</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {home.team.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.name}</td>
-                    <td className="muted">{user.email}</td>
-                    <td>{user.role}</td>
-                    <td className="muted">{user.status}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="small muted" style={{ marginTop: "0.6rem" }}>
-            Adding a judge is inviting a colleague. You do not need to ask us.
-          </p>
-        </>
-      )}
     </main>
+  );
+}
+
+function CompanyProfile({
+  home,
+  onSaved,
+}: {
+  home: CompanyHome;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(home.company.name);
+  const [contactName, setContactName] = useState(home.team[0]?.name ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      await updateCompanyProfile(home.company.id, {
+        name,
+        ...(contactName.trim() ? { your_name: contactName.trim() } : {}),
+      });
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="panel" style={{ margin: "1.5rem 0" }}>
+      <h2 style={{ marginTop: 0 }}>Company profile</h2>
+      <div className="field">
+        <label htmlFor="company-name">Company name</label>
+        <input
+          id="company-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="contact-name">Contact name</label>
+        <input
+          id="contact-name"
+          value={contactName}
+          onChange={(e) => setContactName(e.target.value)}
+        />
+      </div>
+      {error && <div className="notice bad">{error}</div>}
+      {saved && <div className="notice good">Saved.</div>}
+      <button type="submit" disabled={busy || !name}>
+        {busy ? "Saving…" : "Save profile"}
+      </button>
+    </form>
   );
 }

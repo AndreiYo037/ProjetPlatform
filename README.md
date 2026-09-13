@@ -13,7 +13,7 @@ taxonomy. Product screens land from Milestone 1 onward.
 apps/api/      FastAPI service, SQLAlchemy models, Alembic migrations
 apps/web/      Next.js scaffold; API types generated from the OpenAPI schema
 content/       the canonical role taxonomy, as markdown — see below
-docs/          decisions.md: where this departs from the PRD, and why
+docs/          decisions.md (PRD departures); previous-platform.md (ideas from v1)
 ```
 
 ## Running it

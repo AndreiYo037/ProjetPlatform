@@ -5,10 +5,13 @@ import ActorGateNotice from "@/components/ActorGateNotice";
 import Countdown from "@/components/Countdown";
 import {
   getDashboard,
+  getMyProfile,
   markThreadRead,
   putSubmissionLink,
   recheckSubmission,
+  updateMyProfile,
   type Dashboard,
+  type PersonProfile,
   type SubmissionOut,
 } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
@@ -45,7 +48,21 @@ export default function DashboardPage() {
   }, [load]);
 
   if (!ready) return <ActorGateNotice gate={gate} />;
-  if (error) return <main><div className="notice bad">{error}</div></main>;
+  if (error) {
+    if (/not on a programme/i.test(error)) {
+      return (
+        <main className="narrow">
+          <h1>You&apos;re in</h1>
+          <p className="lede">
+            You do not have a programme yet. When you apply and are accepted, this
+            page becomes your dashboard.
+          </p>
+          <ParticipantProfile />
+        </main>
+      );
+    }
+    return <main><div className="notice bad">{error}</div></main>;
+  }
   if (!data) return <main><p className="muted">Loading…</p></main>;
 
   if (data.provisioning) {
@@ -69,6 +86,7 @@ export default function DashboardPage() {
       <p className="lede">
         {data.programme.company} · {data.programme.role}
       </p>
+      <ParticipantProfile />
 
       {/* FR-703 — a required acknowledgement blocks until it is acknowledged. */}
       {data.blocking_acknowledgements.map((thread) => (
@@ -204,6 +222,87 @@ export default function DashboardPage() {
         </div>
       ))}
     </main>
+  );
+}
+
+function ParticipantProfile() {
+  const [profile, setProfile] = useState<PersonProfile | null>(null);
+  const [name, setName] = useState("");
+  const [organisation, setOrganisation] = useState("");
+  const [yearCourse, setYearCourse] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    getMyProfile()
+      .then((row) => {
+        setProfile(row);
+        setName(row.name);
+        setOrganisation(row.organisation ?? "");
+        setYearCourse(row.year_course ?? "");
+        setJobTitle(row.job_title ?? "");
+      })
+      .catch(() => setProfile(null));
+  }, []);
+
+  if (!profile) return null;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const updated = await updateMyProfile({
+        name,
+        organisation,
+        year_course: yearCourse,
+        job_title: jobTitle,
+      });
+      setProfile(updated);
+      setSaved(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="panel" style={{ margin: "1.5rem 0" }}>
+      <h2 style={{ marginTop: 0 }}>Your profile</h2>
+      <div className="field">
+        <label htmlFor="profile-name">Name</label>
+        <input id="profile-name" value={name} onChange={(e) => setName(e.target.value)} required />
+      </div>
+      <div className="field">
+        <label htmlFor="profile-org">School or organisation</label>
+        <input
+          id="profile-org"
+          value={organisation}
+          onChange={(e) => setOrganisation(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="profile-year">Year and course</label>
+        <input
+          id="profile-year"
+          value={yearCourse}
+          onChange={(e) => setYearCourse(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="profile-job">Job title</label>
+        <input id="profile-job" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+      </div>
+      {error && <div className="notice bad">{error}</div>}
+      {saved && <div className="notice good">Saved.</div>}
+      <button type="submit" disabled={busy || !name}>
+        {busy ? "Saving…" : "Save profile"}
+      </button>
+    </form>
   );
 }
 

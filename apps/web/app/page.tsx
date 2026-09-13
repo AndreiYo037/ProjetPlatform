@@ -26,8 +26,16 @@ export default async function Home() {
         <Link className="btn" href="/signin">
           Participant sign in
         </Link>
+        <Link className="btn secondary" href="/signup">
+          Participant sign up
+        </Link>
+      </div>
+      <div className="row" style={{ marginTop: "0.75rem" }}>
         <Link className="btn secondary" href="/company/signin">
           Company sign in
+        </Link>
+        <Link className="btn secondary" href="/company/signup">
+          Company sign up
         </Link>
         <Link className="btn secondary" href="/admin/login">
           Admin sign in

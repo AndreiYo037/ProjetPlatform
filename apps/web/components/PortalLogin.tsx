@@ -140,6 +140,17 @@ function Form({
           Forgot your password?
         </Link>
       </p>
+      {actorType !== "platform" && (
+        <p className="small">
+          <Link
+            href={`${actorType === "company_user" ? "/company/signup" : "/signup"}${
+              next ? `?next=${encodeURIComponent(next)}` : ""
+            }`}
+          >
+            Create an account
+          </Link>
+        </p>
+      )}
     </form>
   );
 }

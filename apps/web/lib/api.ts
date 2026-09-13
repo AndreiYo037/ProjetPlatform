@@ -10,6 +10,18 @@ import type { components, paths } from "./api-types";
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+/**
+ * Browser calls go through the Next same-origin proxy (`/backend`) so the
+ * session cookie is first-party. `localhost` and `127.0.0.1` are different
+ * sites; a Lax cookie set by one is invisible to the other, which is why
+ * admin sign-in accepted the code and then bounced back to login.
+ */
+export function apiUrl(path: string): string {
+  const suffix = path.startsWith("/") ? path : `/${path}`;
+  if (typeof window !== "undefined") return `/backend${suffix}`;
+  return `${API_BASE_URL}${suffix}`;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -41,7 +53,7 @@ export type ThreadSummary = Schemas["ThreadSummary"];
 export type Readiness = paths["/readyz"]["get"]["responses"]["200"]["content"]["application/json"];
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...init,
     headers:
       init?.body instanceof FormData
@@ -56,7 +68,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = `${init?.method ?? "GET"} ${path} failed`;
     try {
       const body = await response.json();
-      if (typeof body?.detail === "string") detail = body.detail;
+      if (typeof body?.detail === "string") {
+        detail = body.detail;
+      } else if (Array.isArray(body?.detail)) {
+        const messages = body.detail
+          .map((item: { msg?: string }) => item?.msg)
+          .filter((msg: unknown): msg is string => typeof msg === "string");
+        if (messages.length) detail = messages.join(" ");
+      }
     } catch {
       /* the body was not JSON; the generic message stands */
     }
@@ -87,6 +106,16 @@ export type ActorTypeParam = "participant" | "company_user" | "platform";
 export const getSession = () => api.get<Actor | null>("/auth/session");
 export const login = (email: string, password: string, actorType: ActorTypeParam) =>
   api.post<Actor>("/auth/login", { email, password, actor_type: actorType });
+export const signup = (input: {
+  actorType: Exclude<ActorTypeParam, "platform">;
+  email: string;
+  password: string;
+}) =>
+  api.post<Actor>("/auth/signup", {
+    actor_type: input.actorType,
+    email: input.email,
+    password: input.password,
+  });
 export const signInWithAdminCode = (code: string) => api.post<Actor>("/auth/admin-code", { code });
 export const logout = () => api.post<{ signed_out: boolean }>("/auth/logout");
 export const requestPasswordReset = (email: string, actorType: ActorTypeParam) =>
@@ -99,8 +128,24 @@ export const confirmPasswordReset = (token: string, password: string) =>
 export const setInitialPassword = (token: string, password: string) =>
   api.post<Actor>("/auth/password/set", { token, password });
 
+export type PersonProfile = {
+  name: string;
+  email: string;
+  organisation: string | null;
+  year_course: string | null;
+  job_title: string | null;
+  phone: string | null;
+};
+
 export const getCompanyHome = (companyId: string) =>
   api.get<CompanyHome>(`/companies/${companyId}/home`);
+export const updateCompanyProfile = (
+  companyId: string,
+  body: { name?: string; your_name?: string },
+) => api.patch<CompanyHome["company"]>(`/companies/${companyId}`, body);
+export const getMyProfile = () => api.get<PersonProfile>("/me/profile");
+export const updateMyProfile = (body: Partial<Omit<PersonProfile, "email">>) =>
+  api.patch<PersonProfile>("/me/profile", body);
 export const getProgramme = (id: string) => api.get<ProgrammeDetail>(`/programmes/${id}`);
 export const listProgrammes = () => api.get<ProgrammeOut[]>("/programmes");
 

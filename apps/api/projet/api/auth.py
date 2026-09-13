@@ -23,6 +23,7 @@ from projet.services.auth import (
     SESSION_TTL,
     Actor,
     AuthError,
+    SignupError,
     account_action_url,
     authenticate,
     authenticate_admin_code,
@@ -30,6 +31,7 @@ from projet.services.auth import (
     end_session,
     issue_password_reset,
     load_actor,
+    register_account,
     set_password,
     start_session,
     validate_password,
@@ -109,6 +111,64 @@ def login(
     )
     if subject_id is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That email or password is not right.")
+
+    _, raw_session = start_session(
+        db,
+        actor_type=payload.actor_type,
+        subject_id=subject_id,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.commit()
+
+    _set_session_cookie(response, raw_session)
+    actor = load_actor(db, payload.actor_type, subject_id)
+    assert actor is not None
+    return ActorResponse.of(actor)
+
+
+class SignupRequest(BaseModel):
+    actor_type: ActorType
+    email: str = Field(max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, value: str) -> str:
+        if not looks_like_email(value):
+            raise ValueError("That does not look like an email address.")
+        return value
+
+
+@router.post("/signup", response_model=ActorResponse, status_code=201)
+def signup(
+    payload: SignupRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_session),
+) -> ActorResponse:
+    """Self-serve accounts for the participant and company portals.
+
+    Admin is not on this path — a shared access code or an existing staff
+    account is how platform users get in, so this never creates one.
+    """
+    if payload.actor_type == ActorType.PLATFORM:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+
+    try:
+        subject_id = register_account(
+            db,
+            actor_type=payload.actor_type,
+            email=payload.email,
+            password=payload.password,
+        )
+    except SignupError as exc:
+        message = str(exc)
+        code = (
+            status.HTTP_409_CONFLICT
+            if "already exists" in message
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(code, message) from exc
 
     _, raw_session = start_session(
         db,
