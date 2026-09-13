@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { login } from "@/lib/api";
+import { setInitialPassword } from "@/lib/api";
 
 function homeFor(actor: { actor_type: string; company_id: string | null }) {
   if (actor.actor_type === "participant") return "/dashboard";
@@ -12,25 +11,29 @@ function homeFor(actor: { actor_type: string; company_id: string | null }) {
   return "/";
 }
 
-function SignInForm() {
+function SetPasswordForm() {
   const params = useSearchParams();
   const router = useRouter();
+  const token = params.get("token");
   const next = params.get("next") ?? undefined;
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (!token) {
+    return <div className="notice bad">That link is missing its token.</div>;
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const actor = await login(email, password);
+      const actor = await setInitialPassword(token!, password);
       router.push(next ?? homeFor({ actor_type: actor.actor_type, company_id: actor.company_id ?? null }));
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "That email or password is not right.");
+      setError(err instanceof Error ? err.message : "That link is no longer valid.");
     } finally {
       setBusy(false);
     }
@@ -39,45 +42,34 @@ function SignInForm() {
   return (
     <form onSubmit={submit}>
       <div className="field">
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoFocus
-          autoComplete="email"
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="password">Password</label>
+        <label htmlFor="password">Choose a password</label>
         <input
           id="password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          autoComplete="current-password"
+          minLength={8}
+          autoFocus
+          autoComplete="new-password"
         />
+        <div className="hint">At least 8 characters.</div>
       </div>
       {error && <div className="notice bad">{error}</div>}
-      <button type="submit" disabled={busy || !email || !password}>
-        {busy ? "Signing in…" : "Sign in"}
+      <button type="submit" disabled={busy || password.length < 8}>
+        {busy ? "Saving…" : "Set password and sign in"}
       </button>
-      <p className="small" style={{ marginTop: "1rem" }}>
-        <Link href="/forgot-password">Forgot your password?</Link>
-      </p>
     </form>
   );
 }
 
-export default function SignInPage() {
+export default function SetPasswordPage() {
   return (
     <main className="narrow">
-      <h1>Sign in</h1>
+      <h1>Set your password</h1>
+      <p className="lede">One more step before you're in.</p>
       <Suspense fallback={null}>
-        <SignInForm />
+        <SetPasswordForm />
       </Suspense>
     </main>
   );

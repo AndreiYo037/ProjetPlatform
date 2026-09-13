@@ -1,8 +1,8 @@
-"""Magic-link auth and permission scoping (FR-010).
+"""Password auth, one-time account tokens and sessions.
 
-Two things are load-bearing here and easy to get quietly wrong: a sign-in link
-must work exactly once, and a rep must not be able to see another function's
-candidates.
+Two properties are load-bearing and get their own tests: a stored password is
+never recoverable from the database row, and an account-action token can be
+used exactly once.
 """
 
 from __future__ import annotations
@@ -11,19 +11,25 @@ import uuid
 
 import pytest
 
-from projet.models import CompanyUser, PlatformUser
+from projet.models import PlatformUser
 from projet.models.base import utcnow
-from projet.models.enums import ActorType, CompanyUserRole, CompanyUserStatus
+from projet.models.enums import AccountActionPurpose, ActorType, CompanyUserStatus
 from projet.services.auth import (
     AuthError,
-    consume_magic_link,
+    account_action_url,
+    authenticate,
+    consume_account_action_token,
     end_session,
-    hash_token,
-    issue_magic_link,
+    hash_password,
+    issue_account_action_token,
+    issue_password_reset,
     resolve_actor_by_email,
     resolve_session,
     revoke_all_sessions,
+    set_password,
     start_session,
+    validate_password,
+    verify_password,
 )
 
 
@@ -35,44 +41,98 @@ def platform_user(session) -> PlatformUser:
     return user
 
 
-def test_a_link_is_issued_for_a_known_company_user(session, rep):
-    issued = issue_magic_link(session, email=rep.email)
-    assert issued is not None
-    token, raw = issued
-
-    assert token.actor_type == ActorType.COMPANY_USER
-    assert token.subject_id == rep.id
-    assert token.token_hash == hash_token(raw)
-    assert token.token_hash != raw, "the raw token must never be stored"
+# -- password hashing ---------------------------------------------------------
 
 
-def test_an_unknown_address_yields_nothing(session):
-    assert issue_magic_link(session, email="nobody@nowhere.test") is None
+def test_a_hash_never_stores_the_plaintext():
+    hashed = hash_password("correct horse battery staple")
+    assert "correct horse battery staple" not in hashed
 
 
-def test_a_participant_gets_the_same_mechanism(session, participant_factory):
-    """One auth flow for all three actor types."""
+def test_the_right_password_verifies():
+    hashed = hash_password("hunter22")
+    assert verify_password("hunter22", hashed)
+
+
+def test_the_wrong_password_is_refused():
+    hashed = hash_password("hunter22")
+    assert not verify_password("hunter23", hashed)
+
+
+def test_a_missing_hash_never_verifies():
+    assert not verify_password("anything", None)
+
+
+def test_a_malformed_hash_is_refused_not_raised():
+    assert not verify_password("anything", "not-a-real-hash")
+
+
+def test_two_hashes_of_the_same_password_differ():
+    """Salted: identical passwords must not produce identical rows, or a
+    database leak would reveal which two accounts share a password."""
+    assert hash_password("hunter22") != hash_password("hunter22")
+
+
+@pytest.mark.parametrize("password,ok", [("short", False), ("exactly8", True), ("a" * 40, True)])
+def test_password_length_is_enforced(password, ok):
+    assert (validate_password(password) is None) is ok
+
+
+# -- authenticate --------------------------------------------------------------
+
+
+def test_a_company_user_can_log_in_once_a_password_is_set(session, rep):
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
+    resolved = authenticate(session, email=rep.email, password="hunter22")
+
+    assert resolved == (ActorType.COMPANY_USER, rep.id)
+
+
+def test_the_wrong_password_does_not_authenticate(session, rep):
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
+    assert authenticate(session, email=rep.email, password="wrong") is None
+
+
+def test_an_account_with_no_password_set_cannot_log_in(session, rep):
+    """An invited user who has not yet chosen a password is not a login."""
+    assert authenticate(session, email=rep.email, password="anything") is None
+
+
+def test_an_unknown_address_does_not_authenticate(session):
+    assert authenticate(session, email="nobody@nowhere.test", password="anything") is None
+
+
+def test_a_disabled_company_user_cannot_log_in(session, rep):
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
+    rep.status = CompanyUserStatus.DISABLED
+    session.flush()
+    assert authenticate(session, email=rep.email, password="hunter22") is None
+
+
+def test_a_participant_authenticates_the_same_way(session, participant_factory):
     participant = participant_factory()
-    issued = issue_magic_link(session, email=participant.person.contact_email)
+    set_password(session, ActorType.PARTICIPANT, participant.person_id, "hunter22")
 
-    assert issued is not None
-    assert issued[0].actor_type == ActorType.PARTICIPANT
+    resolved = authenticate(session, email=participant.person.contact_email, password="hunter22")
+    assert resolved == (ActorType.PARTICIPANT, participant.person_id)
+
+
+def test_platform_users_authenticate_the_same_way(session, platform_user):
+    set_password(session, ActorType.PLATFORM, platform_user.id, "hunter22")
+    resolved = authenticate(session, email=platform_user.email, password="hunter22")
+    assert resolved == (ActorType.PLATFORM, platform_user.id)
 
 
 def test_a_company_user_outranks_a_participant_on_the_same_address(
     session, company, participant_factory
 ):
-    """If one address is both, resolve to the account with access to other
-    people's data — the conservative answer if we are wrong."""
+    from projet.models import CompanyUser
+    from projet.models.enums import CompanyUserRole
+
     participant = participant_factory()
     shared = participant.person.contact_email
     session.add(
-        CompanyUser(
-            company_id=company.id,
-            name="Dual",
-            email=shared,
-            role=CompanyUserRole.REP,
-        )
+        CompanyUser(company_id=company.id, name="Dual", email=shared, role=CompanyUserRole.REP)
     )
     session.flush()
 
@@ -80,34 +140,110 @@ def test_a_company_user_outranks_a_participant_on_the_same_address(
     assert actor_type == ActorType.COMPANY_USER
 
 
-def test_a_disabled_company_user_cannot_sign_in(session, rep):
-    rep.status = CompanyUserStatus.DISABLED
-    session.flush()
-    assert issue_magic_link(session, email=rep.email) is None
+# -- account action tokens ------------------------------------------------------
 
 
-def test_a_link_works_exactly_once(session, rep):
-    _, raw = issue_magic_link(session, email=rep.email)
-    consumed = consume_magic_link(session, raw)
-    assert consumed.consumed_at is not None
+def test_a_set_password_token_can_only_set_a_password_once(session, rep):
+    token, raw = issue_account_action_token(
+        session,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=rep.id,
+        email=rep.email,
+        purpose=AccountActionPurpose.SET_PASSWORD,
+    )
+    consumed = consume_account_action_token(
+        session, raw, expected_purpose=AccountActionPurpose.SET_PASSWORD
+    )
+    assert consumed.id == token.id
 
     with pytest.raises(AuthError, match="already been used"):
-        consume_magic_link(session, raw)
+        consume_account_action_token(session, raw)
 
 
-def test_an_expired_link_is_refused(session, rep):
-    token, raw = issue_magic_link(session, email=rep.email)
+def test_an_expired_token_is_refused(session, rep):
+    token, raw = issue_account_action_token(
+        session,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=rep.id,
+        email=rep.email,
+        purpose=AccountActionPurpose.SET_PASSWORD,
+    )
     token.expires_at = utcnow()
     session.flush()
 
     with pytest.raises(AuthError, match="expired"):
-        consume_magic_link(session, raw)
+        consume_account_action_token(session, raw)
 
 
 def test_a_forged_token_is_refused(session, rep):
-    issue_magic_link(session, email=rep.email)
+    issue_account_action_token(
+        session,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=rep.id,
+        email=rep.email,
+        purpose=AccountActionPurpose.SET_PASSWORD,
+    )
     with pytest.raises(AuthError, match="not valid"):
-        consume_magic_link(session, "not-a-real-token")
+        consume_account_action_token(session, "not-a-real-token")
+
+
+def test_a_reset_token_cannot_be_used_where_a_set_password_token_is_expected(session, rep):
+    """The two purposes must not be interchangeable, or a reset link could be
+    replayed to hijack an invited account that never set a password."""
+    _, raw = issue_account_action_token(
+        session,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=rep.id,
+        email=rep.email,
+        purpose=AccountActionPurpose.RESET_PASSWORD,
+    )
+    with pytest.raises(AuthError, match="not valid"):
+        consume_account_action_token(
+            session, raw, expected_purpose=AccountActionPurpose.SET_PASSWORD
+        )
+
+
+def test_password_reset_is_issued_for_a_known_address(session, rep):
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
+    issued = issue_password_reset(session, email=rep.email)
+
+    assert issued is not None
+    token, _ = issued
+    assert token.purpose == AccountActionPurpose.RESET_PASSWORD
+
+
+def test_password_reset_is_silent_for_an_unknown_address(session):
+    assert issue_password_reset(session, email="nobody@nowhere.test") is None
+
+
+def test_the_account_action_url_routes_by_purpose(session, rep):
+    set_token, set_raw = issue_account_action_token(
+        session,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=rep.id,
+        email=rep.email,
+        purpose=AccountActionPurpose.SET_PASSWORD,
+    )
+    reset_token, reset_raw = issue_account_action_token(
+        session,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=rep.id,
+        email=rep.email,
+        purpose=AccountActionPurpose.RESET_PASSWORD,
+    )
+    assert "/set-password" in account_action_url(set_token, set_raw)
+    assert "/reset-password" in account_action_url(reset_token, reset_raw)
+
+
+def test_resetting_a_password_replaces_the_old_one(session, rep):
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter23")
+
+    assert authenticate(session, email=rep.email, password="hunter22") is None
+    assert authenticate(session, email=rep.email, password="hunter23") is not None
+
+
+# -- sessions -----------------------------------------------------------------
 
 
 def test_signing_in_activates_an_invited_user(session, rep):
@@ -166,58 +302,3 @@ def test_platform_users_resolve_as_platform(session, platform_user):
 
     assert actor is not None and actor.is_platform
     assert not actor.is_company_user
-
-
-def test_the_admin_code_is_disabled_unless_configured(session, monkeypatch):
-    """No fallback default: unset means off, not 'guessable'."""
-    from projet.config import get_settings
-    from projet.services.auth import authenticate_admin_code
-
-    get_settings.cache_clear()
-    monkeypatch.delenv("PROJET_ADMIN_ACCESS_CODE", raising=False)
-    assert authenticate_admin_code(session, "anything") is None
-    get_settings.cache_clear()
-
-
-def test_the_right_admin_code_bootstraps_and_signs_in(session, monkeypatch):
-    from projet.config import get_settings
-    from projet.models import PlatformUser
-    from projet.services.auth import authenticate_admin_code
-
-    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
-    get_settings.cache_clear()
-
-    assert session.query(PlatformUser).count() == 0
-    user = authenticate_admin_code(session, "let-me-in")
-    assert user is not None
-    assert session.query(PlatformUser).count() == 1
-
-    # A second use reuses the same bootstrapped user rather than creating another.
-    again = authenticate_admin_code(session, "let-me-in")
-    assert again is not None and again.id == user.id
-    assert session.query(PlatformUser).count() == 1
-    get_settings.cache_clear()
-
-
-def test_the_wrong_admin_code_is_refused(session, monkeypatch):
-    from projet.config import get_settings
-    from projet.services.auth import authenticate_admin_code
-
-    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
-    get_settings.cache_clear()
-    assert authenticate_admin_code(session, "wrong-code") is None
-    get_settings.cache_clear()
-
-
-def test_a_disabled_bootstrapped_admin_cannot_reauthenticate(session, monkeypatch):
-    from projet.config import get_settings
-    from projet.services.auth import authenticate_admin_code
-
-    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
-    get_settings.cache_clear()
-    user = authenticate_admin_code(session, "let-me-in")
-    user.is_active = False
-    session.flush()
-
-    assert authenticate_admin_code(session, "let-me-in") is None
-    get_settings.cache_clear()

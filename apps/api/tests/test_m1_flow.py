@@ -144,6 +144,7 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
             "writeup": writeup(),
             "consent_share_company": "true",
             "consent_recording": "true",
+            "password": "hunter22",
         },
         files={"cv": ("sam.pdf", io.BytesIO(b"%PDF-1.4 cv"), "application/pdf")},
     )
@@ -151,7 +152,9 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
     assert applied.json()["google_email_warning"] is None
 
     run_once(session, google)
-    assert len(google.calls_of("send_email")) == 1, "confirmation email sends immediately"
+    # The owner's set-password email queued at company creation, plus the
+    # applicant's confirmation, queued at apply time.
+    assert len(google.calls_of("send_email")) == 2, "confirmation email sends immediately"
 
     # -- admin screens and offers --------------------------------------------
     sign_in(client, session, ActorType.PLATFORM, admin.id)
@@ -317,6 +320,7 @@ def test_the_writeup_word_range_is_enforced(client, session, admin, seeded):
             "google_email": "brief@gmail.com",
             "writeup": "Too short.",
             "consent_share_company": "true",
+            "password": "hunter22",
         },
         files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
     )
@@ -363,6 +367,7 @@ def test_an_application_can_decline_both_consents(client, session, admin, seeded
             "writeup": writeup(),
             "consent_share_company": "false",
             "consent_recording": "false",
+            "password": "hunter22",
         },
         files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
     )
@@ -412,6 +417,7 @@ def test_a_non_google_address_warns_without_blocking(client, session, admin, see
             "google_email": "person@outlook.com",
             "writeup": writeup(),
             "consent_share_company": "true",
+            "password": "hunter22",
         },
         files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
     )

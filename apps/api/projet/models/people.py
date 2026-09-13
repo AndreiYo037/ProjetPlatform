@@ -38,6 +38,9 @@ class Person(Base):
     name: Mapped[str] = mapped_column(String(200))
     contact_email: Mapped[str] = mapped_column(String(320))
     google_email: Mapped[str | None] = mapped_column(String(320))
+    # Set at application time or on first login after acceptance. Nullable: a
+    # rejected or still-pending applicant may never set one.
+    password_hash: Mapped[str | None] = mapped_column(String(200))
     phone: Mapped[str | None] = mapped_column(String(60))
     organisation: Mapped[str | None] = mapped_column(String(300))
     org_type: Mapped[OrgType | None] = mapped_column(enum_column(OrgType))

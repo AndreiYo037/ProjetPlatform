@@ -82,13 +82,15 @@ export const api = {
 // -- endpoints used by more than one screen ----------------------------------
 
 export const getSession = () => api.get<Actor | null>("/auth/session");
-export const requestMagicLink = (email: string, next?: string) =>
-  api.post<{ sent: boolean; message: string }>("/auth/magic-link", { email, next });
-export const verifyMagicLink = (token: string) =>
-  api.post<{ actor: Actor; next: string | null }>("/auth/verify", { token });
-export const signInWithAdminCode = (code: string) =>
-  api.post<Actor>("/auth/admin-code", { code });
+export const login = (email: string, password: string) =>
+  api.post<Actor>("/auth/login", { email, password });
 export const logout = () => api.post<{ signed_out: boolean }>("/auth/logout");
+export const requestPasswordReset = (email: string) =>
+  api.post<{ sent: boolean; message: string }>("/auth/password/forgot", { email });
+export const confirmPasswordReset = (token: string, password: string) =>
+  api.post<Actor>("/auth/password/reset", { token, password });
+export const setInitialPassword = (token: string, password: string) =>
+  api.post<Actor>("/auth/password/set", { token, password });
 
 export const getCompanyHome = (companyId: string) =>
   api.get<CompanyHome>(`/companies/${companyId}/home`);

@@ -6,7 +6,7 @@ from enum import StrEnum
 
 
 class ActorType(StrEnum):
-    """Who is acting. Three identities, one auth mechanism (FR-011).
+    """Who is acting. Three identities, each with its own email+password.
 
     Platform staff are deliberately a separate table from company users: a bug
     in company scoping should never be able to escalate into cross-tenant access.
@@ -15,6 +15,14 @@ class ActorType(StrEnum):
     PLATFORM = "platform"
     COMPANY_USER = "company_user"
     PARTICIPANT = "participant"
+
+
+class AccountActionPurpose(StrEnum):
+    """What a one-time AccountActionToken is for. Never login — passwords do
+    that; these cover the two moments a live session cannot."""
+
+    SET_PASSWORD = "set_password"
+    RESET_PASSWORD = "reset_password"
 
 
 class PlatformRole(StrEnum):
@@ -177,8 +185,8 @@ class OutboxSubjectType(StrEnum):
     """Deviation from PRD section 4: the outbox subject is polymorphic.
 
     Offer, waitlist and rejection emails fire while the subject is still an
-    Application, and a company magic link has no participant at all, so keying
-    idempotency on participant_id alone cannot express those effects.
+    Application, and an account-action email has no participant at all, so
+    keying idempotency on participant_id alone cannot express those effects.
     """
 
     PARTICIPANT = "participant"
@@ -186,4 +194,4 @@ class OutboxSubjectType(StrEnum):
     COMPANY_USER = "company_user"
     PROGRAMME = "programme"
     SUBMISSION_LINK = "submission_link"
-    MAGIC_LINK = "magic_link"
+    ACCOUNT_ACTION = "account_action"

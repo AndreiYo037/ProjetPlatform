@@ -1,6 +1,9 @@
-"""Sign in, sign out, and who am I.
+"""Sign in, sign out, password reset, and who am I.
 
-Requesting a link and clicking it is the whole flow (FR-011).
+Every actor type has its own email and password (FR-010, extended beyond the
+original magic-link-only design for company users). The only email-dependent
+moment is choosing a password in the first place — new account or reset — which
+runs through the one-time AccountActionToken rather than through login itself.
 """
 
 from __future__ import annotations
@@ -12,42 +15,27 @@ from sqlalchemy.orm import Session
 from projet.api.deps import current_actor, require_actor
 from projet.config import get_settings
 from projet.db import get_session
-from projet.models.enums import ActorType, OutboxSubjectType
-from projet.outbox.auth_effects import MAGIC_LINK_EMAIL
+from projet.models.enums import AccountActionPurpose, OutboxSubjectType
+from projet.outbox.account_effects import PASSWORD_RESET_EMAIL
 from projet.outbox.effects import enqueue
 from projet.services.auth import (
     SESSION_COOKIE,
     SESSION_TTL,
     Actor,
     AuthError,
-    authenticate_admin_code,
-    consume_magic_link,
+    account_action_url,
+    authenticate,
+    consume_account_action_token,
     end_session,
-    issue_magic_link,
+    issue_password_reset,
     load_actor,
-    magic_link_url,
+    set_password,
     start_session,
+    validate_password,
 )
 from projet.services.people import looks_like_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-class MagicLinkRequest(BaseModel):
-    email: str = Field(max_length=320)
-    next: str | None = Field(default=None, description="Path to land on after signing in")
-
-    @field_validator("email")
-    @classmethod
-    def _check_email(cls, value: str) -> str:
-        if not looks_like_email(value):
-            raise ValueError("That does not look like an email address.")
-        return value
-
-
-class MagicLinkResponse(BaseModel):
-    sent: bool
-    message: str
 
 
 class ActorResponse(BaseModel):
@@ -71,72 +59,14 @@ class ActorResponse(BaseModel):
 
 
 def _safe_redirect(path: str | None) -> str | None:
-    """Only same-site paths. An absolute URL here would make the sign-in link an
-    open redirect, and it arrives by email where it is easy to hand around."""
+    """Only same-site paths. An absolute URL here would make an emailed link an
+    open redirect, and it arrives somewhere easy to hand around."""
     if not path or not path.startswith("/") or path.startswith("//"):
         return None
     return path
 
 
-@router.post("/magic-link", response_model=MagicLinkResponse)
-def request_magic_link(
-    payload: MagicLinkRequest,
-    db: Session = Depends(get_session),
-) -> MagicLinkResponse:
-    issued = issue_magic_link(db, email=payload.email, redirect_path=_safe_redirect(payload.next))
-    if issued is not None:
-        token, raw = issued
-        enqueue(
-            db,
-            subject_type=OutboxSubjectType.MAGIC_LINK,
-            subject_id=token.id,
-            effect_type=MAGIC_LINK_EMAIL,
-            payload={"url": magic_link_url(raw, token.redirect_path)},
-        )
-    db.commit()
-
-    # Deliberately identical whether or not the address is known: a different
-    # answer here enumerates who has an account.
-    return MagicLinkResponse(
-        sent=True,
-        message="If that address has an account, a sign-in link is on its way.",
-    )
-
-
-class VerifyRequest(BaseModel):
-    token: str
-
-
-class VerifyResponse(BaseModel):
-    actor: ActorResponse
-    next: str | None = None
-
-
-@router.post("/verify", response_model=VerifyResponse)
-def verify_magic_link(
-    payload: VerifyRequest,
-    request: Request,
-    response: Response,
-    db: Session = Depends(get_session),
-) -> VerifyResponse:
-    try:
-        token = consume_magic_link(db, payload.token)
-    except AuthError as error:
-        db.commit()  # keep the consumed-at write on a replayed token
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(error)) from error
-
-    actor = load_actor(db, token.actor_type, token.subject_id)
-    if actor is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That account is no longer active.")
-
-    _, raw_session = start_session(
-        db,
-        actor_type=token.actor_type,
-        subject_id=token.subject_id,
-        user_agent=request.headers.get("user-agent"),
-    )
-    db.commit()
-
+def _set_session_cookie(response: Response, raw_session: str) -> None:
     settings = get_settings()
     response.set_cookie(
         SESSION_COOKIE,
@@ -147,7 +77,44 @@ def verify_magic_link(
         secure=settings.environment != "development",
         path="/",
     )
-    return VerifyResponse(actor=ActorResponse.of(actor), next=token.redirect_path)
+
+
+class LoginRequest(BaseModel):
+    email: str = Field(max_length=320)
+    password: str = Field(min_length=1, max_length=200)
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, value: str) -> str:
+        if not looks_like_email(value):
+            raise ValueError("That does not look like an email address.")
+        return value
+
+
+@router.post("/login", response_model=ActorResponse)
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_session),
+) -> ActorResponse:
+    resolved = authenticate(db, email=payload.email, password=payload.password)
+    if resolved is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That email or password is not right.")
+    actor_type, subject_id = resolved
+
+    _, raw_session = start_session(
+        db,
+        actor_type=actor_type,
+        subject_id=subject_id,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.commit()
+
+    _set_session_cookie(response, raw_session)
+    actor = load_actor(db, actor_type, subject_id)
+    assert actor is not None
+    return ActorResponse.of(actor)
 
 
 @router.post("/logout")
@@ -162,49 +129,111 @@ def logout(
     return {"signed_out": True}
 
 
-class AdminCodeRequest(BaseModel):
-    code: str = Field(min_length=1, max_length=200)
+class PasswordResetRequest(BaseModel):
+    email: str = Field(max_length=320)
 
 
-@router.post("/admin-code", response_model=ActorResponse)
-def sign_in_with_admin_code(
-    payload: AdminCodeRequest,
+@router.post("/password/forgot")
+def forgot_password(
+    payload: PasswordResetRequest,
+    db: Session = Depends(get_session),
+) -> dict:
+    """Deliberately the same response whether or not the address is known -
+    a different one enumerates who has an account."""
+    issued = issue_password_reset(db, email=payload.email)
+    if issued is not None:
+        token, raw = issued
+        enqueue(
+            db,
+            subject_type=OutboxSubjectType.ACCOUNT_ACTION,
+            subject_id=token.id,
+            effect_type=PASSWORD_RESET_EMAIL,
+            payload={"url": account_action_url(token, raw)},
+        )
+    db.commit()
+    return {
+        "sent": True,
+        "message": "If that address has an account, a password reset link is on its way.",
+    }
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/password/reset", response_model=ActorResponse)
+def reset_password(
+    payload: PasswordResetConfirm,
     request: Request,
     response: Response,
     db: Session = Depends(get_session),
 ) -> ActorResponse:
-    """A shared-secret shortcut into platform admin, for now.
+    error = validate_password(payload.password)
+    if error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error)
 
-    Disabled unless PROJET_ADMIN_ACCESS_CODE is configured — an unconfigured
-    deploy gets a 404 rather than a code nobody can guess, so this never reads
-    as "admin login is broken" versus "this path is off".
-    """
-    if not get_settings().admin_access_code:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+    try:
+        token = consume_account_action_token(
+            db, payload.token, expected_purpose=AccountActionPurpose.RESET_PASSWORD
+        )
+    except AuthError as auth_error:
+        db.commit()  # keep the consumed-at write on a replayed token
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(auth_error)) from auth_error
 
-    user = authenticate_admin_code(db, payload.code)
-    if user is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That code is not valid.")
-
+    set_password(db, token.actor_type, token.subject_id, payload.password)
     _, raw_session = start_session(
         db,
-        actor_type=ActorType.PLATFORM,
-        subject_id=user.id,
+        actor_type=token.actor_type,
+        subject_id=token.subject_id,
         user_agent=request.headers.get("user-agent"),
     )
     db.commit()
 
-    settings = get_settings()
-    response.set_cookie(
-        SESSION_COOKIE,
-        raw_session,
-        max_age=int(SESSION_TTL.total_seconds()),
-        httponly=True,
-        samesite="lax",
-        secure=settings.environment != "development",
-        path="/",
+    _set_session_cookie(response, raw_session)
+    actor = load_actor(db, token.actor_type, token.subject_id)
+    assert actor is not None
+    return ActorResponse.of(actor)
+
+
+class SetPasswordConfirm(BaseModel):
+    """Same shape as a reset, different purpose: a freshly invited account
+    choosing its first password rather than replacing one."""
+
+    token: str
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/password/set", response_model=ActorResponse)
+def set_initial_password(
+    payload: SetPasswordConfirm,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_session),
+) -> ActorResponse:
+    error = validate_password(payload.password)
+    if error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error)
+
+    try:
+        token = consume_account_action_token(
+            db, payload.token, expected_purpose=AccountActionPurpose.SET_PASSWORD
+        )
+    except AuthError as auth_error:
+        db.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(auth_error)) from auth_error
+
+    set_password(db, token.actor_type, token.subject_id, payload.password)
+    _, raw_session = start_session(
+        db,
+        actor_type=token.actor_type,
+        subject_id=token.subject_id,
+        user_agent=request.headers.get("user-agent"),
     )
-    actor = load_actor(db, ActorType.PLATFORM, user.id)
+    db.commit()
+
+    _set_session_cookie(response, raw_session)
+    actor = load_actor(db, token.actor_type, token.subject_id)
     assert actor is not None
     return ActorResponse.of(actor)
 

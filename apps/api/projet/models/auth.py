@@ -1,12 +1,19 @@
-"""Authentication: platform staff, magic-link tokens and sessions.
+"""Authentication: platform staff, passwords, one-time account tokens, sessions.
 
-One mechanism for all three actor types (FR-011). A rep opening the scoring
-screen ninety seconds before a pitch will not reset a password, and a
-participant fitting this around classes will not remember one either.
+Email and password for all three actor types. Every account holds its own
+credential; nothing depends on possessing an inbox to sign in day to day.
+
+An `AccountActionToken` still exists, but only for the two moments a live
+session cannot cover: setting a password on a freshly invited account, and
+resetting a forgotten one. It is single-purpose and single-use, not a login
+mechanism — the distinction that matters is that this token proves an email
+was reachable *once*, at account setup, not that reachability is an ongoing
+substitute for a credential.
 
 Two security properties are load-bearing and enforced here rather than by
 convention:
-  * tokens are stored as SHA-256 hashes, so a leaked database row is not a login
+  * both passwords and tokens are stored hashed, so a leaked database row is
+    not a login
   * sessions are database-backed rather than stateless, so a 30-day session
     (FR-012) can actually be revoked
 """
@@ -16,12 +23,12 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Index, String, Text
+from sqlalchemy import Index, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from projet.db import Base
 from projet.models.base import TimestampTZ, enum_column, utcnow, uuid_pk
-from projet.models.enums import ActorType, PlatformRole
+from projet.models.enums import AccountActionPurpose, ActorType, PlatformRole
 
 
 class PlatformUser(Base):
@@ -36,6 +43,7 @@ class PlatformUser(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     name: Mapped[str] = mapped_column(String(200))
     email: Mapped[str] = mapped_column(String(320), unique=True)
+    password_hash: Mapped[str | None] = mapped_column(String(200))
     role: Mapped[PlatformRole] = mapped_column(
         enum_column(PlatformRole), default=PlatformRole.ADMIN
     )
@@ -44,23 +52,25 @@ class PlatformUser(Base):
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
 
 
-class MagicLinkToken(Base):
-    """FR-011/FR-013 — single-use, expiring, deep-linkable.
+class AccountActionToken(Base):
+    """A one-time token for account setup or password reset — never for login.
 
-    redirect_path is what makes FR-013 work: a rep clicking "score now" from
-    their inbox lands on the candidate card already signed in, rather than on a
-    sign-in screen that then forgets where they were going.
+    redirect_path preserves FR-013's deep-link behaviour where it still
+    applies: a notification email can still carry a link straight to the
+    relevant screen, it just authenticates through the session the person
+    already holds rather than through the link itself.
     """
 
-    __tablename__ = "magic_link_token"
-    __table_args__ = (Index("ix_magic_link_token_subject", "actor_type", "subject_id"),)
+    __tablename__ = "account_action_token"
+    __table_args__ = (Index("ix_account_action_token_subject", "actor_type", "subject_id"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
     actor_type: Mapped[ActorType] = mapped_column(enum_column(ActorType))
     subject_id: Mapped[uuid.UUID] = mapped_column()
+    purpose: Mapped[AccountActionPurpose] = mapped_column(enum_column(AccountActionPurpose))
     email: Mapped[str] = mapped_column(String(320))
     token_hash: Mapped[str] = mapped_column(String(128), unique=True)
-    redirect_path: Mapped[str | None] = mapped_column(Text)
+    redirect_path: Mapped[str | None] = mapped_column(String(500))
     expires_at: Mapped[datetime] = mapped_column(TimestampTZ)
     consumed_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)

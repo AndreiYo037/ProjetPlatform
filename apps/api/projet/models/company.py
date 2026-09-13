@@ -40,6 +40,7 @@ class CompanyUser(Base):
     company_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("company.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(200))
     email: Mapped[str] = mapped_column(String(320))
+    password_hash: Mapped[str | None] = mapped_column(String(200))
     title: Mapped[str | None] = mapped_column(String(200))
     role: Mapped[CompanyUserRole] = mapped_column(enum_column(CompanyUserRole))
     status: Mapped[CompanyUserStatus] = mapped_column(

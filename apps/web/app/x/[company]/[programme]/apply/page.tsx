@@ -96,6 +96,21 @@ export default function ApplyPage({
         </div>
 
         <div className="field">
+          <label htmlFor="password">Choose a password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
+          <div className="hint">
+            At least 8 characters. This is how you'll sign back in to your dashboard.
+          </div>
+        </div>
+
+        <div className="field">
           <label htmlFor="phone">Phone (optional)</label>
           <input id="phone" name="phone" type="tel" autoComplete="tel" />
         </div>

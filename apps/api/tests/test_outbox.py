@@ -216,7 +216,8 @@ def test_importing_the_worker_alone_registers_every_handler():
     effects_module = importlib.import_module("projet.outbox.effects")
 
     expected = {
-        "magic_link_email",
+        "set_password_email",
+        "password_reset_email",
         "application_received_email",
         "offer_email",
         "waitlist_email",

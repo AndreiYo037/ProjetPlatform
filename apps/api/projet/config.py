@@ -43,18 +43,6 @@ class Settings(BaseSettings):
     # drafting is unavailable rather than failing obscurely.
     anthropic_api_key: str | None = None
 
-    # Admin access code (dev/demo shortcut, not a hardened login).
-    #
-    # There is no mailbox to click a magic link from until Google credentials
-    # exist, so platform staff need a way in that does not depend on one. Unset
-    # (the default) disables the endpoint entirely - it does not fall back to
-    # some default code. Set it to a shared secret to enable it, and treat that
-    # secret the way you would a password: it grants full admin access to
-    # everyone who has it, with no per-person audit trail.
-    admin_access_code: str | None = None
-    admin_bootstrap_email: str = "admin@projet.sg"
-    admin_bootstrap_name: str = "Admin"
-
     # Outbox
     outbox_max_attempts: int = 5
     outbox_backoff_base_seconds: int = 30

@@ -36,9 +36,13 @@ from projet.models.enums import (
     ProgrammeStatus,
 )
 from projet.models.people import normalise_email
-from projet.outbox.auth_effects import MAGIC_LINK_EMAIL
+from projet.outbox.account_effects import SET_PASSWORD_EMAIL
 from projet.outbox.effects import enqueue
-from projet.services.auth import Actor, issue_magic_link, magic_link_url
+from projet.services.auth import (
+    Actor,
+    account_action_url,
+    issue_account_action_token,
+)
 from projet.services.people import looks_like_email
 
 router = APIRouter(tags=["companies"])
@@ -112,14 +116,32 @@ def create_company(
     )
     db.add(company)
     db.flush()
-    db.add(
-        CompanyUser(
-            company_id=company.id,
-            name=payload.owner_name,
-            email=normalise_email(payload.owner_email) or payload.owner_email,
-            role=CompanyUserRole.OWNER,
-            status=CompanyUserStatus.INVITED,
-        )
+    owner = CompanyUser(
+        company_id=company.id,
+        name=payload.owner_name,
+        email=normalise_email(payload.owner_email) or payload.owner_email,
+        role=CompanyUserRole.OWNER,
+        status=CompanyUserStatus.INVITED,
+    )
+    db.add(owner)
+    db.flush()
+
+    from projet.models.enums import AccountActionPurpose, ActorType
+
+    token, raw = issue_account_action_token(
+        db,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=owner.id,
+        email=owner.email,
+        purpose=AccountActionPurpose.SET_PASSWORD,
+        redirect_path="/company",
+    )
+    enqueue(
+        db,
+        subject_type=OutboxSubjectType.ACCOUNT_ACTION,
+        subject_id=token.id,
+        effect_type=SET_PASSWORD_EMAIL,
+        payload={"url": account_action_url(token, raw)},
     )
     db.commit()
     return company
@@ -248,16 +270,25 @@ def invite_user(
     db.add(user)
     db.flush()
 
-    issued = issue_magic_link(db, email=user.email, redirect_path="/company")
-    if issued is not None:
-        token, raw = issued
-        enqueue(
-            db,
-            subject_type=OutboxSubjectType.MAGIC_LINK,
-            subject_id=token.id,
-            effect_type=MAGIC_LINK_EMAIL,
-            payload={"url": magic_link_url(raw, token.redirect_path)},
-        )
+    # FR-016 — the invite is the account; they choose their own password to
+    # activate it, same as any normal signup.
+    from projet.models.enums import AccountActionPurpose, ActorType
+
+    token, raw = issue_account_action_token(
+        db,
+        actor_type=ActorType.COMPANY_USER,
+        subject_id=user.id,
+        email=user.email,
+        purpose=AccountActionPurpose.SET_PASSWORD,
+        redirect_path="/company",
+    )
+    enqueue(
+        db,
+        subject_type=OutboxSubjectType.ACCOUNT_ACTION,
+        subject_id=token.id,
+        effect_type=SET_PASSWORD_EMAIL,
+        payload={"url": account_action_url(token, raw)},
+    )
     db.commit()
     return user
 

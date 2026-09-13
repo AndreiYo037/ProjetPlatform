@@ -1,14 +1,20 @@
-"""Magic-link issuing, consumption and session management (FR-010).
+"""Password authentication, one-time account tokens, and sessions.
 
-The whole flow is: request a link, click it, you are signed in and on the page
-you were going to. Authentication must never stand between a rep and the thing
-they came to do.
+Every actor type — platform staff, company users, participants — holds its own
+email and password. Nothing about daily sign-in depends on inbox access.
+
+The one thing an inbox is still needed for is the two moments a live session
+cannot cover by definition: setting a password on a freshly invited account
+(the person has no credential yet), and resetting a forgotten one. Those go
+through `AccountActionToken`, which is single-purpose and single-use — proof
+an address was reachable once, not an ongoing substitute for a password.
 """
 
 from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -19,15 +25,23 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.config import get_settings
-from projet.models import AuthSession, CompanyUser, MagicLinkToken, Person, PlatformUser
+from projet.models import AccountActionToken, AuthSession, CompanyUser, Person, PlatformUser
 from projet.models.base import utcnow
-from projet.models.enums import ActorType, CompanyUserStatus
+from projet.models.enums import AccountActionPurpose, ActorType, CompanyUserStatus
 from projet.models.people import normalise_email
 
-MAGIC_LINK_TTL = timedelta(minutes=20)
+ACTION_TOKEN_TTL = timedelta(hours=48)
 SESSION_TTL = timedelta(days=30)
 SESSION_COOKIE = "projet_session"
 TOKEN_BYTES = 32
+
+# scrypt parameters. n=2^14 costs roughly 50-100ms per hash on ordinary
+# hardware, which is the standard trade-off: slow enough to make guessing
+# expensive, fast enough that a login does not feel slow.
+_SCRYPT_N = 2**14
+_SCRYPT_R = 8
+_SCRYPT_P = 1
+_SCRYPT_DKLEN = 32
 
 
 class AuthError(RuntimeError):
@@ -67,35 +81,58 @@ def _new_token() -> tuple[str, str]:
     return raw, hash_token(raw)
 
 
-# -- resolving an email to an actor -------------------------------------------
+# -- passwords -----------------------------------------------------------------
+#
+# hashlib.scrypt is stdlib (no bcrypt/argon2 dependency to pull in) and is a
+# memory-hard KDF, unlike a bare SHA-256 which a GPU makes cheap to brute-force.
+# Stored as "scrypt$n$r$p$salt_hex$hash_hex" so parameters can change later
+# without invalidating hashes already in the database.
 
 
-def authenticate_admin_code(session: Session, code: str) -> PlatformUser | None:
-    """Dev/demo shortcut: a shared secret that signs straight in as admin.
+def hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    derived = hashlib.scrypt(
+        password.encode(), salt=salt, n=_SCRYPT_N, r=_SCRYPT_R, p=_SCRYPT_P, dklen=_SCRYPT_DKLEN
+    )
+    return f"scrypt${_SCRYPT_N}${_SCRYPT_R}${_SCRYPT_P}${salt.hex()}${derived.hex()}"
 
-    Disabled unless PROJET_ADMIN_ACCESS_CODE is set - there is no fallback
-    default, so a deploy that never configures it never exposes this path.
-    Comparison is constant-time; the code is a password in every way that
-    matters and should be treated like one.
 
-    The admin user is bootstrapped on first use rather than requiring a
-    platform_user row to pre-exist, since the whole point is not depending on
-    anything else being set up yet.
+def verify_password(password: str, stored: str | None) -> bool:
+    if not stored:
+        return False
+    try:
+        algorithm, n, r, p, salt_hex, hash_hex = stored.split("$")
+        if algorithm != "scrypt":
+            return False
+        derived = hashlib.scrypt(
+            password.encode(),
+            salt=bytes.fromhex(salt_hex),
+            n=int(n),
+            r=int(r),
+            p=int(p),
+            dklen=len(hash_hex) // 2,
+        )
+        return hmac.compare_digest(derived.hex(), hash_hex)
+    except (ValueError, IndexError):
+        return False
+
+
+PASSWORD_MIN_LENGTH = 8
+
+
+def validate_password(password: str) -> str | None:
+    """Return an error message, or None if the password is acceptable.
+
+    Deliberately just a length floor. Composition rules (must contain a
+    symbol, etc.) are well documented to push people toward predictable
+    patterns and do not belong in something meant to be kept simple.
     """
-    settings = get_settings()
-    configured = settings.admin_access_code
-    if not configured or not hmac.compare_digest(configured, code):
-        return None
+    if len(password) < PASSWORD_MIN_LENGTH:
+        return f"Password must be at least {PASSWORD_MIN_LENGTH} characters."
+    return None
 
-    email = normalise_email(settings.admin_bootstrap_email) or settings.admin_bootstrap_email
-    user = session.scalar(select(PlatformUser).where(PlatformUser.email == email))
-    if user is None:
-        user = PlatformUser(name=settings.admin_bootstrap_name, email=email)
-        session.add(user)
-        session.flush()
-    elif not user.is_active:
-        return None
-    return user
+
+# -- resolving an email to an actor -------------------------------------------
 
 
 def resolve_actor_by_email(session: Session, email: str) -> tuple[ActorType, uuid.UUID] | None:
@@ -171,62 +208,122 @@ def load_actor(session: Session, actor_type: ActorType, subject_id: uuid.UUID) -
     return Actor(actor_type, person.id, person.contact_email, person.name)
 
 
-# -- magic links --------------------------------------------------------------
+def _password_hash_column(actor_type: ActorType, session: Session, subject_id: uuid.UUID):
+    if actor_type == ActorType.PLATFORM:
+        return session.get(PlatformUser, subject_id)
+    if actor_type == ActorType.COMPANY_USER:
+        return session.get(CompanyUser, subject_id)
+    return session.get(Person, subject_id)
 
 
-def issue_magic_link(
-    session: Session,
-    *,
-    email: str,
-    redirect_path: str | None = None,
-) -> tuple[MagicLinkToken, str] | None:
-    """Create a single-use token. Returns None when the address is unknown.
+def authenticate(
+    session: Session, *, email: str, password: str
+) -> tuple[ActorType, uuid.UUID] | None:
+    """Email and password, for all three actor types.
 
-    The caller must not reveal which it was: telling an anonymous requester
-    whether an address has an account enumerates the candidate pool.
+    Deliberately does the same amount of work (a lookup and a hash comparison)
+    whether or not the address exists, so response timing does not tell an
+    attacker which addresses have accounts.
     """
     resolved = resolve_actor_by_email(session, email)
+    dummy_hash = (
+        "scrypt$16384$8$1$00000000000000000000000000000000$"
+        "0000000000000000000000000000000000000000000000000000000000000000"
+    )
     if resolved is None:
+        verify_password(password, dummy_hash)
         return None
-    actor_type, subject_id = resolved
 
+    actor_type, subject_id = resolved
+    record = _password_hash_column(actor_type, session, subject_id)
+    stored = getattr(record, "password_hash", None) if record is not None else None
+    if not verify_password(password, stored):
+        return None
+    return actor_type, subject_id
+
+
+def set_password(
+    session: Session, actor_type: ActorType, subject_id: uuid.UUID, password: str
+) -> None:
+    record = _password_hash_column(actor_type, session, subject_id)
+    if record is None:
+        raise AuthError("That account no longer exists.")
+    record.password_hash = hash_password(password)
+    session.flush()
+
+
+# -- one-time account tokens: setup and reset only, never login --------------
+
+
+def issue_account_action_token(
+    session: Session,
+    *,
+    actor_type: ActorType,
+    subject_id: uuid.UUID,
+    email: str,
+    purpose: AccountActionPurpose,
+    redirect_path: str | None = None,
+) -> tuple[AccountActionToken, str]:
     raw, hashed = _new_token()
-    token = MagicLinkToken(
+    token = AccountActionToken(
         actor_type=actor_type,
         subject_id=subject_id,
+        purpose=purpose,
         email=normalise_email(email) or email,
         token_hash=hashed,
         redirect_path=redirect_path,
-        expires_at=utcnow() + MAGIC_LINK_TTL,
+        expires_at=utcnow() + ACTION_TOKEN_TTL,
     )
     session.add(token)
     session.flush()
     return token, raw
 
 
-def magic_link_url(raw_token: str, redirect_path: str | None = None) -> str:
+def issue_password_reset(session: Session, *, email: str) -> tuple[AccountActionToken, str] | None:
+    """Returns None for an unknown address; the caller must not reveal which -
+    a different response enumerates who has an account."""
+    resolved = resolve_actor_by_email(session, email)
+    if resolved is None:
+        return None
+    actor_type, subject_id = resolved
+    return issue_account_action_token(
+        session,
+        actor_type=actor_type,
+        subject_id=subject_id,
+        email=email,
+        purpose=AccountActionPurpose.RESET_PASSWORD,
+    )
+
+
+def account_action_url(token: AccountActionToken, raw_token: str) -> str:
+    path = (
+        "/set-password" if token.purpose == AccountActionPurpose.SET_PASSWORD else "/reset-password"
+    )
     params = {"token": raw_token}
-    if redirect_path:
-        params["next"] = redirect_path
-    return f"{get_settings().app_base_url}/auth/verify?{urlencode(params)}"
+    if token.redirect_path:
+        params["next"] = token.redirect_path
+    return f"{get_settings().app_base_url}{path}?{urlencode(params)}"
 
 
-def consume_magic_link(session: Session, raw_token: str) -> MagicLinkToken:
-    """Single-use: a token that has been clicked cannot be clicked again.
+def consume_account_action_token(
+    session: Session, raw_token: str, *, expected_purpose: AccountActionPurpose | None = None
+) -> AccountActionToken:
+    """Single-use: a link that has been clicked cannot be clicked again.
 
-    Email clients and security scanners prefetch links, so this is not a
-    theoretical concern — a replayed token is a second session for whoever has
-    the email.
+    Email clients and security scanners prefetch links, so this is not
+    theoretical - a replayable token would let a scanner set someone's password.
     """
     token = session.scalar(
-        select(MagicLinkToken).where(MagicLinkToken.token_hash == hash_token(raw_token))
+        select(AccountActionToken).where(AccountActionToken.token_hash == hash_token(raw_token))
     )
     if token is None:
-        raise AuthError("That sign-in link is not valid.")
+        raise AuthError("That link is not valid.")
+    if expected_purpose is not None and token.purpose != expected_purpose:
+        raise AuthError("That link is not valid.")
     if token.consumed_at is not None:
-        raise AuthError("That sign-in link has already been used. Request a new one.")
+        raise AuthError("That link has already been used. Request a new one.")
     if token.expires_at <= utcnow():
-        raise AuthError("That sign-in link has expired. Request a new one.")
+        raise AuthError("That link has expired. Request a new one.")
 
     token.consumed_at = utcnow()
     session.flush()
@@ -261,8 +358,6 @@ def start_session(
         company_user = session.get(CompanyUser, subject_id)
         if company_user:
             company_user.last_login_at = utcnow()
-            # An invited user becomes active by signing in; there is no separate
-            # accept-invitation step to forget about.
             if company_user.status == CompanyUserStatus.INVITED:
                 company_user.status = CompanyUserStatus.ACTIVE
 

@@ -10,8 +10,8 @@ silent, unrecoverable loss of every email and calendar invite it touched.
 # Imported for the side effect of registering handlers. Order does not matter;
 # presence does.
 from projet.outbox import (  # noqa: E402, F401  (after effects, deliberately)
+    account_effects,
     application_effects,
-    auth_effects,
     provisioning,
     snapshots,
 )

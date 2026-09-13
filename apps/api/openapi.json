@@ -6,18 +6,18 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/auth/magic-link": {
+    "/auth/login": {
       "post": {
         "tags": [
           "auth"
         ],
-        "summary": "Request Magic Link",
-        "operationId": "request_magic_link_auth_magic_link_post",
+        "summary": "Login",
+        "operationId": "login_auth_login_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MagicLinkRequest"
+                "$ref": "#/components/schemas/LoginRequest"
               }
             }
           },
@@ -29,48 +29,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MagicLinkResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/auth/verify": {
-      "post": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Verify Magic Link",
-        "operationId": "verify_magic_link_auth_verify_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/VerifyResponse"
+                  "$ref": "#/components/schemas/ActorResponse"
                 }
               }
             }
@@ -111,19 +70,103 @@
         }
       }
     },
-    "/auth/admin-code": {
+    "/auth/password/forgot": {
       "post": {
         "tags": [
           "auth"
         ],
-        "summary": "Sign In With Admin Code",
-        "description": "A shared-secret shortcut into platform admin, for now.\n\nDisabled unless PROJET_ADMIN_ACCESS_CODE is configured \u2014 an unconfigured\ndeploy gets a 404 rather than a code nobody can guess, so this never reads\nas \"admin login is broken\" versus \"this path is off\".",
-        "operationId": "sign_in_with_admin_code_auth_admin_code_post",
+        "summary": "Forgot Password",
+        "description": "Deliberately the same response whether or not the address is known -\na different one enumerates who has an account.",
+        "operationId": "forgot_password_auth_password_forgot_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdminCodeRequest"
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Forgot Password Auth Password Forgot Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password/reset": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Reset Password",
+        "operationId": "reset_password_auth_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/password/set": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Set Initial Password",
+        "operationId": "set_initial_password_auth_password_set_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetPasswordConfirm"
               }
             }
           },
@@ -3388,21 +3431,6 @@
         ],
         "title": "ActorResponse"
       },
-      "AdminCodeRequest": {
-        "properties": {
-          "code": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Code"
-          }
-        },
-        "type": "object",
-        "required": [
-          "code"
-        ],
-        "title": "AdminCodeRequest"
-      },
       "ApplicationAccepted": {
         "properties": {
           "application_id": {
@@ -3964,6 +3992,12 @@
             "title": "Consent Recording",
             "default": false
           },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password"
+          },
           "cv": {
             "type": "string",
             "contentMediaType": "application/octet-stream",
@@ -3976,6 +4010,7 @@
           "contact_email",
           "google_email",
           "writeup",
+          "password",
           "cv"
         ],
         "title": "Body_apply_public_x__company_slug___programme_slug__apply_post"
@@ -4971,49 +5006,26 @@
         ],
         "title": "LinkRequest"
       },
-      "MagicLinkRequest": {
+      "LoginRequest": {
         "properties": {
           "email": {
             "type": "string",
             "maxLength": 320,
             "title": "Email"
           },
-          "next": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next",
-            "description": "Path to land on after signing in"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email"
-        ],
-        "title": "MagicLinkRequest"
-      },
-      "MagicLinkResponse": {
-        "properties": {
-          "sent": {
-            "type": "boolean",
-            "title": "Sent"
-          },
-          "message": {
+          "password": {
             "type": "string",
-            "title": "Message"
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password"
           }
         },
         "type": "object",
         "required": [
-          "sent",
-          "message"
+          "email",
+          "password"
         ],
-        "title": "MagicLinkResponse"
+        "title": "LoginRequest"
       },
       "NotifyRequest": {
         "properties": {
@@ -5056,6 +5068,40 @@
           "stuck"
         ],
         "title": "OutboxHealth"
+      },
+      "PasswordResetConfirm": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "PasswordResetConfirm"
+      },
+      "PasswordResetRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "PasswordResetRequest"
       },
       "PostOut": {
         "properties": {
@@ -6203,6 +6249,27 @@
         ],
         "title": "SeatsOut"
       },
+      "SetPasswordConfirm": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "SetPasswordConfirm",
+        "description": "Same shape as a reset, different purpose: a freshly invited account\nchoosing its first password rather than replacing one."
+      },
       "SlotOut": {
         "properties": {
           "slot": {
@@ -6531,42 +6598,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "VerifyRequest": {
-        "properties": {
-          "token": {
-            "type": "string",
-            "title": "Token"
-          }
-        },
-        "type": "object",
-        "required": [
-          "token"
-        ],
-        "title": "VerifyRequest"
-      },
-      "VerifyResponse": {
-        "properties": {
-          "actor": {
-            "$ref": "#/components/schemas/ActorResponse"
-          },
-          "next": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Next"
-          }
-        },
-        "type": "object",
-        "required": [
-          "actor"
-        ],
-        "title": "VerifyResponse"
       }
     }
   }

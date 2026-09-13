@@ -29,6 +29,7 @@ from projet.models import (
 )
 from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
+from projet.services.auth import hash_password, validate_password
 from projet.services.people import google_email_warning, looks_like_email, resolve_person
 from projet.storage import get_storage
 
@@ -185,6 +186,7 @@ async def apply(
     writeup: str = Form(),
     consent_share_company: bool = Form(default=False),
     consent_recording: bool = Form(default=False),
+    password: str = Form(min_length=1, max_length=200),
     cv: UploadFile = File(),
     db: Session = Depends(get_session),
 ) -> ApplicationAccepted:
@@ -213,6 +215,9 @@ async def apply(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid contact email.")
     if not looks_like_email(google_email):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email.")
+    password_error = validate_password(password)
+    if password_error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, password_error)
 
     words = count_words(writeup)
     if not WRITEUP_MIN_WORDS <= words <= WRITEUP_MAX_WORDS:
@@ -227,7 +232,7 @@ async def apply(
     if cv.content_type not in ALLOWED_CV_TYPES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "CV must be a PDF.")
 
-    person, _ = resolve_person(
+    person, created = resolve_person(
         db,
         name=name,
         contact_email=contact_email,
@@ -239,6 +244,10 @@ async def apply(
         job_title=job_title,
         timezone=timezone,
     )
+    # A returning applicant already has a password; do not overwrite it with
+    # whatever they typed into a different programme's form.
+    if created or not person.password_hash:
+        person.password_hash = hash_password(password)
 
     existing = db.scalar(
         select(Application)

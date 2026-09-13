@@ -1,6 +1,6 @@
 """All ORM models, re-exported so metadata is complete on a single import."""
 
-from projet.models.auth import AuthSession, MagicLinkToken, PlatformUser
+from projet.models.auth import AccountActionToken, AuthSession, PlatformUser
 from projet.models.company import (
     AuditLog,
     Company,
@@ -32,6 +32,7 @@ from projet.models.taxonomy import Role, RoleTemplate, Skill
 
 __all__ = [
     "Application",
+    "AccountActionToken",
     "Attachment",
     "AuditLog",
     "AuthSession",
@@ -42,7 +43,6 @@ __all__ = [
     "DataPackResource",
     "Event",
     "JudgingSession",
-    "MagicLinkToken",
     "Outbox",
     "Participant",
     "Person",
