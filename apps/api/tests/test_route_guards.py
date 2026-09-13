@@ -47,6 +47,7 @@ PUBLIC: dict[tuple[str, str], str] = {
     ("POST", "/auth/password/reset"): "the token is the credential",
     ("POST", "/auth/password/set"): "the invite token is the credential",
     ("POST", "/auth/admin-code"): "the code is the credential",
+    ("POST", "/auth/signup"): "creating the account is the whole point",
     ("GET", "/auth/session"): "answers null when signed out; that is its job",
     # Offer links land in an inbox, before the person has any account.
     ("POST", "/accept"): "the offer token is the credential",
