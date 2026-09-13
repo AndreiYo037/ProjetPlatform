@@ -23,9 +23,18 @@ function Verifier() {
 
     verifyMagicLink(token)
       .then((result) => {
-        // FR-013 — land on what they clicked through for, signed in.
-        const destination =
-          result.next ?? (result.actor.company_id ? "/company" : "/");
+        // FR-013 — land on what they clicked through for, signed in. Each
+        // actor type needs somewhere real to go; a participant used to fall
+        // through to the marketing homepage with a live session.
+        const home =
+          result.actor.actor_type === "participant"
+            ? "/dashboard"
+            : result.actor.actor_type === "platform"
+              ? "/admin"
+              : result.actor.company_id
+                ? "/company"
+                : "/";
+        const destination = result.next ?? home;
         router.replace(destination);
         router.refresh();
       })

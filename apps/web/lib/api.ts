@@ -33,6 +33,10 @@ export type ClusterOut = Schemas["ClusterOut"];
 export type RoleImplications = Schemas["RoleImplications"];
 export type CriterionOut = Schemas["CriterionOut"];
 export type SeatsOut = Schemas["SeatsOut"];
+export type Dashboard = Schemas["Dashboard"];
+export type SubmissionOut = Schemas["SubmissionOut"];
+export type ThreadOut = Schemas["ThreadOut"];
+export type ThreadSummary = Schemas["ThreadSummary"];
 export type Readiness = paths["/readyz"]["get"]["responses"]["200"]["content"]["application/json"];
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -117,6 +121,27 @@ export const disposition = (
   );
 export const getSeats = (programmeId: string) =>
   api.get<SeatsOut>(`/programmes/${programmeId}/seats`);
+
+export const getDashboard = () => api.get<Dashboard>("/me/dashboard");
+export const putSubmissionLink = (slot: string, driveUrl: string) =>
+  api.put<SubmissionOut>("/me/submission/link", { slot, drive_url: driveUrl });
+export const recheckSubmission = () => api.post<SubmissionOut>("/me/submission/recheck");
+export const markThreadRead = (threadId: string, acknowledge = false) =>
+  api.post<void>(`/me/threads/${threadId}/read?acknowledge=${acknowledge}`);
+
+export const listThreads = (programmeId: string) =>
+  api.get<ThreadOut[]>(`/programmes/${programmeId}/threads`);
+export const getThread = (threadId: string) => api.get<ThreadOut>(`/threads/${threadId}`);
+export const postReply = (threadId: string, body: string) =>
+  api.post<ThreadOut>(`/threads/${threadId}/posts`, { body });
+export const createThread = (
+  programmeId: string,
+  payload: { type: string; title: string; body: string; is_anonymous?: boolean; requires_ack?: boolean },
+) => api.post<{ thread: ThreadOut; warning: string | null }>(`/programmes/${programmeId}/threads`, payload);
+export const findSimilarThreads = (programmeId: string, title: string) =>
+  api.get<{ id: string; title: string; status: string }[]>(
+    `/programmes/${programmeId}/threads/similar?title=${encodeURIComponent(title)}`,
+  );
 
 export const acceptOffer = (token: string) =>
   api.post<{ participant_id: string; programme_title: string; message: string }>("/accept", {

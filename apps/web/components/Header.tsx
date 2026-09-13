@@ -54,6 +54,11 @@ export default function Header() {
                 Company
               </Link>
             )}
+            {actor.actor_type === "participant" && (
+              <Link className="btn secondary small" href="/dashboard">
+                My programme
+              </Link>
+            )}
             <button className="secondary" onClick={signOut}>
               Sign out
             </button>
