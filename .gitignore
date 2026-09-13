@@ -20,3 +20,4 @@ apps/web/lib/api-types.ts
 
 # OS
 .DS_Store
+*.tsbuildinfo

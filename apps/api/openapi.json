@@ -2334,9 +2334,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Healthz Healthz Get"
+                  "$ref": "#/components/schemas/Health"
                 }
               }
             }
@@ -2358,9 +2356,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Readyz Readyz Get"
+                  "$ref": "#/components/schemas/Readiness"
                 }
               }
             }
@@ -2382,9 +2378,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Config Config Get"
+                  "$ref": "#/components/schemas/ConfigOut"
                 }
               }
             }
@@ -3298,6 +3292,29 @@
         ],
         "title": "CompanyUserOut"
       },
+      "ConfigOut": {
+        "properties": {
+          "environment": {
+            "type": "string",
+            "title": "Environment"
+          },
+          "google_driver": {
+            "type": "string",
+            "title": "Google Driver"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          }
+        },
+        "type": "object",
+        "required": [
+          "environment",
+          "google_driver",
+          "database"
+        ],
+        "title": "ConfigOut"
+      },
       "CriterionOut": {
         "properties": {
           "id": {
@@ -3646,6 +3663,24 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "version"
+        ],
+        "title": "Health"
+      },
       "JudgingSessionCreate": {
         "properties": {
           "starts_at": {
@@ -3753,6 +3788,34 @@
           "email"
         ],
         "title": "NotifyRequest"
+      },
+      "OutboxHealth": {
+        "properties": {
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "stuck": {
+            "type": "integer",
+            "title": "Stuck"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pending",
+          "done",
+          "failed",
+          "stuck"
+        ],
+        "title": "OutboxHealth"
       },
       "ProblemStatementUpdate": {
         "properties": {
@@ -4476,6 +4539,57 @@
           "problems"
         ],
         "title": "PublicationCheck"
+      },
+      "Readiness": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "checks": {
+            "$ref": "#/components/schemas/ReadinessChecks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "checks"
+        ],
+        "title": "Readiness"
+      },
+      "ReadinessChecks": {
+        "properties": {
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "roles_seeded": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roles Seeded"
+          },
+          "outbox": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutboxHealth"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "database"
+        ],
+        "title": "ReadinessChecks"
       },
       "RoleImplications": {
         "properties": {

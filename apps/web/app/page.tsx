@@ -1,44 +1,54 @@
-import { getReadiness, type Readiness } from "@/lib/api";
+import Link from "next/link";
+import { API_BASE_URL, type Readiness } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   let readiness: Readiness | null = null;
-  let error: string | null = null;
-
   try {
-    readiness = await getReadiness();
+    const response = await fetch(`${API_BASE_URL}/readyz`, { cache: "no-store" });
+    readiness = (await response.json()) as Readiness;
   } catch {
-    error = "The API is not reachable. Start it with `uvicorn projet.main:app --reload`.";
+    readiness = null;
   }
 
   return (
     <main>
       <h1>Projet</h1>
-      <p style={{ color: "var(--muted)" }}>
-        Proof-of-work hiring infrastructure. Foundation slice — schema, outbox,
-        scheduler, Google client and the seeded role taxonomy. Product screens land
-        from Milestone 1.
+      <p className="lede">
+        Proof-of-work hiring infrastructure. Companies pose a real problem, people solve it
+        in a week, and the work itself becomes the hiring signal.
       </p>
 
-      <h2>API</h2>
-      {error ? (
-        <p style={{ color: "var(--warn)" }}>{error}</p>
-      ) : (
-        <dl>
-          <dt>Status</dt>
-          <dd style={{ color: readiness?.status === "ok" ? "var(--ok)" : "var(--warn)" }}>
-            {readiness?.status}
+      <div className="row">
+        <Link className="btn" href="/signin">
+          Sign in
+        </Link>
+        <Link className="btn secondary" href="/admin">
+          Admin
+        </Link>
+      </div>
+
+      <h2>System</h2>
+      {readiness ? (
+        <dl className="facts">
+          <dt>API</dt>
+          <dd style={{ color: readiness.status === "ok" ? "var(--ok)" : "var(--warn)" }}>
+            {readiness.status}
           </dd>
           <dt>Roles seeded</dt>
-          <dd>{readiness?.checks.roles_seeded ?? 0}</dd>
+          <dd>{readiness.checks?.roles_seeded ?? 0}</dd>
           <dt>Outbox</dt>
           <dd>
-            {readiness?.checks.outbox
-              ? `${readiness.checks.outbox.pending} pending, ${readiness.checks.outbox.failed} failed, ${readiness.checks.outbox.stuck} stuck`
+            {readiness.checks?.outbox
+              ? `${readiness.checks.outbox.pending} pending · ${readiness.checks.outbox.failed} failed · ${readiness.checks.outbox.stuck} stuck`
               : "unknown"}
           </dd>
         </dl>
+      ) : (
+        <div className="notice warn">
+          The API is not reachable. Start it with <code>uvicorn projet.main:app --reload</code>.
+        </div>
       )}
     </main>
   );

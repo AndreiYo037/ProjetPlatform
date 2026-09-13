@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -22,9 +23,45 @@ from projet.config import get_settings
 from projet.db import get_session
 from projet.models import Role
 
-# Importing the effect modules registers their handlers; without this the worker
-# has no handler for an effect a route enqueued and marks the row failed.
-from projet.outbox import auth_effects, provisioning, snapshots, worker  # noqa: F401
+# Importing the effect modules registers their handlers. Without this the worker
+# has no handler for an effect a route enqueued and marks the row failed, so the
+# import is load-bearing rather than incidental.
+from projet.outbox import (  # noqa: F401
+    application_effects,
+    auth_effects,
+    provisioning,
+    snapshots,
+    worker,
+)
+
+
+class OutboxHealth(BaseModel):
+    pending: int
+    done: int
+    failed: int
+    stuck: int
+
+
+class ReadinessChecks(BaseModel):
+    database: str
+    roles_seeded: int | None = None
+    outbox: OutboxHealth | None = None
+
+
+class Readiness(BaseModel):
+    status: str
+    checks: ReadinessChecks
+
+
+class Health(BaseModel):
+    status: str
+    version: str
+
+
+class ConfigOut(BaseModel):
+    environment: str
+    google_driver: str
+    database: str
 
 
 def create_app() -> FastAPI:
@@ -43,6 +80,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
     app.include_router(auth_router)
     app.include_router(companies_router)
     app.include_router(roles_router)
@@ -68,36 +106,41 @@ def create_app() -> FastAPI:
         media_type = "application/pdf" if key.endswith(".pdf") else "application/octet-stream"
         return Response(content, media_type=media_type)
 
-    @app.get("/healthz", tags=["ops"])
-    def healthz() -> dict:
-        return {"status": "ok", "version": __version__}
+    @app.get("/healthz", tags=["ops"], response_model=Health)
+    def healthz() -> Health:
+        return Health(status="ok", version=__version__)
 
-    @app.get("/readyz", tags=["ops"])
-    def readyz(session: Session = Depends(get_session)) -> dict:
+    @app.get("/readyz", tags=["ops"], response_model=Readiness)
+    def readyz(session: Session = Depends(get_session)) -> Readiness:
         """Database reachable, taxonomy seeded, outbox not backing up (FR-1304)."""
-        checks: dict = {}
         try:
             session.execute(text("SELECT 1"))
-            checks["database"] = "ok"
-        except Exception as error:
-            checks["database"] = f"error: {error}"
-            return {"status": "degraded", "checks": checks}
+        except Exception as error:  # noqa: BLE001 - the reason is the useful part
+            return Readiness(
+                status="degraded",
+                checks=ReadinessChecks(database=f"error: {error}"),
+            )
 
         roles = len(list(session.scalars(select(Role.id))))
-        checks["roles_seeded"] = roles
-        checks["outbox"] = worker.health(session)
+        counts = worker.health(session)
+        healthy = roles > 0 and counts["stuck"] == 0
+        return Readiness(
+            status="ok" if healthy else "degraded",
+            checks=ReadinessChecks(
+                database="ok",
+                roles_seeded=roles,
+                outbox=OutboxHealth(**counts),
+            ),
+        )
 
-        healthy = roles > 0 and checks["outbox"]["stuck"] == 0
-        return {"status": "ok" if healthy else "degraded", "checks": checks}
-
-    @app.get("/config", tags=["ops"])
-    def config() -> dict:
+    @app.get("/config", tags=["ops"], response_model=ConfigOut)
+    def config() -> ConfigOut:
         """Non-secret configuration, so a deploy can be checked at a glance."""
-        return {
-            "environment": settings.environment,
-            "google_driver": "real" if settings.use_real_google else "fake",
-            "database": settings.database_url.split("://", 1)[0],
-        }
+        return ConfigOut(
+            environment=settings.environment,
+            google_driver="real" if settings.use_real_google else "fake",
+            database=settings.database_url.split("://", 1)[0],
+        )
 
     return app
 
