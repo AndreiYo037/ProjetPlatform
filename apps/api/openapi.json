@@ -111,6 +111,48 @@
         }
       }
     },
+    "/auth/admin-code": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sign In With Admin Code",
+        "description": "A shared-secret shortcut into platform admin, for now.\n\nDisabled unless PROJET_ADMIN_ACCESS_CODE is configured \u2014 an unconfigured\ndeploy gets a 404 rather than a code nobody can guess, so this never reads\nas \"admin login is broken\" versus \"this path is off\".",
+        "operationId": "sign_in_with_admin_code_auth_admin_code_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminCodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/me": {
       "get": {
         "tags": [
@@ -2475,6 +2517,21 @@
           "name"
         ],
         "title": "ActorResponse"
+      },
+      "AdminCodeRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "AdminCodeRequest"
       },
       "ApplicationAccepted": {
         "properties": {

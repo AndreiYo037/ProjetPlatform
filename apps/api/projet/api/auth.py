@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from projet.api.deps import current_actor, require_actor
 from projet.config import get_settings
 from projet.db import get_session
-from projet.models.enums import OutboxSubjectType
+from projet.models.enums import ActorType, OutboxSubjectType
 from projet.outbox.auth_effects import MAGIC_LINK_EMAIL
 from projet.outbox.effects import enqueue
 from projet.services.auth import (
@@ -20,6 +20,7 @@ from projet.services.auth import (
     SESSION_TTL,
     Actor,
     AuthError,
+    authenticate_admin_code,
     consume_magic_link,
     end_session,
     issue_magic_link,
@@ -159,6 +160,53 @@ def logout(
     db.commit()
     response.delete_cookie(SESSION_COOKIE, path="/")
     return {"signed_out": True}
+
+
+class AdminCodeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/admin-code", response_model=ActorResponse)
+def sign_in_with_admin_code(
+    payload: AdminCodeRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_session),
+) -> ActorResponse:
+    """A shared-secret shortcut into platform admin, for now.
+
+    Disabled unless PROJET_ADMIN_ACCESS_CODE is configured — an unconfigured
+    deploy gets a 404 rather than a code nobody can guess, so this never reads
+    as "admin login is broken" versus "this path is off".
+    """
+    if not get_settings().admin_access_code:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+
+    user = authenticate_admin_code(db, payload.code)
+    if user is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That code is not valid.")
+
+    _, raw_session = start_session(
+        db,
+        actor_type=ActorType.PLATFORM,
+        subject_id=user.id,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.commit()
+
+    settings = get_settings()
+    response.set_cookie(
+        SESSION_COOKIE,
+        raw_session,
+        max_age=int(SESSION_TTL.total_seconds()),
+        httponly=True,
+        samesite="lax",
+        secure=settings.environment != "development",
+        path="/",
+    )
+    actor = load_actor(db, ActorType.PLATFORM, user.id)
+    assert actor is not None
+    return ActorResponse.of(actor)
 
 
 @router.get("/me", response_model=ActorResponse)

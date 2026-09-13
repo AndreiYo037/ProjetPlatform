@@ -8,6 +8,7 @@ they came to do.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -67,6 +68,34 @@ def _new_token() -> tuple[str, str]:
 
 
 # -- resolving an email to an actor -------------------------------------------
+
+
+def authenticate_admin_code(session: Session, code: str) -> PlatformUser | None:
+    """Dev/demo shortcut: a shared secret that signs straight in as admin.
+
+    Disabled unless PROJET_ADMIN_ACCESS_CODE is set - there is no fallback
+    default, so a deploy that never configures it never exposes this path.
+    Comparison is constant-time; the code is a password in every way that
+    matters and should be treated like one.
+
+    The admin user is bootstrapped on first use rather than requiring a
+    platform_user row to pre-exist, since the whole point is not depending on
+    anything else being set up yet.
+    """
+    settings = get_settings()
+    configured = settings.admin_access_code
+    if not configured or not hmac.compare_digest(configured, code):
+        return None
+
+    email = normalise_email(settings.admin_bootstrap_email) or settings.admin_bootstrap_email
+    user = session.scalar(select(PlatformUser).where(PlatformUser.email == email))
+    if user is None:
+        user = PlatformUser(name=settings.admin_bootstrap_name, email=email)
+        session.add(user)
+        session.flush()
+    elif not user.is_active:
+        return None
+    return user
 
 
 def resolve_actor_by_email(session: Session, email: str) -> tuple[ActorType, uuid.UUID] | None:

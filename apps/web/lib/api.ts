@@ -82,6 +82,8 @@ export const requestMagicLink = (email: string, next?: string) =>
   api.post<{ sent: boolean; message: string }>("/auth/magic-link", { email, next });
 export const verifyMagicLink = (token: string) =>
   api.post<{ actor: Actor; next: string | null }>("/auth/verify", { token });
+export const signInWithAdminCode = (code: string) =>
+  api.post<Actor>("/auth/admin-code", { code });
 export const logout = () => api.post<{ signed_out: boolean }>("/auth/logout");
 
 export const getCompanyHome = (companyId: string) =>

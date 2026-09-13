@@ -1,16 +1,37 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { requestMagicLink } from "@/lib/api";
+import { requestMagicLink, signInWithAdminCode } from "@/lib/api";
 
 function SignInForm() {
   const params = useSearchParams();
+  const router = useRouter();
   const next = params.get("next") ?? undefined;
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [showCode, setShowCode] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
+
+  async function submitCode(event: React.FormEvent) {
+    event.preventDefault();
+    setCodeBusy(true);
+    setCodeError(null);
+    try {
+      await signInWithAdminCode(code);
+      router.push(next ?? "/admin");
+      router.refresh();
+    } catch (err) {
+      setCodeError(err instanceof Error ? err.message : "That code is not valid.");
+    } finally {
+      setCodeBusy(false);
+    }
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -59,6 +80,34 @@ function SignInForm() {
       <button type="submit" disabled={busy || !email}>
         {busy ? "Sending…" : "Email me a link"}
       </button>
+
+      <p className="small" style={{ marginTop: "1.5rem" }}>
+        <button
+          type="button"
+          className="secondary small"
+          onClick={() => setShowCode((v) => !v)}
+        >
+          Admin access code
+        </button>
+      </p>
+      {showCode && (
+        <div className="panel" style={{ marginTop: "0.5rem" }}>
+          <div className="field">
+            <label htmlFor="admin-code">Access code</label>
+            <input
+              id="admin-code"
+              type="password"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          {codeError && <div className="notice bad">{codeError}</div>}
+          <button type="button" onClick={submitCode} disabled={codeBusy || !code}>
+            {codeBusy ? "Checking…" : "Sign in as admin"}
+          </button>
+        </div>
+      )}
     </form>
   );
 }
