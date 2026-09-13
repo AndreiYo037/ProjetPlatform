@@ -2313,6 +2313,876 @@
         }
       }
     },
+    "/me/dashboard": {
+      "get": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Dashboard",
+        "operationId": "dashboard_me_dashboard_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/submission/link": {
+      "put": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Put Link",
+        "description": "FR-802 \u2014 checked the moment it is pasted, with the answer inline.",
+        "operationId": "put_link_me_submission_link_put",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/submission/link/{slot}": {
+      "delete": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Delete Link",
+        "operationId": "delete_link_me_submission_link__slot__delete",
+        "parameters": [
+          {
+            "name": "slot",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slot"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/submission/recheck": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Recheck Links",
+        "description": "\"I've fixed the sharing setting\" \u2014 check again without re-pasting.",
+        "operationId": "recheck_links_me_submission_recheck_post",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/threads/{thread_id}/read": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Read Thread",
+        "operationId": "read_thread_me_threads__thread_id__read_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "acknowledge",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Acknowledge"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/threads": {
+      "get": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "List Threads",
+        "operationId": "list_threads_programmes__programme_id__threads_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ThreadOut"
+                  },
+                  "title": "Response List Threads Programmes  Programme Id  Threads Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Create Thread",
+        "operationId": "create_thread_programmes__programme_id__threads_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadCreated"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/threads/similar": {
+      "get": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Find Similar",
+        "description": "FR-611b \u2014 surfaced inline as a participant types, before they post.",
+        "operationId": "find_similar_programmes__programme_id__threads_similar_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 400,
+              "title": "Title"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Find Similar Programmes  Programme Id  Threads Similar Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/threads/{thread_id}": {
+      "get": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Get Thread",
+        "operationId": "get_thread_threads__thread_id__get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/threads/{thread_id}/posts": {
+      "post": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Post Reply",
+        "operationId": "post_reply_threads__thread_id__posts_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/threads/{thread_id}/attachments": {
+      "post": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Add Attachment",
+        "description": "FR-608/609 \u2014 served from platform storage, scoped to the programme.",
+        "operationId": "add_attachment_threads__thread_id__attachments_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_attachment_threads__thread_id__attachments_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/threads/{thread_id}/share": {
+      "post": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Share",
+        "description": "FR-607 \u2014 the rep decides what is general and what is personal.",
+        "operationId": "share_threads__thread_id__share_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "anonymise",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Anonymise"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{post_id}": {
+      "delete": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Remove Post",
+        "description": "FR-613 \u2014 admin can remove any post; removals leave a tombstone.",
+        "operationId": "remove_post_posts__post_id__delete",
+        "parameters": [
+          {
+            "name": "post_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Post Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/digest": {
+      "get": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Rep Digest",
+        "description": "FR-612 \u2014 unanswered threads, reachable in one click from an email.",
+        "operationId": "rep_digest_programmes__programme_id__digest_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DigestThread"
+                  },
+                  "title": "Response Rep Digest Programmes  Programme Id  Digest Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/files/{key}": {
       "get": {
         "tags": [
@@ -2943,6 +3813,62 @@
         ],
         "title": "AssignmentRequest"
       },
+      "AttachmentOut": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mime Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "filename",
+          "url",
+          "size_bytes",
+          "mime_type"
+        ],
+        "title": "AttachmentOut"
+      },
+      "Body_add_attachment_threads__thread_id__attachments_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_add_attachment_threads__thread_id__attachments_post"
+      },
       "Body_apply_public_x__company_slug___programme_slug__apply_post": {
         "properties": {
           "name": {
@@ -3434,6 +4360,60 @@
         ],
         "title": "CriterionOut"
       },
+      "CriterionPublic": {
+        "properties": {
+          "slot": {
+            "type": "integer",
+            "title": "Slot"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "anchor_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 5"
+          },
+          "anchor_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 3"
+          },
+          "anchor_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "name",
+          "anchor_5",
+          "anchor_3",
+          "anchor_1"
+        ],
+        "title": "CriterionPublic"
+      },
       "CriterionUpdate": {
         "properties": {
           "name": {
@@ -3483,6 +4463,108 @@
         },
         "type": "object",
         "title": "CriterionUpdate"
+      },
+      "Dashboard": {
+        "properties": {
+          "provisioning": {
+            "type": "boolean",
+            "title": "Provisioning"
+          },
+          "programme": {
+            "$ref": "#/components/schemas/ProgrammeCard"
+          },
+          "submission": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubmissionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "judging": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JudgingSlot"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/CriterionPublic"
+            },
+            "type": "array",
+            "title": "Criteria"
+          },
+          "data_pack": {
+            "items": {
+              "$ref": "#/components/schemas/DataPackEntry"
+            },
+            "type": "array",
+            "title": "Data Pack"
+          },
+          "threads": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadSummary"
+            },
+            "type": "array",
+            "title": "Threads"
+          },
+          "blocking_acknowledgements": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadSummary"
+            },
+            "type": "array",
+            "title": "Blocking Acknowledgements"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provisioning",
+          "programme",
+          "submission",
+          "judging",
+          "criteria",
+          "data_pack",
+          "threads",
+          "blocking_acknowledgements"
+        ],
+        "title": "Dashboard",
+        "description": "FR-501 to FR-507 \u2014 what do I do, by when, and where."
+      },
+      "DataPackEntry": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "provenance": {
+            "type": "string",
+            "title": "Provenance"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "url",
+          "provenance"
+        ],
+        "title": "DataPackEntry"
       },
       "DataPackResourceCreate": {
         "properties": {
@@ -3538,6 +4620,48 @@
           "token"
         ],
         "title": "DeclineRequest"
+      },
+      "DigestThread": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "age_hours": {
+            "type": "number",
+            "title": "Age Hours"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "type",
+          "created_at",
+          "age_hours"
+        ],
+        "title": "DigestThread"
       },
       "DispositionRequest": {
         "properties": {
@@ -3788,6 +4912,65 @@
         ],
         "title": "JudgingSessionCreate"
       },
+      "JudgingSlot": {
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "location_or_meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Or Meet Link"
+          },
+          "run_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at",
+          "location_or_meet_link",
+          "run_order"
+        ],
+        "title": "JudgingSlot"
+      },
+      "LinkRequest": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "pattern": "^(artifact|memo|extra)$",
+            "title": "Slot"
+          },
+          "drive_url": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Drive Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "drive_url"
+        ],
+        "title": "LinkRequest"
+      },
       "MagicLinkRequest": {
         "properties": {
           "email": {
@@ -3874,6 +5057,67 @@
         ],
         "title": "OutboxHealth"
       },
+      "PostOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "author_role": {
+            "type": "string",
+            "title": "Author Role"
+          },
+          "author_label": {
+            "type": "string",
+            "title": "Author Label"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "edited_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited At"
+          },
+          "removed": {
+            "type": "boolean",
+            "title": "Removed"
+          },
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentOut"
+            },
+            "type": "array",
+            "title": "Attachments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "body",
+          "author_role",
+          "author_label",
+          "created_at",
+          "edited_at",
+          "removed",
+          "attachments"
+        ],
+        "title": "PostOut"
+      },
       "ProblemStatementUpdate": {
         "properties": {
           "problem_statement": {
@@ -3909,6 +5153,88 @@
           "problem_statement"
         ],
         "title": "ProblemStatementUpdate"
+      },
+      "ProgrammeCard": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "problem_statement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Statement"
+          },
+          "deliverable": {
+            "type": "string",
+            "title": "Deliverable"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "company",
+          "role",
+          "status",
+          "problem_statement",
+          "deliverable",
+          "start_at",
+          "submit_deadline_at",
+          "timezone"
+        ],
+        "title": "ProgrammeCard"
       },
       "ProgrammeCreate": {
         "properties": {
@@ -4648,6 +5974,20 @@
         ],
         "title": "ReadinessChecks"
       },
+      "ReplyCreate": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "ReplyCreate"
+      },
       "RoleImplications": {
         "properties": {
           "role": {
@@ -4862,6 +6202,295 @@
           "uncapped"
         ],
         "title": "SeatsOut"
+      },
+      "SlotOut": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "title": "Slot"
+          },
+          "drive_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Url"
+          },
+          "access_status": {
+            "type": "string",
+            "title": "Access Status"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "drive_url",
+          "access_status",
+          "filename"
+        ],
+        "title": "SlotOut"
+      },
+      "SubmissionOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotOut"
+            },
+            "type": "array",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "locked",
+          "submitted_at",
+          "slots"
+        ],
+        "title": "SubmissionOut"
+      },
+      "ThreadCreate": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "pattern": "^(announcement|resource|question_challenge|question_logistics|direct)$",
+            "title": "Type"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Body"
+          },
+          "is_anonymous": {
+            "type": "boolean",
+            "title": "Is Anonymous",
+            "default": false
+          },
+          "requires_ack": {
+            "type": "boolean",
+            "title": "Requires Ack",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "body"
+        ],
+        "title": "ThreadCreate"
+      },
+      "ThreadCreated": {
+        "properties": {
+          "thread": {
+            "$ref": "#/components/schemas/ThreadOut"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread"
+        ],
+        "title": "ThreadCreated"
+      },
+      "ThreadOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "author_role": {
+            "type": "string",
+            "title": "Author Role"
+          },
+          "is_anonymous": {
+            "type": "boolean",
+            "title": "Is Anonymous"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          },
+          "requires_ack": {
+            "type": "boolean",
+            "title": "Requires Ack"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/PostOut"
+            },
+            "type": "array",
+            "title": "Posts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "title",
+          "author_role",
+          "is_anonymous",
+          "pinned",
+          "requires_ack",
+          "status",
+          "created_at",
+          "posts"
+        ],
+        "title": "ThreadOut"
+      },
+      "ThreadSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          },
+          "requires_ack": {
+            "type": "boolean",
+            "title": "Requires Ack"
+          },
+          "acknowledged": {
+            "type": "boolean",
+            "title": "Acknowledged"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "unread": {
+            "type": "integer",
+            "title": "Unread"
+          },
+          "reply_count": {
+            "type": "integer",
+            "title": "Reply Count"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "title",
+          "pinned",
+          "requires_ack",
+          "acknowledged",
+          "status",
+          "unread",
+          "reply_count",
+          "created_at"
+        ],
+        "title": "ThreadSummary"
       },
       "ValidationError": {
         "properties": {

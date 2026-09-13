@@ -1,0 +1,146 @@
+"""Drive-link submission (FR-800).
+
+The failure this whole area exists to prevent: five dead links on judging day.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import pytest
+
+from projet.models.base import utcnow
+from projet.models.enums import ProgrammeStatus, SubmissionSlot, SubmissionStatus
+from projet.services.submission import (
+    SubmissionError,
+    clear_link,
+    is_locked,
+    recheck,
+    set_link,
+)
+from projet.services.teams import ensure_submission, ensure_team_for_participant
+
+GOOD_URL = "https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz01234567/edit"
+OTHER_URL = "https://docs.google.com/spreadsheets/d/1ZyXwVuTsRqPoNmLkJiHgFeDcBa98765432/edit"
+
+
+@pytest.fixture
+def submission(session, participant_factory):
+    participant = participant_factory()
+    team = ensure_team_for_participant(session, participant)
+    return participant, ensure_submission(session, team)
+
+
+def test_pasting_a_good_link_confirms_the_file(session, submission, google):
+    _, sub = submission
+    result = set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+
+    assert result.ok
+    assert result.access_status == "ok"
+    assert result.filename
+
+
+def test_a_link_we_cannot_open_says_exactly_what_to_fix(session, submission, google):
+    """The message has to be actionable: the participant is the only one who
+    can change the sharing setting."""
+    _, sub = submission
+    google.stage_denied(GOOD_URL)
+    result = set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+
+    assert not result.ok
+    assert result.access_status == "denied"
+    assert "Anyone with the link can view" in (result.message or "")
+
+
+def test_a_submission_is_not_complete_while_any_link_fails(session, submission, google):
+    """FR-802 — this is what stops a broken link reaching judging day."""
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    google.stage_denied(OTHER_URL)
+    set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
+
+    assert sub.status == SubmissionStatus.DRAFT
+    assert sub.submitted_at is None
+
+
+def test_a_submission_completes_when_every_slot_opens(session, submission, google):
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
+
+    assert sub.status == SubmissionStatus.COMPLETE
+    assert sub.submitted_at is not None
+
+
+def test_links_can_be_changed_freely_before_the_deadline(session, submission, google):
+    """FR-803."""
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_link(session, sub, SubmissionSlot.ARTIFACT, OTHER_URL, google=google)
+
+    link = next(link for link in sub.links if link.slot == SubmissionSlot.ARTIFACT)
+    assert link.drive_url == OTHER_URL
+
+
+def test_clearing_a_link_drops_the_submission_out_of_complete(session, submission, google):
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
+    assert sub.status == SubmissionStatus.COMPLETE
+
+    clear_link(session, sub, SubmissionSlot.ARTIFACT)
+    assert sub.status == SubmissionStatus.DRAFT
+
+
+def test_the_deadline_locks_submissions(session, programme, submission, google):
+    _, sub = submission
+    programme.submit_deadline_at = utcnow() - timedelta(minutes=1)
+    session.flush()
+
+    assert is_locked(session, sub)
+    with pytest.raises(SubmissionError, match="locked"):
+        set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+
+
+def test_a_judging_programme_is_locked_regardless_of_clock(session, programme, submission, google):
+    _, sub = submission
+    programme.submit_deadline_at = utcnow() + timedelta(days=2)
+    programme.status = ProgrammeStatus.JUDGING
+    session.flush()
+
+    assert is_locked(session, sub)
+
+
+def test_recheck_catches_a_link_unshared_after_pasting(session, submission, google):
+    """A link shareable on day 2 can be un-shared by day 5."""
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
+    assert sub.status == SubmissionStatus.COMPLETE
+
+    google.stage_denied(GOOD_URL)
+    results = recheck(session, sub, google=google)
+
+    assert any(not r.ok for r in results)
+    assert sub.status == SubmissionStatus.DRAFT
+
+
+def test_a_recheck_after_fixing_sharing_restores_complete(session, submission, google):
+    _, sub = submission
+    google.stage_denied(GOOD_URL)
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
+    assert sub.status == SubmissionStatus.DRAFT
+
+    google.drive_files.pop(GOOD_URL)  # they fixed the sharing setting
+    recheck(session, sub, google=google)
+    assert sub.status == SubmissionStatus.COMPLETE
+
+
+def test_a_malformed_url_is_reported_not_accepted(session, submission, google):
+    _, sub = submission
+    result = set_link(session, sub, SubmissionSlot.ARTIFACT, "https://example.com/x", google=google)
+
+    assert not result.ok
+    assert result.access_status == "not_found"
+    assert sub.status == SubmissionStatus.DRAFT

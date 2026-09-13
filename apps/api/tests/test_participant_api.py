@@ -1,0 +1,171 @@
+"""The participant's dashboard over HTTP (FR-500).
+
+FR-1004 and section 8: a participant must never be served a score, a ranking or
+a referral flag. That is enforced by the schema having nowhere to put them, and
+this is where that gets checked.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import timedelta
+
+import pytest
+from fastapi.testclient import TestClient
+
+from projet.db import get_session
+from projet.integrations.google.client import set_google_client
+from projet.main import create_app
+from projet.models.base import utcnow
+from projet.models.enums import ActorType, AuthorRole, ThreadType
+from projet.services.auth import SESSION_COOKIE, start_session
+from projet.services.messaging import open_thread
+from projet.services.teams import ensure_submission, ensure_team_for_participant
+
+GOOD_URL = "https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz01234567/edit"
+OTHER_URL = "https://docs.google.com/spreadsheets/d/1ZyXwVuTsRqPoNmLkJiHgFeDcBa98765432/edit"
+
+
+@pytest.fixture
+def client(session, google):
+    set_google_client(google)
+    app = create_app()
+    app.dependency_overrides[get_session] = lambda: session
+    with TestClient(app) as test_client:
+        yield test_client
+    set_google_client(None)
+
+
+@pytest.fixture
+def signed_in(session, client, participant_factory):
+    participant = participant_factory()
+    team = ensure_team_for_participant(session, participant)
+    ensure_submission(session, team)
+    _, raw = start_session(
+        session, actor_type=ActorType.PARTICIPANT, subject_id=participant.person_id
+    )
+    client.cookies.set(SESSION_COOKIE, raw)
+    return participant
+
+
+def test_the_dashboard_answers_what_by_when_and_where(client, signed_in, programme):
+    body = client.get("/me/dashboard").json()
+
+    assert body["programme"]["title"] == programme.title
+    assert body["programme"]["submit_deadline_at"]
+    assert body["programme"]["timezone"]
+    assert body["submission"]["status"] == "draft"
+    assert {slot["slot"] for slot in body["submission"]["slots"]} == {"artifact", "memo"}
+
+
+def test_the_dashboard_never_carries_a_score_or_ranking(client, signed_in):
+    """Section 8 — enforced server-side, not by hiding UI."""
+    raw = json.dumps(client.get("/me/dashboard").json()).lower()
+
+    for forbidden in ("score", "rank", "would_refer", "referral", "winner"):
+        assert forbidden not in raw, f"{forbidden!r} must never reach a participant"
+
+
+def test_the_dashboard_publishes_the_rubric(client, signed_in, content_dir, session, programme):
+    """FR-078 — participants read exactly what they are judged on."""
+    from projet.services.rubric import compose_rubric
+
+    compose_rubric(session, programme, content_dir)
+    session.flush()
+
+    criteria = client.get("/me/dashboard").json()["criteria"]
+    assert [c["slot"] for c in criteria] == [1, 2, 3, 4]
+    assert all(c["anchor_5"] for c in criteria)
+
+
+def test_a_participant_without_a_submission_sees_the_setting_up_state(
+    client, session, participant_factory
+):
+    """FR-506 — a fresh acceptance never sees a half-configured dashboard."""
+    participant = participant_factory()
+    _, raw = start_session(
+        session, actor_type=ActorType.PARTICIPANT, subject_id=participant.person_id
+    )
+    client.cookies.set(SESSION_COOKIE, raw)
+
+    body = client.get("/me/dashboard").json()
+    assert body["provisioning"] is True
+    assert body["submission"] is None
+
+
+def test_pasting_a_link_reports_back_inline(client, signed_in, google):
+    response = client.put("/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL})
+    assert response.status_code == 200
+    artifact = next(s for s in response.json()["slots"] if s["slot"] == "artifact")
+    assert artifact["access_status"] == "ok"
+    assert artifact["filename"]
+
+
+def test_a_broken_link_keeps_the_submission_incomplete(client, signed_in, google):
+    google.stage_denied(GOOD_URL)
+    body = client.put(
+        "/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL}
+    ).json()
+
+    assert body["status"] == "draft"
+    artifact = next(s for s in body["slots"] if s["slot"] == "artifact")
+    assert artifact["access_status"] == "denied"
+
+
+def test_filling_every_slot_completes_the_submission(client, signed_in, google):
+    client.put("/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL})
+    body = client.put("/me/submission/link", json={"slot": "memo", "drive_url": OTHER_URL}).json()
+
+    assert body["status"] == "complete"
+    assert body["submitted_at"]
+
+
+def test_recheck_picks_up_a_fixed_sharing_setting(client, signed_in, google):
+    google.stage_denied(GOOD_URL)
+    client.put("/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL})
+    client.put("/me/submission/link", json={"slot": "memo", "drive_url": OTHER_URL})
+
+    google.drive_files.pop(GOOD_URL)
+    body = client.post("/me/submission/recheck").json()
+    assert body["status"] == "complete"
+
+
+def test_the_deadline_refuses_a_late_change(client, signed_in, session, programme, google):
+    programme.submit_deadline_at = utcnow() - timedelta(minutes=1)
+    session.flush()
+
+    response = client.put("/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL})
+    assert response.status_code == 409
+    assert "locked" in response.json()["detail"]
+
+
+def test_an_unacknowledged_drop_blocks_on_the_dashboard(client, signed_in, session, programme, rep):
+    programme.start_at = utcnow() - timedelta(days=1)
+    session.flush()
+    thread, _ = open_thread(
+        session,
+        programme,
+        thread_type=ThreadType.RESOURCE,
+        title="Extra dataset",
+        body="Just cleared.",
+        author_id=rep.id,
+        author_role=AuthorRole.REP,
+    )
+    session.flush()
+
+    body = client.get("/me/dashboard").json()
+    assert [t["id"] for t in body["blocking_acknowledgements"]] == [str(thread.id)]
+
+    client.post(f"/me/threads/{thread.id}/read?acknowledge=true")
+    assert client.get("/me/dashboard").json()["blocking_acknowledgements"] == []
+
+
+def test_the_dashboard_needs_a_participant_session(client):
+    client.cookies.clear()
+    assert client.get("/me/dashboard").status_code == 401
+
+
+def test_a_company_user_cannot_use_the_participant_dashboard(client, session, rep):
+    _, raw = start_session(session, actor_type=ActorType.COMPANY_USER, subject_id=rep.id)
+    client.cookies.set(SESSION_COOKIE, raw)
+    assert client.get("/me/dashboard").status_code == 403

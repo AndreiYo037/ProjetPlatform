@@ -2,6 +2,9 @@
 
 Milestone 1: company accounts, programme setup, the public listing, application
 intake, the applicant pipeline, and offers with waitlist promotion.
+
+Milestone 2: the participant dashboard, the programme channel, and Drive-link
+submission with accessibility checking and the deadline snapshot.
 """
 
 from __future__ import annotations
@@ -16,9 +19,11 @@ from projet import __version__
 from projet.api.applications import router as applications_router
 from projet.api.auth import router as auth_router
 from projet.api.companies import router as companies_router
+from projet.api.participant import router as participant_router
 from projet.api.programmes import router as programmes_router
 from projet.api.public import router as public_router
 from projet.api.roles import router as roles_router
+from projet.api.threads import router as threads_router
 from projet.config import get_settings
 from projet.db import get_session
 from projet.models import Role
@@ -79,6 +84,8 @@ def create_app() -> FastAPI:
     app.include_router(programmes_router)
     app.include_router(applications_router)
     app.include_router(public_router)
+    app.include_router(participant_router)
+    app.include_router(threads_router)
 
     @app.get("/files/{key:path}", tags=["files"])
     def serve_file(key: str, sig: str) -> Response:
