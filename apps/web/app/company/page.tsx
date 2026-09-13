@@ -43,7 +43,10 @@ export default function CompanyHomePage() {
       </p>
       <CompanyProfile home={home} onSaved={load} />
 
-      <h2>Active programmes</h2>
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0 }}>Active programmes</h2>
+        <Link className="btn" href="/company/challenges/new">New challenge</Link>
+      </div>
       {home.active_programmes.length === 0 ? (
         <p className="muted small">Nothing running right now.</p>
       ) : (

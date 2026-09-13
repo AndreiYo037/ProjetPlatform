@@ -48,7 +48,7 @@ router = APIRouter(tags=["programmes"])
 
 
 class ProgrammeCreate(BaseModel):
-    company_id: uuid.UUID
+    company_id: uuid.UUID | None = None
     role_id: uuid.UUID
     title: str = Field(min_length=1, max_length=300)
     slug: str = Field(min_length=1, max_length=160)
@@ -146,24 +146,34 @@ def list_programmes(
 def create_programme(
     payload: ProgrammeCreate,
     db: Session = Depends(get_session),
-    actor: Actor = Depends(require_platform),
+    actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
-    """Admin creates the programme shell; the rubric is composed immediately
-    from the role template so slots 2 and 3 arrive pre-filled (FR-055)."""
-    if db.get(Company, payload.company_id) is None:
+    """Company owners/admins create the programme shell for their own company;
+    platform staff can create for any company. The rubric is composed
+    immediately from the role template so slots 2 and 3 arrive pre-filled
+    (FR-055)."""
+    if actor.is_company_user:
+        company_id = actor.company_id
+    elif payload.company_id is not None:
+        company_id = payload.company_id
+    else:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "company_id is required for platform users."
+        )
+    if db.get(Company, company_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found.")
     if db.get(Role, payload.role_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found.")
     clash = db.scalar(
         select(Programme)
-        .where(Programme.company_id == payload.company_id)
+        .where(Programme.company_id == company_id)
         .where(Programme.slug == payload.slug)
     )
     if clash is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "That slug is taken for this company.")
 
     programme = Programme(
-        company_id=payload.company_id,
+        company_id=company_id,
         role_id=payload.role_id,
         title=payload.title,
         slug=payload.slug,
@@ -282,10 +292,9 @@ def publication_check(
 def publish_programme(
     programme: Programme = Depends(get_programme_or_404),
     db: Session = Depends(get_session),
-    actor: Actor = Depends(require_platform),
+    actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
-    """FR-075 — validation blocks publication with an incomplete rubric.
-    Admin-gated: a company can draft, but only admin publishes (FR-019)."""
+    """FR-075 — validation blocks publication with an incomplete rubric."""
     try:
         publish(db, programme)
     except RubricError as error:

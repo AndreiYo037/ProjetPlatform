@@ -1131,7 +1131,7 @@
           "programmes"
         ],
         "summary": "Create Programme",
-        "description": "Admin creates the programme shell; the rubric is composed immediately\nfrom the role template so slots 2 and 3 arrive pre-filled (FR-055).",
+        "description": "Company owners/admins create the programme shell for their own company;\nplatform staff can create for any company. The rubric is composed\nimmediately from the role template so slots 2 and 3 arrive pre-filled\n(FR-055).",
         "operationId": "create_programme_programmes_post",
         "parameters": [
           {
@@ -1456,7 +1456,7 @@
           "programmes"
         ],
         "summary": "Publish Programme",
-        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric.\nAdmin-gated: a company can draft, but only admin publishes (FR-019).",
+        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric.",
         "operationId": "publish_programme_programmes__programme_id__publish_post",
         "parameters": [
           {
@@ -5917,8 +5917,15 @@
       "ProgrammeCreate": {
         "properties": {
           "company_id": {
-            "type": "string",
-            "format": "uuid",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Company Id"
           },
           "role_id": {
@@ -6015,7 +6022,6 @@
         },
         "type": "object",
         "required": [
-          "company_id",
           "role_id",
           "title",
           "slug"

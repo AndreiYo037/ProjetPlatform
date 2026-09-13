@@ -149,6 +149,36 @@ export const updateMyProfile = (body: Partial<Omit<PersonProfile, "email">>) =>
 export const getProgramme = (id: string) => api.get<ProgrammeDetail>(`/programmes/${id}`);
 export const listProgrammes = () => api.get<ProgrammeOut[]>("/programmes");
 
+export type ClusterGroup = { cluster: string; roles: RoleSummary[] };
+export type RoleSummary = { id: string; name: string; slug: string; cluster: string; aliases: string[] };
+export const getRoleClusters = () => api.get<ClusterGroup[]>("/roles/clusters");
+export const getRoleImplications = (roleId: string) =>
+  api.get<RoleImplications>(`/roles/${roleId}/implications`);
+
+export type CreateProgrammeInput = {
+  role_id: string;
+  title: string;
+  slug: string;
+  delivery_mode?: string;
+  capacity?: number | null;
+  team_size_max?: number;
+  applications_open_at?: string | null;
+  applications_close_at?: string | null;
+  start_at?: string | null;
+  submit_deadline_at?: string | null;
+  winners_count?: number;
+};
+export const createProgramme = (data: CreateProgrammeInput) =>
+  api.post<ProgrammeDetail>("/programmes", data);
+export const updateProgramme = (id: string, data: Partial<CreateProgrammeInput>) =>
+  api.patch<ProgrammeDetail>(`/programmes/${id}`, data);
+
+export type PublicationCheck = { ready: boolean; problems: string[] };
+export const getPublicationCheck = (id: string) =>
+  api.get<PublicationCheck>(`/programmes/${id}/publication-check`);
+export const publishProgramme = (id: string) =>
+  api.post<ProgrammeDetail>(`/programmes/${id}/publish`);
+
 export const getListing = (company: string, programme: string) =>
   api.get<PublicListing>(`/public/x/${company}/${programme}`);
 
