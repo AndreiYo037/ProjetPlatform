@@ -10,7 +10,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from projet.services.branding import logo_url
 
 ORM = ConfigDict(from_attributes=True)
 
@@ -22,7 +24,18 @@ class CompanySummary(BaseModel):
     name: str
     slug: str
     logo_url: str | None = None
+    website_url: str | None = None
     tier: str
+
+    @model_validator(mode="after")
+    def _render_logo(self) -> CompanySummary:
+        """The column holds a storage key; the wire carries an address.
+
+        Done here rather than at each call site so that every screen showing a
+        company shows its logo, without anyone having to remember to convert it.
+        """
+        self.logo_url = logo_url(self.id, self.logo_url)
+        return self
 
 
 class CompanyUserOut(BaseModel):

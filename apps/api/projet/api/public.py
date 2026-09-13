@@ -29,6 +29,7 @@ from projet.models import (
 from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
 from projet.services.auth import hash_password, validate_password
+from projet.services.branding import logo_url
 from projet.services.data_pack import public_preview
 from projet.services.people import google_email_warning, looks_like_email, resolve_person
 from projet.services.writeup import writeup_prompt_for
@@ -60,6 +61,9 @@ class PublicListing(BaseModel):
 
     company: str
     company_slug: str
+    # The company's mark, for the page a stranger decides on. Rendered here so
+    # the listing looks like the company's own, not like a row in a database.
+    company_logo_url: str | None
     programme_slug: str
     title: str
     role: str
@@ -106,6 +110,7 @@ class PublicListingSummary(BaseModel):
 
     company: str
     company_slug: str
+    company_logo_url: str | None
     programme_slug: str
     title: str
     role: str
@@ -130,6 +135,7 @@ def _summarize(db: Session, programme: Programme, company: Company) -> PublicLis
     return PublicListingSummary(
         company=company.name,
         company_slug=company.slug,
+        company_logo_url=logo_url(company.id, company.logo_url),
         programme_slug=programme.slug,
         title=programme.title,
         role=role.name if role else "",
@@ -256,6 +262,7 @@ def listing(
     return PublicListing(
         company=company.name,
         company_slug=company.slug,
+        company_logo_url=logo_url(company.id, company.logo_url),
         programme_slug=programme.slug,
         title=programme.title,
         role=role.name if role else "",

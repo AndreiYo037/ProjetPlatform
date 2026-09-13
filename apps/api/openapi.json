@@ -516,6 +516,174 @@
         }
       }
     },
+    "/companies/{company_id}/logo": {
+      "post": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Upload Company Logo",
+        "description": "The mark that appears on the challenge the company publishes.\n\nReplacing one writes a new key and drops the old object, so a cached page\nnever shows the previous logo under the same address.",
+        "operationId": "upload_company_logo_companies__company_id__logo_post",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_company_logo_companies__company_id__logo_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanySummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "companies"
+        ],
+        "summary": "Remove Company Logo",
+        "operationId": "remove_company_logo_companies__company_id__logo_delete",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanySummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "companies",
+          "public"
+        ],
+        "summary": "Serve Company Logo",
+        "description": "Unsigned on purpose.\n\nThe listing and the directory are read without a session, so the logo on\nthem has to be too. Only raster images are ever stored here, and the media\ntype comes from the extension we chose at upload rather than from anything\nthe uploader sent.",
+        "operationId": "serve_company_logo_companies__company_id__logo_get",
+        "parameters": [
+          {
+            "name": "company_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Company Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/companies/{company_id}/home": {
       "get": {
         "tags": [
@@ -4813,6 +4981,20 @@
         ],
         "title": "Body_apply_public_x__company_slug___programme_slug__apply_post"
       },
+      "Body_upload_company_logo_companies__company_id__logo_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_company_logo_companies__company_id__logo_post"
+      },
       "Body_upload_data_pack_resource_programmes__programme_id__data_pack_upload_post": {
         "properties": {
           "file": {
@@ -5039,6 +5221,17 @@
               }
             ],
             "title": "Your Name"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url"
           }
         },
         "type": "object",
@@ -5069,6 +5262,17 @@
               }
             ],
             "title": "Logo Url"
+          },
+          "website_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website Url"
           },
           "tier": {
             "type": "string",
@@ -7021,6 +7225,17 @@
             "type": "string",
             "title": "Company Slug"
           },
+          "company_logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Logo Url"
+          },
           "programme_slug": {
             "type": "string",
             "title": "Programme Slug"
@@ -7145,6 +7360,7 @@
         "required": [
           "company",
           "company_slug",
+          "company_logo_url",
           "programme_slug",
           "title",
           "role",
@@ -7173,6 +7389,17 @@
           "company_slug": {
             "type": "string",
             "title": "Company Slug"
+          },
+          "company_logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Logo Url"
           },
           "programme_slug": {
             "type": "string",
@@ -7245,6 +7472,7 @@
         "required": [
           "company",
           "company_slug",
+          "company_logo_url",
           "programme_slug",
           "title",
           "role",

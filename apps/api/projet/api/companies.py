@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -43,7 +43,15 @@ from projet.services.auth import (
     account_action_url,
     issue_account_action_token,
 )
+from projet.services.branding import (
+    LOGO_TYPES,
+    MAX_LOGO_BYTES,
+    is_stored_logo,
+    logo_media_type,
+    new_logo_key,
+)
 from projet.services.people import looks_like_email
+from projet.storage import StorageError, get_storage
 
 router = APIRouter(tags=["companies"])
 
@@ -88,6 +96,9 @@ class CompanyHome(BaseModel):
 class CompanyProfileUpdate(BaseModel):
     name: str | None = None
     your_name: str | None = None
+    # Read when drafting a problem statement, so it is worth asking for: a
+    # research pass with the real site behind it beats one guessing from a name.
+    website_url: str | None = None
 
 
 def _company_or_404(db: Session, company_id: uuid.UUID, actor: Actor) -> Company:
@@ -173,9 +184,89 @@ def update_company_profile(
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Your name is required.")
             user.name = label
             company.contact_name = label
+    if payload.website_url is not None:
+        company.website_url = payload.website_url.strip() or None
     db.commit()
     db.refresh(company)
     return company
+
+
+@router.post("/companies/{company_id}/logo", response_model=CompanySummary, status_code=201)
+async def upload_company_logo(
+    company_id: uuid.UUID,
+    file: UploadFile = File(),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> Company:
+    """The mark that appears on the challenge the company publishes.
+
+    Replacing one writes a new key and drops the old object, so a cached page
+    never shows the previous logo under the same address.
+    """
+    content = await file.read()
+    if len(content) > MAX_LOGO_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "Logos must be under 2MB. A 512px square is plenty.",
+        )
+    if file.content_type not in LOGO_TYPES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Logos must be a PNG, JPEG or WebP image.",
+        )
+
+    company = _company_or_404(db, company_id, actor)
+    previous = company.logo_url
+    key = new_logo_key(company.id, file.content_type)
+    get_storage().put(key, content, file.content_type)
+    company.logo_url = key
+    db.commit()
+    if is_stored_logo(previous) and previous != key:
+        get_storage().delete(previous)
+    db.refresh(company)
+    return company
+
+
+@router.delete("/companies/{company_id}/logo", response_model=CompanySummary)
+def remove_company_logo(
+    company_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> Company:
+    company = _company_or_404(db, company_id, actor)
+    previous = company.logo_url
+    company.logo_url = None
+    db.commit()
+    if is_stored_logo(previous):
+        get_storage().delete(previous)
+    db.refresh(company)
+    return company
+
+
+@router.get("/companies/{company_id}/logo", tags=["public"])
+def serve_company_logo(
+    company_id: uuid.UUID,
+    db: Session = Depends(get_session),
+) -> Response:
+    """Unsigned on purpose.
+
+    The listing and the directory are read without a session, so the logo on
+    them has to be too. Only raster images are ever stored here, and the media
+    type comes from the extension we chose at upload rather than from anything
+    the uploader sent.
+    """
+    company = db.get(Company, company_id)
+    if company is None or not is_stored_logo(company.logo_url):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No logo.")
+    try:
+        content = get_storage().get(company.logo_url)
+    except StorageError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No logo.") from None
+    return Response(
+        content,
+        media_type=logo_media_type(company.logo_url),
+        headers={"Cache-Control": "public, max-age=300"},
+    )
 
 
 @router.get("/companies/{company_id}/home", response_model=CompanyHome)

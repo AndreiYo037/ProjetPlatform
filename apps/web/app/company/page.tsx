@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
-import { getCompanyHome, updateCompanyProfile, type CompanyHome } from "@/lib/api";
+import {
+  assetUrl,
+  getCompanyHome,
+  removeCompanyLogo,
+  updateCompanyProfile,
+  uploadCompanyLogo,
+  type CompanyHome,
+} from "@/lib/api";
 import { useActor } from "@/lib/useActor";
 
 export default function CompanyHomePage() {
@@ -36,7 +43,17 @@ export default function CompanyHomePage() {
 
   return (
     <main>
-      <h1>{home.company.name}</h1>
+      <div className="row" style={{ alignItems: "center", gap: "0.75rem" }}>
+        {home.company.logo_url && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={assetUrl(home.company.logo_url)}
+            alt=""
+            style={{ height: "2.5rem", width: "auto" }}
+          />
+        )}
+        <h1 style={{ margin: 0 }}>{home.company.name}</h1>
+      </div>
       <p className="lede">
         {home.candidate_pool_size} candidate{home.candidate_pool_size === 1 ? "" : "s"} you
         have watched present, across every programme you have run.
@@ -91,6 +108,7 @@ function CompanyProfile({
 }) {
   const [name, setName] = useState(home.company.name);
   const [contactName, setContactName] = useState(home.team[0]?.name ?? "");
+  const [website, setWebsite] = useState(home.company.website_url ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -103,6 +121,7 @@ function CompanyProfile({
     try {
       await updateCompanyProfile(home.company.id, {
         name,
+        website_url: website.trim(),
         ...(contactName.trim() ? { your_name: contactName.trim() } : {}),
       });
       setSaved(true);
@@ -134,11 +153,90 @@ function CompanyProfile({
           onChange={(e) => setContactName(e.target.value)}
         />
       </div>
+      <div className="field">
+        <label htmlFor="company-website">Website</label>
+        <input
+          id="company-website"
+          type="url"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          placeholder="https://…"
+        />
+        <div className="hint">
+          Read when we draft a problem statement for you. A research pass with your
+          real site behind it beats one guessing from a name.
+        </div>
+      </div>
       {error && <div className="notice bad">{error}</div>}
       {saved && <div className="notice good">Saved.</div>}
       <button type="submit" disabled={busy || !name}>
         {busy ? "Saving…" : "Save profile"}
       </button>
+      <LogoField home={home} onSaved={onSaved} />
     </form>
+  );
+}
+
+/**
+ * The mark that goes on the challenge a stranger reads.
+ *
+ * Saved on choosing rather than on submitting the form around it: a file input
+ * has nothing to hold on to between renders, and asking someone to pick a file
+ * and then remember to press Save is how logos end up not uploaded.
+ */
+function LogoField({ home, onSaved }: { home: CompanyHome; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function run(work: () => Promise<unknown>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await work();
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the logo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="field" style={{ marginTop: "1rem" }}>
+      <label htmlFor="company-logo">Logo</label>
+      {home.company.logo_url && (
+        <div className="row" style={{ alignItems: "center", gap: "0.75rem" }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={assetUrl(home.company.logo_url)}
+            alt={`${home.company.name} logo`}
+            style={{ height: "3rem", width: "auto" }}
+          />
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy}
+            onClick={() => run(() => removeCompanyLogo(home.company.id))}
+          >
+            Remove
+          </button>
+        </div>
+      )}
+      <input
+        id="company-logo"
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        disabled={busy}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) run(() => uploadCompanyLogo(home.company.id, file));
+        }}
+      />
+      <div className="hint">
+        PNG, JPEG or WebP, under 2MB. A square around 512px works everywhere it is
+        shown. It appears on every challenge you publish.
+      </div>
+      {error && <div className="notice bad">{error}</div>}
+    </div>
   );
 }

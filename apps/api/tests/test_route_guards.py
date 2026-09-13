@@ -58,6 +58,8 @@ PUBLIC: dict[tuple[str, str], str] = {
     ("POST", "/public/x/{company_slug}/{programme_slug}/notify-me"): "interest in a closed listing",
     ("GET", "/public/x/{company_slug}"): "a company's own careers page (FR-104)",
     ("GET", "/public/challenges"): "the platform-wide directory (FR-105)",
+    # The logo renders on those pages, which are read without a session.
+    ("GET", "/companies/{company_id}/logo"): "a brand mark on an unauthenticated page",
 }
 
 

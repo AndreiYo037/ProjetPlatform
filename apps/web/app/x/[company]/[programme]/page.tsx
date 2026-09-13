@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { API_BASE_URL, type PublicListing } from "@/lib/api";
+import { API_BASE_URL, assetUrl, type PublicListing } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -51,9 +51,19 @@ export default async function ListingPage({
       </div>
 
       <h1>{listing.title}</h1>
-      <p className="lede">
-        {listing.company} · {listing.role}
-      </p>
+      <div className="row" style={{ alignItems: "center", gap: "0.6rem" }}>
+        {listing.company_logo_url && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={assetUrl(listing.company_logo_url)}
+            alt=""
+            style={{ height: "2rem", width: "auto" }}
+          />
+        )}
+        <p className="lede" style={{ margin: 0 }}>
+          {listing.company} · {listing.role}
+        </p>
+      </div>
 
       {listing.problem_statement && (
         <>

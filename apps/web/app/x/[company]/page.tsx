@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { API_BASE_URL, type PublicListingSummary } from "@/lib/api";
+import { API_BASE_URL, assetUrl, type PublicListingSummary } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +37,17 @@ export default async function CompanyChallengesPage({
 
   return (
     <main>
-      <h1>{companyName}</h1>
+      <div className="row" style={{ alignItems: "center", gap: "0.75rem" }}>
+        {items[0]?.company_logo_url && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={assetUrl(items[0].company_logo_url)}
+            alt=""
+            style={{ height: "2.5rem", width: "auto" }}
+          />
+        )}
+        <h1 style={{ margin: 0 }}>{companyName}</h1>
+      </div>
       <p className="lede">Every challenge {companyName} has published on Projet.</p>
 
       {items.length === 0 ? (

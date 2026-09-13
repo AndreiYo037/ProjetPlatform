@@ -22,6 +22,20 @@ export function apiUrl(path: string): string {
   return `${API_BASE_URL}${suffix}`;
 }
 
+/**
+ * An address the browser can fetch, wherever the page was rendered.
+ *
+ * Unlike `apiUrl`, an `<img src>` is resolved by the browser even on a
+ * server-rendered page, so it always goes through the same-origin proxy rather
+ * than the server-side base URL. An absolute link the company pasted is left
+ * exactly as it is.
+ */
+export function assetUrl(path: string | null | undefined): string | undefined {
+  if (!path) return undefined;
+  if (/^https?:\/\//.test(path)) return path;
+  return `/backend${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -36,6 +50,7 @@ type Schemas = components["schemas"];
 
 export type Actor = Schemas["ActorResponse"];
 export type CompanyHome = Schemas["CompanyHome"];
+export type CompanySummary = Schemas["CompanySummary"];
 export type ProgrammeOut = Schemas["ProgrammeOut"];
 export type ProgrammeDetail = Schemas["ProgrammeDetail"];
 export type PublicListing = Schemas["PublicListing"];
@@ -141,8 +156,28 @@ export const getCompanyHome = (companyId: string) =>
   api.get<CompanyHome>(`/companies/${companyId}/home`);
 export const updateCompanyProfile = (
   companyId: string,
-  body: { name?: string; your_name?: string },
-) => api.patch<CompanyHome["company"]>(`/companies/${companyId}`, body);
+  body: { name?: string; your_name?: string; website_url?: string },
+) => api.patch<CompanySummary>(`/companies/${companyId}`, body);
+export const removeCompanyLogo = (companyId: string) =>
+  api.del<CompanySummary>(`/companies/${companyId}/logo`);
+
+/** Multipart, so it goes round the JSON helper. Raster images only: an SVG is
+ *  a document that can carry script, and the logo is served unsigned. */
+export async function uploadCompanyLogo(
+  companyId: string,
+  file: File,
+): Promise<CompanySummary> {
+  const form = new FormData();
+  form.set("file", file);
+  const response = await fetch(apiUrl(`/companies/${companyId}/logo`), {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+  const body = await response.json();
+  if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not upload that logo.");
+  return body as CompanySummary;
+}
 export const getMyProfile = () => api.get<PersonProfile>("/me/profile");
 export const updateMyProfile = (body: Partial<Omit<PersonProfile, "email">>) =>
   api.patch<PersonProfile>("/me/profile", body);
