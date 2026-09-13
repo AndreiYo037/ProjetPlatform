@@ -1,84 +1,17 @@
-"use client";
+import PortalLogin from "@/components/PortalLogin";
 
-import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
-import { login } from "@/lib/api";
-
-function homeFor(actor: { actor_type: string; company_id: string | null }) {
-  if (actor.actor_type === "participant") return "/dashboard";
-  if (actor.actor_type === "platform") return "/admin";
-  if (actor.company_id) return "/company";
-  return "/";
-}
-
-function SignInForm() {
-  const params = useSearchParams();
-  const router = useRouter();
-  const next = params.get("next") ?? undefined;
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const actor = await login(email, password);
-      router.push(next ?? homeFor({ actor_type: actor.actor_type, company_id: actor.company_id ?? null }));
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "That email or password is not right.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
+export default function ParticipantSignInPage() {
   return (
-    <form onSubmit={submit}>
-      <div className="field">
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          autoFocus
-          autoComplete="email"
-        />
-      </div>
-      <div className="field">
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          autoComplete="current-password"
-        />
-      </div>
-      {error && <div className="notice bad">{error}</div>}
-      <button type="submit" disabled={busy || !email || !password}>
-        {busy ? "Signing in…" : "Sign in"}
-      </button>
-      <p className="small" style={{ marginTop: "1rem" }}>
-        <Link href="/forgot-password">Forgot your password?</Link>
-      </p>
-    </form>
-  );
-}
-
-export default function SignInPage() {
-  return (
-    <main className="narrow">
-      <h1>Sign in</h1>
-      <Suspense fallback={null}>
-        <SignInForm />
-      </Suspense>
-    </main>
+    <PortalLogin
+      actorType="participant"
+      portalLabel="Participant"
+      badge="Applicants & participants"
+      lede="For students and applicants — your dashboard, submission and channel."
+      defaultHome="/dashboard"
+      forgotHref="/forgot-password"
+      crossLinks={[
+        { label: "Signing in from the company that's running your challenge? Company sign in →", href: "/company/signin" },
+      ]}
+    />
   );
 }

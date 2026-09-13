@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from projet.api.deps import current_actor, require_actor
 from projet.config import get_settings
 from projet.db import get_session
-from projet.models.enums import AccountActionPurpose, OutboxSubjectType
+from projet.models.enums import AccountActionPurpose, ActorType, OutboxSubjectType
 from projet.outbox.account_effects import PASSWORD_RESET_EMAIL
 from projet.outbox.effects import enqueue
 from projet.services.auth import (
@@ -82,6 +82,11 @@ def _set_session_cookie(response: Response, raw_session: str) -> None:
 class LoginRequest(BaseModel):
     email: str = Field(max_length=320)
     password: str = Field(min_length=1, max_length=200)
+    # Required, not inferred: the portal you signed in from says who you are.
+    # A shared lookup across all three account tables would mean a company
+    # user and a participant sharing an email could not be told apart, and the
+    # three sign-in surfaces would not actually be separate accounts.
+    actor_type: ActorType
 
     @field_validator("email")
     @classmethod
@@ -98,21 +103,22 @@ def login(
     response: Response,
     db: Session = Depends(get_session),
 ) -> ActorResponse:
-    resolved = authenticate(db, email=payload.email, password=payload.password)
-    if resolved is None:
+    subject_id = authenticate(
+        db, email=payload.email, password=payload.password, actor_type=payload.actor_type
+    )
+    if subject_id is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That email or password is not right.")
-    actor_type, subject_id = resolved
 
     _, raw_session = start_session(
         db,
-        actor_type=actor_type,
+        actor_type=payload.actor_type,
         subject_id=subject_id,
         user_agent=request.headers.get("user-agent"),
     )
     db.commit()
 
     _set_session_cookie(response, raw_session)
-    actor = load_actor(db, actor_type, subject_id)
+    actor = load_actor(db, payload.actor_type, subject_id)
     assert actor is not None
     return ActorResponse.of(actor)
 
@@ -131,6 +137,7 @@ def logout(
 
 class PasswordResetRequest(BaseModel):
     email: str = Field(max_length=320)
+    actor_type: ActorType
 
 
 @router.post("/password/forgot")
@@ -140,7 +147,7 @@ def forgot_password(
 ) -> dict:
     """Deliberately the same response whether or not the address is known -
     a different one enumerates who has an account."""
-    issued = issue_password_reset(db, email=payload.email)
+    issued = issue_password_reset(db, email=payload.email, actor_type=payload.actor_type)
     if issued is not None:
         token, raw = issued
         enqueue(

@@ -83,44 +83,91 @@ def test_password_length_is_enforced(password, ok):
 
 def test_a_company_user_can_log_in_once_a_password_is_set(session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
-    resolved = authenticate(session, email=rep.email, password="hunter22")
+    resolved = authenticate(
+        session, email=rep.email, password="hunter22", actor_type=ActorType.COMPANY_USER
+    )
 
-    assert resolved == (ActorType.COMPANY_USER, rep.id)
+    assert resolved == rep.id
 
 
 def test_the_wrong_password_does_not_authenticate(session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
-    assert authenticate(session, email=rep.email, password="wrong") is None
+    assert (
+        authenticate(session, email=rep.email, password="wrong", actor_type=ActorType.COMPANY_USER)
+        is None
+    )
 
 
 def test_an_account_with_no_password_set_cannot_log_in(session, rep):
     """An invited user who has not yet chosen a password is not a login."""
-    assert authenticate(session, email=rep.email, password="anything") is None
+    assert (
+        authenticate(
+            session, email=rep.email, password="anything", actor_type=ActorType.COMPANY_USER
+        )
+        is None
+    )
 
 
 def test_an_unknown_address_does_not_authenticate(session):
-    assert authenticate(session, email="nobody@nowhere.test", password="anything") is None
+    assert (
+        authenticate(
+            session,
+            email="nobody@nowhere.test",
+            password="anything",
+            actor_type=ActorType.COMPANY_USER,
+        )
+        is None
+    )
 
 
 def test_a_disabled_company_user_cannot_log_in(session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     rep.status = CompanyUserStatus.DISABLED
     session.flush()
-    assert authenticate(session, email=rep.email, password="hunter22") is None
+    assert (
+        authenticate(
+            session, email=rep.email, password="hunter22", actor_type=ActorType.COMPANY_USER
+        )
+        is None
+    )
 
 
 def test_a_participant_authenticates_the_same_way(session, participant_factory):
     participant = participant_factory()
     set_password(session, ActorType.PARTICIPANT, participant.person_id, "hunter22")
 
-    resolved = authenticate(session, email=participant.person.contact_email, password="hunter22")
-    assert resolved == (ActorType.PARTICIPANT, participant.person_id)
+    resolved = authenticate(
+        session,
+        email=participant.person.contact_email,
+        password="hunter22",
+        actor_type=ActorType.PARTICIPANT,
+    )
+    assert resolved == participant.person_id
 
 
 def test_platform_users_authenticate_the_same_way(session, platform_user):
     set_password(session, ActorType.PLATFORM, platform_user.id, "hunter22")
-    resolved = authenticate(session, email=platform_user.email, password="hunter22")
-    assert resolved == (ActorType.PLATFORM, platform_user.id)
+    resolved = authenticate(
+        session, email=platform_user.email, password="hunter22", actor_type=ActorType.PLATFORM
+    )
+    assert resolved == platform_user.id
+
+
+def test_a_company_login_does_not_authenticate_a_participant_with_the_same_email(
+    session, company, participant_factory
+):
+    """The whole point of scoping by actor_type: a shared email must not let a
+    participant sign in through the company portal, or vice versa."""
+    participant = participant_factory()
+    set_password(session, ActorType.PARTICIPANT, participant.person_id, "hunter22")
+
+    resolved = authenticate(
+        session,
+        email=participant.person.contact_email,
+        password="hunter22",
+        actor_type=ActorType.COMPANY_USER,
+    )
+    assert resolved is None
 
 
 def test_a_company_user_outranks_a_participant_on_the_same_address(
@@ -141,6 +188,29 @@ def test_a_company_user_outranks_a_participant_on_the_same_address(
 
 
 # -- account action tokens ------------------------------------------------------
+
+
+def test_password_reset_is_scoped_to_the_requested_actor_type(
+    session, company, participant_factory
+):
+    from projet.services.auth import issue_password_reset
+
+    participant = participant_factory()
+    shared = participant.person.contact_email
+    from projet.models import CompanyUser
+    from projet.models.enums import CompanyUserRole
+
+    session.add(
+        CompanyUser(company_id=company.id, name="Dual", email=shared, role=CompanyUserRole.REP)
+    )
+    session.flush()
+
+    for_company = issue_password_reset(session, email=shared, actor_type=ActorType.COMPANY_USER)
+    for_participant = issue_password_reset(session, email=shared, actor_type=ActorType.PARTICIPANT)
+
+    assert for_company is not None and for_company[0].actor_type == ActorType.COMPANY_USER
+    assert for_participant is not None and for_participant[0].actor_type == ActorType.PARTICIPANT
+    assert for_company[0].subject_id != for_participant[0].subject_id
 
 
 def test_a_set_password_token_can_only_set_a_password_once(session, rep):
@@ -205,7 +275,7 @@ def test_a_reset_token_cannot_be_used_where_a_set_password_token_is_expected(ses
 
 def test_password_reset_is_issued_for_a_known_address(session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
-    issued = issue_password_reset(session, email=rep.email)
+    issued = issue_password_reset(session, email=rep.email, actor_type=ActorType.COMPANY_USER)
 
     assert issued is not None
     token, _ = issued
@@ -213,7 +283,12 @@ def test_password_reset_is_issued_for_a_known_address(session, rep):
 
 
 def test_password_reset_is_silent_for_an_unknown_address(session):
-    assert issue_password_reset(session, email="nobody@nowhere.test") is None
+    assert (
+        issue_password_reset(
+            session, email="nobody@nowhere.test", actor_type=ActorType.COMPANY_USER
+        )
+        is None
+    )
 
 
 def test_the_account_action_url_routes_by_purpose(session, rep):
@@ -239,8 +314,18 @@ def test_resetting_a_password_replaces_the_old_one(session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter23")
 
-    assert authenticate(session, email=rep.email, password="hunter22") is None
-    assert authenticate(session, email=rep.email, password="hunter23") is not None
+    assert (
+        authenticate(
+            session, email=rep.email, password="hunter22", actor_type=ActorType.COMPANY_USER
+        )
+        is None
+    )
+    assert (
+        authenticate(
+            session, email=rep.email, password="hunter23", actor_type=ActorType.COMPANY_USER
+        )
+        is not None
+    )
 
 
 # -- sessions -----------------------------------------------------------------

@@ -176,6 +176,45 @@ def resolve_actor_by_email(session: Session, email: str) -> tuple[ActorType, uui
     return None
 
 
+def resolve_actor_of_type(session: Session, email: str, actor_type: ActorType) -> uuid.UUID | None:
+    """The same lookup as resolve_actor_by_email, but scoped to one portal.
+
+    Each sign-in surface is for one actor type — a company login must not
+    silently authenticate a participant who happens to share that email
+    address, or the three portals are not actually separate, just three doors
+    into the same ambiguous lookup.
+    """
+    normalised = normalise_email(email)
+    if not normalised:
+        return None
+
+    if actor_type == ActorType.PLATFORM:
+        platform = session.scalar(
+            select(PlatformUser).where(PlatformUser.email == normalised, PlatformUser.is_active)
+        )
+        return platform.id if platform is not None else None
+
+    if actor_type == ActorType.COMPANY_USER:
+        company_user = session.scalar(
+            select(CompanyUser)
+            .where(CompanyUser.email == normalised)
+            .where(CompanyUser.status != CompanyUserStatus.DISABLED)
+        )
+        return company_user.id if company_user is not None else None
+
+    from sqlalchemy import func, or_
+
+    person = session.scalar(
+        select(Person).where(
+            or_(
+                func.lower(Person.contact_email) == normalised,
+                func.lower(Person.google_email) == normalised,
+            )
+        )
+    )
+    return person.id if person is not None else None
+
+
 def load_actor(session: Session, actor_type: ActorType, subject_id: uuid.UUID) -> Actor | None:
     if actor_type == ActorType.PLATFORM:
         platform_user = session.get(PlatformUser, subject_id)
@@ -217,29 +256,31 @@ def _password_hash_column(actor_type: ActorType, session: Session, subject_id: u
 
 
 def authenticate(
-    session: Session, *, email: str, password: str
-) -> tuple[ActorType, uuid.UUID] | None:
-    """Email and password, for all three actor types.
+    session: Session, *, email: str, password: str, actor_type: ActorType
+) -> uuid.UUID | None:
+    """Email and password, scoped to one actor type.
 
-    Deliberately does the same amount of work (a lookup and a hash comparison)
-    whether or not the address exists, so response timing does not tell an
-    attacker which addresses have accounts.
+    actor_type is required, not inferred: the sign-in page you are on says
+    which portal you mean, and authentication has to honour that rather than
+    falling back to some priority order across account tables. Deliberately
+    does the same amount of work (a lookup and a hash comparison) whether or
+    not the address exists for that type, so response timing cannot be used
+    to enumerate accounts.
     """
-    resolved = resolve_actor_by_email(session, email)
+    subject_id = resolve_actor_of_type(session, email, actor_type)
     dummy_hash = (
         "scrypt$16384$8$1$00000000000000000000000000000000$"
         "0000000000000000000000000000000000000000000000000000000000000000"
     )
-    if resolved is None:
+    if subject_id is None:
         verify_password(password, dummy_hash)
         return None
 
-    actor_type, subject_id = resolved
     record = _password_hash_column(actor_type, session, subject_id)
     stored = getattr(record, "password_hash", None) if record is not None else None
     if not verify_password(password, stored):
         return None
-    return actor_type, subject_id
+    return subject_id
 
 
 def set_password(
@@ -279,13 +320,14 @@ def issue_account_action_token(
     return token, raw
 
 
-def issue_password_reset(session: Session, *, email: str) -> tuple[AccountActionToken, str] | None:
-    """Returns None for an unknown address; the caller must not reveal which -
-    a different response enumerates who has an account."""
-    resolved = resolve_actor_by_email(session, email)
-    if resolved is None:
+def issue_password_reset(
+    session: Session, *, email: str, actor_type: ActorType
+) -> tuple[AccountActionToken, str] | None:
+    """Returns None for an unknown address in that portal; the caller must not
+    reveal which — a different response enumerates who has an account."""
+    subject_id = resolve_actor_of_type(session, email, actor_type)
+    if subject_id is None:
         return None
-    actor_type, subject_id = resolved
     return issue_account_action_token(
         session,
         actor_type=actor_type,

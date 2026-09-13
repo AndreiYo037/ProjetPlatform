@@ -14,7 +14,7 @@ export default function AdminPage() {
     getSession()
       .then((actor) => {
         if (!actor) {
-          router.replace("/signin?next=/admin");
+          router.replace("/admin/login?next=/admin");
           return null;
         }
         return listProgrammes();

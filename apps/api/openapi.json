@@ -3431,6 +3431,16 @@
         ],
         "title": "ActorResponse"
       },
+      "ActorType": {
+        "type": "string",
+        "enum": [
+          "platform",
+          "company_user",
+          "participant"
+        ],
+        "title": "ActorType",
+        "description": "Who is acting. Three identities, each with its own email+password.\n\nPlatform staff are deliberately a separate table from company users: a bug\nin company scoping should never be able to escalate into cross-tenant access."
+      },
       "ApplicationAccepted": {
         "properties": {
           "application_id": {
@@ -5018,12 +5028,16 @@
             "maxLength": 200,
             "minLength": 1,
             "title": "Password"
+          },
+          "actor_type": {
+            "$ref": "#/components/schemas/ActorType"
           }
         },
         "type": "object",
         "required": [
           "email",
-          "password"
+          "password",
+          "actor_type"
         ],
         "title": "LoginRequest"
       },
@@ -5095,11 +5109,15 @@
             "type": "string",
             "maxLength": 320,
             "title": "Email"
+          },
+          "actor_type": {
+            "$ref": "#/components/schemas/ActorType"
           }
         },
         "type": "object",
         "required": [
-          "email"
+          "email",
+          "actor_type"
         ],
         "title": "PasswordResetRequest"
       },

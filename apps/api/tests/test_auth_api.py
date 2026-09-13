@@ -46,7 +46,10 @@ def test_logging_in_with_the_right_password_signs_you_in(client, session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     session.commit()
 
-    response = client.post("/auth/login", json={"email": rep.email, "password": "hunter22"})
+    response = client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+    )
 
     assert response.status_code == 200
     assert response.json()["actor_type"] == "company_user"
@@ -61,19 +64,25 @@ def test_the_wrong_password_is_refused(client, session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     session.commit()
 
-    response = client.post("/auth/login", json={"email": rep.email, "password": "wrong"})
+    response = client.post(
+        "/auth/login", json={"email": rep.email, "password": "wrong", "actor_type": "company_user"}
+    )
     assert response.status_code == 401
 
 
 def test_an_account_with_no_password_yet_cannot_log_in(client, rep):
-    response = client.post("/auth/login", json={"email": rep.email, "password": "anything"})
+    response = client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "anything", "actor_type": "company_user"},
+    )
     assert response.status_code == 401
 
 
 def test_an_unknown_address_gets_the_same_error_as_a_wrong_password(client):
     """The point is that the two cases are indistinguishable from outside."""
     response = client.post(
-        "/auth/login", json={"email": "nobody@nowhere.test", "password": "anything"}
+        "/auth/login",
+        json={"email": "nobody@nowhere.test", "password": "anything", "actor_type": "company_user"},
     )
     assert response.status_code == 401
 
@@ -91,7 +100,10 @@ def test_session_probe_is_unauthenticated(client):
 def test_logging_out_ends_the_session(client, session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     session.commit()
-    client.post("/auth/login", json={"email": rep.email, "password": "hunter22"})
+    client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+    )
     assert client.get("/auth/me").status_code == 200
 
     assert client.post("/auth/logout").status_code == 200
@@ -114,7 +126,10 @@ def test_setting_the_initial_password_signs_you_in(client, session, rep):
 
     # And the password now works for an ordinary login too.
     client.post("/auth/logout")
-    login = client.post("/auth/login", json={"email": rep.email, "password": "hunter22"})
+    login = client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+    )
     assert login.status_code == 200
 
 
@@ -154,7 +169,9 @@ def test_requesting_a_reset_queues_an_email_for_a_known_address(client, session,
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     session.commit()
 
-    response = client.post("/auth/password/forgot", json={"email": rep.email})
+    response = client.post(
+        "/auth/password/forgot", json={"email": rep.email, "actor_type": "company_user"}
+    )
     assert response.status_code == 200
     assert response.json()["sent"] is True
 
@@ -165,7 +182,9 @@ def test_requesting_a_reset_queues_an_email_for_a_known_address(client, session,
 
 
 def test_requesting_a_reset_for_an_unknown_address_sends_nothing(client, session, google):
-    response = client.post("/auth/password/forgot", json={"email": "nobody@nowhere.test"})
+    response = client.post(
+        "/auth/password/forgot", json={"email": "nobody@nowhere.test", "actor_type": "company_user"}
+    )
     assert response.status_code == 200
     assert response.json()["sent"] is True  # identical response either way
 
@@ -185,8 +204,14 @@ def test_resetting_with_a_valid_token_changes_the_password(client, session, rep)
     assert SESSION_COOKIE in response.cookies
 
     client.post("/auth/logout")
-    old = client.post("/auth/login", json={"email": rep.email, "password": "hunter22"})
-    new = client.post("/auth/login", json={"email": rep.email, "password": "hunter23"})
+    old = client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+    )
+    new = client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "hunter23", "actor_type": "company_user"},
+    )
     assert old.status_code == 401
     assert new.status_code == 200
 
@@ -216,3 +241,16 @@ def test_an_expired_reset_token_is_refused(client, session, rep):
     response = client.post("/auth/password/reset", json={"token": raw, "password": "hunter22"})
     assert response.status_code == 400
     assert "expired" in response.json()["detail"]
+
+
+def test_logging_in_as_the_wrong_actor_type_is_refused_over_http(client, session, rep):
+    """The email and password are right, but this is the participant portal -
+    a company account must not sign in through it."""
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
+    session.commit()
+
+    response = client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "hunter22", "actor_type": "participant"},
+    )
+    assert response.status_code == 401

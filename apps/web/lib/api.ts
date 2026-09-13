@@ -81,12 +81,17 @@ export const api = {
 
 // -- endpoints used by more than one screen ----------------------------------
 
+export type ActorTypeParam = "participant" | "company_user" | "platform";
+
 export const getSession = () => api.get<Actor | null>("/auth/session");
-export const login = (email: string, password: string) =>
-  api.post<Actor>("/auth/login", { email, password });
+export const login = (email: string, password: string, actorType: ActorTypeParam) =>
+  api.post<Actor>("/auth/login", { email, password, actor_type: actorType });
 export const logout = () => api.post<{ signed_out: boolean }>("/auth/logout");
-export const requestPasswordReset = (email: string) =>
-  api.post<{ sent: boolean; message: string }>("/auth/password/forgot", { email });
+export const requestPasswordReset = (email: string, actorType: ActorTypeParam) =>
+  api.post<{ sent: boolean; message: string }>("/auth/password/forgot", {
+    email,
+    actor_type: actorType,
+  });
 export const confirmPasswordReset = (token: string, password: string) =>
   api.post<Actor>("/auth/password/reset", { token, password });
 export const setInitialPassword = (token: string, password: string) =>

@@ -13,7 +13,7 @@ export default function CompanyHomePage() {
   const load = useCallback(async () => {
     const actor = await getSession().catch(() => null);
     if (!actor) {
-      router.replace("/signin?next=/company");
+      router.replace("/company/signin?next=/company");
       return;
     }
     if (!actor.company_id) {

@@ -26,10 +26,25 @@ export default function Header() {
       .finally(() => setChecked(true));
   }, [pathname]);
 
+  function signInPathFor(path: string): string {
+    if (path.startsWith("/admin")) return "/admin/login";
+    if (path.startsWith("/company")) return "/company/signin";
+    return "/signin";
+  }
+
   async function signOut() {
+    // Return to the sign-in page for the portal you were just in, not always
+    // the participant one — signing out of admin should offer admin sign in.
+    const destination = actor
+      ? actor.actor_type === "platform"
+        ? "/admin/login"
+        : actor.company_id
+          ? "/company/signin"
+          : "/signin"
+      : signInPathFor(pathname);
     await logout().catch(() => undefined);
     setActor(null);
-    router.push("/signin");
+    router.push(destination);
     router.refresh();
   }
 
@@ -64,7 +79,7 @@ export default function Header() {
             </button>
           </>
         ) : (
-          <Link className="btn secondary" href="/signin">
+          <Link className="btn secondary" href={signInPathFor(pathname)}>
             Sign in
           </Link>
         )}

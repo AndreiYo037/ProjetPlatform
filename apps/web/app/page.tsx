@@ -20,12 +20,17 @@ export default async function Home() {
         in a week, and the work itself becomes the hiring signal.
       </p>
 
+      <h2>Sign in</h2>
+      <p className="lede">Three separate accounts, one platform.</p>
       <div className="row">
         <Link className="btn" href="/signin">
-          Sign in
+          Participant sign in
         </Link>
-        <Link className="btn secondary" href="/admin">
-          Admin
+        <Link className="btn secondary" href="/company/signin">
+          Company sign in
+        </Link>
+        <Link className="btn secondary" href="/admin/login">
+          Admin sign in
         </Link>
       </div>
 
