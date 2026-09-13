@@ -164,6 +164,12 @@ export default function DashboardPage() {
           <p className="small muted">
             Everything released for this challenge, in one place.
           </p>
+          {data.data_pack.some((entry) => entry.confidential) && (
+            <div className="notice warn">
+              Some of this is the company's own material, marked confidential. Use it
+              for this challenge and do not pass it on or publish it, here or later.
+            </div>
+          )}
           <ul className="small">
             {data.data_pack.map((entry) => (
               <li key={entry.label}>
@@ -171,6 +177,8 @@ export default function DashboardPage() {
                 {entry.provenance === "company_supplied" && (
                   <span className="tag">from the company</span>
                 )}
+                {entry.confidential && <span className="tag">confidential</span>}
+                {entry.licence && <div className="muted">{entry.licence}</div>}
               </li>
             ))}
           </ul>

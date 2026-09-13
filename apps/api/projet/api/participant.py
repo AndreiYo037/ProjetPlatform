@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 from projet.api.deps import require_participant
 from projet.db import get_session
 from projet.models import (
-    DataPackResource,
     JudgingSession,
     Participant,
     Person,
@@ -33,6 +32,7 @@ from projet.models import (
 from projet.models.base import utcnow
 from projet.models.enums import ProgrammeStatus, SubmissionSlot
 from projet.services.auth import Actor
+from projet.services.data_pack import released_resources, resource_url
 from projet.services.messaging import (
     mark_read,
     unacknowledged,
@@ -151,6 +151,10 @@ class DataPackEntry(BaseModel):
     label: str
     url: str | None
     provenance: str
+    licence: str | None = None
+    # Marked so the dashboard can say it out loud. The acknowledgement is the
+    # gate; the tag is what stops someone forwarding it without thinking.
+    confidential: bool = False
 
 
 class CriterionPublic(BaseModel):
@@ -323,9 +327,9 @@ def dashboard(
         .where(RubricCriterion.programme_id == participant.programme_id)
         .order_by(RubricCriterion.slot)
     )
-    data_pack = db.scalars(
-        select(DataPackResource).where(DataPackResource.programme_id == participant.programme_id)
-    )
+    # Excluded entries are not the participant's business: the company took
+    # them out of the pack, so they are out of the pack.
+    data_pack = released_resources(db, participant.programme_id)
 
     return Dashboard(
         provisioning=provisioning,
@@ -356,7 +360,13 @@ def dashboard(
             for c in criteria
         ],
         data_pack=[
-            DataPackEntry(label=r.label, url=r.url_or_storage_key, provenance=r.provenance.value)
+            DataPackEntry(
+                label=r.label,
+                url=resource_url(r.url_or_storage_key),
+                provenance=r.provenance.value,
+                licence=r.licence,
+                confidential=r.confidential,
+            )
             for r in data_pack
         ],
         threads=threads,

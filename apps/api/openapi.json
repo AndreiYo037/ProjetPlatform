@@ -1642,7 +1642,7 @@
           "programmes"
         ],
         "summary": "Get Data Pack",
-        "description": "FR-057/069 \u2014 one list, provenance visible per resource.",
+        "description": "FR-057/069 \u2014 one list, provenance visible per resource.\n\nThe company sees what it excluded as well as what it kept, because an\ninvisible exclusion is indistinguishable from a source that was never there.",
         "operationId": "get_data_pack_programmes__programme_id__data_pack_get",
         "parameters": [
           {
@@ -1757,6 +1757,221 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/data-pack/upload": {
+      "post": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Upload Data Pack Resource",
+        "description": "The company's own file, not a link to it.\n\nA shared Drive link is a permission the company has to keep right for a\nweek; an upload is a copy we can serve, expire, and stop serving when the\nprogramme ends. Stored under a signed key, so a forwarded URL dies.",
+        "operationId": "upload_data_pack_resource_programmes__programme_id__data_pack_upload_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_data_pack_resource_programmes__programme_id__data_pack_upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Upload Data Pack Resource Programmes  Programme Id  Data Pack Upload Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/data-pack/{resource_id}": {
+      "patch": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Update Data Pack Resource",
+        "description": "Include, exclude, rename, or reclassify one entry.",
+        "operationId": "update_data_pack_resource_programmes__programme_id__data_pack__resource_id__patch",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resource Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DataPackResourceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Data Pack Resource Programmes  Programme Id  Data Pack  Resource Id  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Delete Data Pack Resource",
+        "description": "Only what the company put there.\n\nA seeded public source belongs to the role's registry; deleting it here\nwould lose it for this programme with no way back, so it is excluded\ninstead and the message says so.",
+        "operationId": "delete_data_pack_resource_programmes__programme_id__data_pack__resource_id__delete",
+        "parameters": [
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Resource Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -4598,6 +4813,49 @@
         ],
         "title": "Body_apply_public_x__company_slug___programme_slug__apply_post"
       },
+      "Body_upload_data_pack_resource_programmes__programme_id__data_pack_upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "confidential": {
+            "type": "boolean",
+            "title": "Confidential",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_data_pack_resource_programmes__programme_id__data_pack_upload_post"
+      },
       "CandidateOut": {
         "properties": {
           "id": {
@@ -5202,6 +5460,22 @@
           "provenance": {
             "type": "string",
             "title": "Provenance"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "confidential": {
+            "type": "boolean",
+            "title": "Confidential",
+            "default": false
           }
         },
         "type": "object",
@@ -5246,6 +5520,12 @@
               }
             ],
             "title": "Licence"
+          },
+          "confidential": {
+            "type": "boolean",
+            "title": "Confidential",
+            "description": "Behind an acknowledgement, and never named in the public listing.",
+            "default": false
           }
         },
         "type": "object",
@@ -5253,6 +5533,70 @@
           "label"
         ],
         "title": "DataPackResourceCreate"
+      },
+      "DataPackResourceUpdate": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "url_or_storage_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url Or Storage Key"
+          },
+          "licence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Licence"
+          },
+          "included": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Included"
+          },
+          "confidential": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidential"
+          }
+        },
+        "type": "object",
+        "title": "DataPackResourceUpdate",
+        "description": "Every field optional: this is the include/exclude toggle as much as an edit."
       },
       "DeclineRequest": {
         "properties": {

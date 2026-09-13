@@ -203,6 +203,15 @@ class DataPackResource(Base):
         enum_column(Provenance), default=Provenance.PUBLIC
     )
     licence: Mapped[str | None] = mapped_column(String(200))
+    # A toggle rather than a delete. A seeded public source the company does not
+    # want should be able to come back without being retyped, and the company
+    # should be able to see what it chose to leave out.
+    included: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Anything the company hands over can be marked confidential. It is what
+    # puts the programme behind an acknowledgement, and what keeps the label out
+    # of the public listing: a preview that names a company's internal export
+    # has leaked the thing the flag exists to protect.
+    confidential: Mapped[bool] = mapped_column(Boolean, default=False)
     verification_status: Mapped[VerificationStatus] = mapped_column(
         enum_column(VerificationStatus), default=VerificationStatus.UNVERIFIED
     )

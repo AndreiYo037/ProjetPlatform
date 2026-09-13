@@ -220,6 +220,61 @@ export const setProblemStatement = (
   body: { problem_statement: string; deliverable_spec?: string | null; from_draft_id?: string },
 ) => api.put<ProgrammeDetail>(`/programmes/${id}/problem-statement`, body);
 
+/**
+ * One entry in a programme's data pack.
+ *
+ * `uploaded` separates the company's own material from the role's seeded
+ * public sources: the company can delete what it added, but a seeded source is
+ * excluded rather than deleted so it can come back.
+ */
+export type DataPackResource = {
+  id: string;
+  label: string;
+  url: string | null;
+  provenance: string;
+  licence: string | null;
+  included: boolean;
+  confidential: boolean;
+  uploaded: boolean;
+  verification_status: string;
+  last_verified_at: string | null;
+};
+
+export const listDataPack = (programmeId: string) =>
+  api.get<DataPackResource[]>(`/programmes/${programmeId}/data-pack`);
+export const addDataPackResource = (
+  programmeId: string,
+  body: { label: string; url_or_storage_key?: string | null; licence?: string | null; confidential?: boolean },
+) => api.post<DataPackResource>(`/programmes/${programmeId}/data-pack`, body);
+export const updateDataPackResource = (
+  programmeId: string,
+  resourceId: string,
+  body: { label?: string; licence?: string | null; included?: boolean; confidential?: boolean },
+) => api.patch<DataPackResource>(`/programmes/${programmeId}/data-pack/${resourceId}`, body);
+export const deleteDataPackResource = (programmeId: string, resourceId: string) =>
+  api.del<void>(`/programmes/${programmeId}/data-pack/${resourceId}`);
+
+/** Multipart, so it bypasses the JSON helper the way the apply form does. */
+export async function uploadDataPackFile(
+  programmeId: string,
+  file: File,
+  options: { label?: string; licence?: string; confidential?: boolean } = {},
+): Promise<DataPackResource> {
+  const form = new FormData();
+  form.set("file", file);
+  if (options.label) form.set("label", options.label);
+  if (options.licence) form.set("licence", options.licence);
+  form.set("confidential", options.confidential ? "true" : "false");
+  const response = await fetch(apiUrl(`/programmes/${programmeId}/data-pack/upload`), {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+  const body = await response.json();
+  if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not upload that file.");
+  return body as DataPackResource;
+}
+
 export type PublicationCheck = { ready: boolean; problems: string[] };
 export const getPublicationCheck = (id: string) =>
   api.get<PublicationCheck>(`/programmes/${id}/publication-check`);

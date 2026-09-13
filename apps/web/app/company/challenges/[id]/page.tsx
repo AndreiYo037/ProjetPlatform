@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
+import DataPackPanel from "@/components/DataPackPanel";
 import {
   draftProblemStatements,
   getKickoffDays,
@@ -169,6 +170,8 @@ export default function ChallengeDetailPage({
       ) : (
         <p className="muted small">No deliverable described yet.</p>
       )}
+
+      <DataPackPanel programmeId={programme.id} />
 
       <h2>Rubric</h2>
       <p className="small muted">
@@ -350,7 +353,16 @@ function DraftSection({
           <AnglePicker
             programmeId={programme.id}
             roleName={programme.role?.name ?? ""}
-            onUse={(angle) => setProblemStatement(angle.rendered)}
+            onUse={(angle) => {
+              setProblemStatement(angle.rendered);
+              // The angle's five outputs are the deliverable, written out. Dropping
+              // them into the box rather than leaving it blank means the company
+              // edits a draft instead of starting from nothing - and it keeps the
+              // brief and the deliverable describing the same piece of work.
+              if (angle.outputs.length) {
+                setDeliverableSpec(angle.outputs.map((output) => `- ${output}`).join("\n"));
+              }
+            }}
           />
           <div className="field">
             <label htmlFor="edit-problem">Problem statement</label>

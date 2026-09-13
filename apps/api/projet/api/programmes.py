@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -35,6 +35,14 @@ from projet.models import (
 from projet.models.base import utcnow
 from projet.models.enums import DeliveryMode, ProgrammeStatus, Provenance, VerificationStatus
 from projet.services.auth import Actor
+from projet.services.data_pack import (
+    ALLOWED_UPLOAD_TYPES,
+    MAX_UPLOAD_BYTES,
+    is_storage_key,
+    new_storage_key,
+    resource_url,
+    sync_confidentiality_ack,
+)
 from projet.services.rubric import (
     RubricError,
     compose_rubric,
@@ -52,6 +60,7 @@ from projet.services.schedule import (
 from projet.services.schedule import (
     derive as derive_schedule,
 )
+from projet.storage import get_storage
 
 router = APIRouter(tags=["programmes"])
 
@@ -118,6 +127,49 @@ class DataPackResourceCreate(BaseModel):
     url_or_storage_key: str | None = None
     provenance: str = Provenance.COMPANY_SUPPLIED.value
     licence: str | None = None
+    confidential: bool = Field(
+        default=False,
+        description="Behind an acknowledgement, and never named in the public listing.",
+    )
+
+
+class DataPackResourceUpdate(BaseModel):
+    """Every field optional: this is the include/exclude toggle as much as an edit."""
+
+    label: str | None = Field(default=None, min_length=1, max_length=300)
+    url_or_storage_key: str | None = None
+    licence: str | None = None
+    included: bool | None = None
+    confidential: bool | None = None
+
+
+def _resource_out(resource: DataPackResource) -> dict:
+    """One shape for the company-facing list, whether linked or uploaded."""
+    return {
+        "id": str(resource.id),
+        "label": resource.label,
+        "url": resource_url(resource.url_or_storage_key),
+        "provenance": resource.provenance.value,
+        "licence": resource.licence,
+        "included": resource.included,
+        "confidential": resource.confidential,
+        # Seeded public sources are the role's, not the company's, so the UI
+        # offers them a toggle where an upload also gets a delete.
+        "uploaded": resource.provenance is not Provenance.PUBLIC,
+        "verification_status": resource.verification_status.value,
+        "last_verified_at": (
+            resource.last_verified_at.isoformat() if resource.last_verified_at else None
+        ),
+    }
+
+
+def _resource_or_404(
+    db: Session, programme: Programme, resource_id: uuid.UUID
+) -> DataPackResource:
+    resource = db.get(DataPackResource, resource_id)
+    if resource is None or resource.programme_id != programme.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such resource in this data pack.")
+    return resource
 
 
 def _detail(db: Session, programme: Programme) -> ProgrammeDetail:
@@ -445,22 +497,17 @@ def get_data_pack(
     programme: Programme = Depends(get_programme_or_404),
     db: Session = Depends(get_session),
 ) -> list[dict]:
-    """FR-057/069 — one list, provenance visible per resource."""
+    """FR-057/069 — one list, provenance visible per resource.
+
+    The company sees what it excluded as well as what it kept, because an
+    invisible exclusion is indistinguishable from a source that was never there.
+    """
     resources = db.scalars(
-        select(DataPackResource).where(DataPackResource.programme_id == programme.id)
+        select(DataPackResource)
+        .where(DataPackResource.programme_id == programme.id)
+        .order_by(DataPackResource.created_at)
     )
-    return [
-        {
-            "id": str(r.id),
-            "label": r.label,
-            "url": r.url_or_storage_key,
-            "provenance": r.provenance.value,
-            "licence": r.licence,
-            "verification_status": r.verification_status.value,
-            "last_verified_at": r.last_verified_at.isoformat() if r.last_verified_at else None,
-        }
-        for r in resources
-    ]
+    return [_resource_out(r) for r in resources]
 
 
 @router.post("/programmes/{programme_id}/data-pack", status_code=201)
@@ -478,12 +525,124 @@ def add_data_pack_resource(
         url_or_storage_key=payload.url_or_storage_key,
         provenance=Provenance(payload.provenance),
         licence=payload.licence,
+        confidential=payload.confidential,
         verification_status=VerificationStatus.UNVERIFIED,
         uploaded_by=actor.id if actor.is_company_user else None,
     )
     db.add(resource)
+    db.flush()
+    sync_confidentiality_ack(db, programme)
     db.commit()
-    return {"id": str(resource.id), "label": resource.label}
+    return _resource_out(resource)
+
+
+@router.post("/programmes/{programme_id}/data-pack/upload", status_code=201)
+async def upload_data_pack_resource(
+    file: UploadFile = File(),
+    label: str | None = Form(default=None, max_length=300),
+    licence: str | None = Form(default=None, max_length=200),
+    confidential: bool = Form(default=False),
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> dict:
+    """The company's own file, not a link to it.
+
+    A shared Drive link is a permission the company has to keep right for a
+    week; an upload is a copy we can serve, expire, and stop serving when the
+    programme ends. Stored under a signed key, so a forwarded URL dies.
+    """
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "That file is over 100MB. Share it as a link instead.",
+        )
+    if file.content_type not in ALLOWED_UPLOAD_TYPES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"{file.content_type} is not an accepted file type.",
+        )
+
+    key = new_storage_key(programme.id, file.filename)
+    get_storage().put(key, content, file.content_type)
+    resource = DataPackResource(
+        programme_id=programme.id,
+        label=(label or "").strip() or (file.filename or "Uploaded resource"),
+        url_or_storage_key=key,
+        provenance=Provenance.COMPANY_SUPPLIED,
+        licence=licence,
+        confidential=confidential,
+        verification_status=VerificationStatus.VERIFIED,
+        last_verified_at=utcnow(),
+        uploaded_by=actor.id if actor.is_company_user else None,
+    )
+    db.add(resource)
+    db.flush()
+    sync_confidentiality_ack(db, programme)
+    db.commit()
+    return _resource_out(resource)
+
+
+@router.patch("/programmes/{programme_id}/data-pack/{resource_id}")
+def update_data_pack_resource(
+    resource_id: uuid.UUID,
+    payload: DataPackResourceUpdate,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> dict:
+    """Include, exclude, rename, or reclassify one entry."""
+    resource = _resource_or_404(db, programme, resource_id)
+    fields = payload.model_dump(exclude_unset=True)
+    if "label" in fields and fields["label"]:
+        resource.label = fields["label"].strip()
+    if "url_or_storage_key" in fields:
+        # Repointing an upload would orphan the stored object and hand out a
+        # link under a key we still sign, so links only.
+        if is_storage_key(resource.url_or_storage_key):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Upload a new file instead of repointing this one.",
+            )
+        resource.url_or_storage_key = fields["url_or_storage_key"]
+    if "licence" in fields:
+        resource.licence = fields["licence"]
+    if fields.get("included") is not None:
+        resource.included = fields["included"]
+    if fields.get("confidential") is not None:
+        resource.confidential = fields["confidential"]
+    sync_confidentiality_ack(db, programme)
+    db.commit()
+    return _resource_out(resource)
+
+
+@router.delete("/programmes/{programme_id}/data-pack/{resource_id}", status_code=204)
+def delete_data_pack_resource(
+    resource_id: uuid.UUID,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> Response:
+    """Only what the company put there.
+
+    A seeded public source belongs to the role's registry; deleting it here
+    would lose it for this programme with no way back, so it is excluded
+    instead and the message says so.
+    """
+    resource = _resource_or_404(db, programme, resource_id)
+    if resource.provenance is Provenance.PUBLIC:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "That is one of the role's public sources. Exclude it instead of deleting it.",
+        )
+    if is_storage_key(resource.url_or_storage_key):
+        get_storage().delete(resource.url_or_storage_key)
+    db.delete(resource)
+    db.flush()
+    sync_confidentiality_ack(db, programme)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 class DraftRequest(BaseModel):

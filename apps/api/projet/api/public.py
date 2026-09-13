@@ -20,7 +20,6 @@ from projet.db import get_session
 from projet.models import (
     Application,
     Company,
-    DataPackResource,
     Participant,
     Programme,
     Role,
@@ -30,6 +29,7 @@ from projet.models import (
 from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
 from projet.services.auth import hash_password, validate_password
+from projet.services.data_pack import public_preview
 from projet.services.people import google_email_warning, looks_like_email, resolve_person
 from projet.services.writeup import writeup_prompt_for
 from projet.storage import get_storage
@@ -242,9 +242,7 @@ def listing(
         .where(RubricCriterion.programme_id == programme.id)
         .order_by(RubricCriterion.slot)
     )
-    data_pack = db.scalars(
-        select(DataPackResource).where(DataPackResource.programme_id == programme.id)
-    )
+
 
     seats_remaining = None
     if programme.capacity is not None:
@@ -282,7 +280,7 @@ def listing(
             )
             for c in criteria
         ],
-        data_pack_preview=[r.label for r in data_pack],
+        data_pack_preview=public_preview(db, programme.id),
         writeup_prompt=writeup_prompt_for(role, template),
     )
 
