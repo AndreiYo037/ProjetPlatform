@@ -194,3 +194,40 @@ def test_outbox_subject_can_be_an_application_not_only_a_participant(session):
     )
     assert row.participant_id is None
     assert row.idempotency_key.startswith("application:")
+
+
+def test_importing_the_worker_alone_registers_every_handler():
+    """Regression: the handlers were only imported by main.py, so the standalone
+    `projet-worker` and `projet-scheduler` entry points ran with an empty
+    registry and marked every row permanently failed with "no handler
+    registered" — losing the email or invite it was carrying, unrecoverably.
+
+    Registration belongs to the package, not to whichever entry point runs.
+    """
+    import importlib
+    import sys
+
+    # Drop anything already imported so this proves the package registers them,
+    # not that an earlier test happened to.
+    for name in [n for n in sys.modules if n.startswith("projet.outbox")]:
+        del sys.modules[name]
+
+    worker_module = importlib.import_module("projet.outbox.worker")
+    effects_module = importlib.import_module("projet.outbox.effects")
+
+    expected = {
+        "magic_link_email",
+        "application_received_email",
+        "offer_email",
+        "waitlist_email",
+        "rejection_email",
+        "welcome_email",
+        "kickoff_invite",
+        "deadline_marker_invite",
+        "judging_session_invite",
+        "judging_session_removal",
+        "snapshot_submission_link",
+    }
+    missing = expected - set(effects_module.registry)
+    assert not missing, f"handlers unregistered when importing the worker: {sorted(missing)}"
+    assert hasattr(worker_module, "run_once")

@@ -23,16 +23,8 @@ from projet.config import get_settings
 from projet.db import get_session
 from projet.models import Role
 
-# Importing the effect modules registers their handlers. Without this the worker
-# has no handler for an effect a route enqueued and marks the row failed, so the
-# import is load-bearing rather than incidental.
-from projet.outbox import (  # noqa: F401
-    application_effects,
-    auth_effects,
-    provisioning,
-    snapshots,
-    worker,
-)
+# Importing projet.outbox registers every effect handler (see its docstring).
+from projet.outbox import worker
 
 
 class OutboxHealth(BaseModel):
