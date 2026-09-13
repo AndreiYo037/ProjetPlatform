@@ -5,6 +5,7 @@ it cannot read. A role silently dropped from the taxonomy is worse than a failed
 seed run: the programme it backs would simply not exist.
 """
 
+from projet.seeds.parsers.capabilities import parse_capabilities
 from projet.seeds.parsers.common import (
     CLUSTERS,
     ContentError,
@@ -19,6 +20,7 @@ from projet.seeds.parsers.skills import parse_skills
 __all__ = [
     "CLUSTERS",
     "ContentError",
+    "parse_capabilities",
     "parse_deliverables",
     "parse_resources",
     "parse_rubrics",

@@ -28,7 +28,13 @@ from projet.models.programme import (
 )
 from projet.models.scoring import CriterionScore, Score, ScoreMember, ScoreSkillTag
 from projet.models.submission import Submission, SubmissionLink
-from projet.models.taxonomy import Role, RoleTemplate, Skill
+from projet.models.taxonomy import (
+    Capability,
+    Role,
+    RoleTemplate,
+    Skill,
+    SkillCapability,
+)
 
 __all__ = [
     "Application",
@@ -36,6 +42,7 @@ __all__ = [
     "Attachment",
     "AuditLog",
     "AuthSession",
+    "Capability",
     "Company",
     "CompanyUser",
     "Credential",
@@ -59,6 +66,7 @@ __all__ = [
     "ScoreMember",
     "ScoreSkillTag",
     "Skill",
+    "SkillCapability",
     "Submission",
     "SubmissionLink",
     "Team",

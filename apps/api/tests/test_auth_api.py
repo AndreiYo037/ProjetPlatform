@@ -257,10 +257,15 @@ def test_logging_in_as_the_wrong_actor_type_is_refused_over_http(client, session
 
 
 def test_the_admin_code_endpoint_is_404_when_unconfigured(client, monkeypatch):
+    """Patched on the resolved settings, not the environment: a developer with a
+    code in their own .env would otherwise see this pass in CI and fail locally,
+    which is the wrong way round for the test guarding a back door."""
     from projet.config import get_settings
 
     monkeypatch.delenv("PROJET_ADMIN_ACCESS_CODE", raising=False)
     get_settings.cache_clear()
+    monkeypatch.setattr(get_settings(), "admin_access_code", None)
+
     response = client.post("/auth/admin-code", json={"code": "anything"})
     assert response.status_code == 404
     get_settings.cache_clear()

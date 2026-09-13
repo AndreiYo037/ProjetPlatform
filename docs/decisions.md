@@ -137,6 +137,49 @@ deliverable and **needs review before cohort 1** — it is what judges see in th
 tagging dropdown. The soft-skill vocabulary is deliberately held to twenty shared
 entries; fragmenting it into near-duplicates is what makes a dropdown useless.
 
+### Capabilities are a rollup, not a second taxonomy
+
+FR-903 tags specific skills — "DCF valuation", "Solidity" — and that specificity
+is what makes a judge's tag worth attesting. It is also what stops it
+compounding: three programmes in three roles produce three unrelated lists, and
+the profile never adds up to more than its last week of work. The PRD's own
+framing of the profile as the durable product depends on it adding up.
+
+So `content/capabilities.md` maps all 344 skills onto **seven** universal axes:
+Investigation, Quantitative analysis, Technical craft, Structuring,
+Communication, Judgement, Delivery. Three consequences, each deliberate:
+
+- **A skill may map onto more than one axis** (609 links over 344 skills). So
+  everything counted off that join counts **distinct programmes or distinct
+  attesters, never rows** — a skill on two axes must not make one attestation
+  look like two evidence points. A profile that inflates is worse than no
+  profile.
+- **The rollup is a query, not a table.** Per person the volume is tens of rows,
+  and a stored `ProfileCapability` would drift the moment the content is edited.
+  It lives in `projet/services/profile.py`.
+- **Capabilities with no evidence are omitted** from a profile rather than shown
+  at zero. An empty axis reads as a weakness the platform never measured.
+
+The seven were chosen against the full 75-role taxonomy, not against software
+roles, and therefore **diverge from the prior build's seven** (Product Thinking,
+Business/GTM Thinking and so on) — those name nothing a Journalism, Architecture,
+Music or Public Health participant does, and an axis that does not apply to a
+cluster is worse than no axis there.
+
+Two omissions worth recording. **Originality** is genuinely distinctive in the
+creative clusters but is the hardest thing to attest honestly off six days, so
+creative skills map to Structuring and Technical craft instead — a weaker claim,
+but a true one. **Teamwork** is not an axis: `Collaboration` maps into Delivery
+and Communication, and a near-universal axis carries no signal on a profile.
+`Structuring` is named that rather than `Synthesis` because `Synthesis` is
+already a skill, and a profile showing a capability and a skill under the same
+word reads as a bug.
+
+Like `content/skills.md` this is derived content and **needs review before
+cohort 1**. The seed refuses to run if the two documents disagree in either
+direction — an unmapped skill is invisible on a profile, and a stale row is how
+the two drift apart.
+
 ### Consent lives on the Application, and Participant inherits it
 
 Rather than copying the flag onto Participant. Consent was captured and

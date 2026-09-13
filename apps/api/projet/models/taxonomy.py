@@ -1,4 +1,4 @@
-"""Role taxonomy, role templates and the skills taxonomy (FR-040, FR-903)."""
+"""Role taxonomy, role templates, skills and the capability rollup (FR-040, FR-903)."""
 
 from __future__ import annotations
 
@@ -80,3 +80,55 @@ class Skill(Base):
         enum_column(SkillStatus), default=SkillStatus.CANONICAL
     )
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
+
+    capabilities: Mapped[list[SkillCapability]] = relationship(
+        back_populates="skill", cascade="all, delete-orphan"
+    )
+
+
+class Capability(Base):
+    """The universal rollup vocabulary behind FR-903's skill tags.
+
+    Skills are deliberately specific — 'DCF valuation', 'Solidity' — which is
+    what makes a judge's tag worth attesting and also what stops it compounding:
+    three programmes in three roles produce three unrelated lists. A capability
+    is the axis those specific tags roll up onto, so a profile can say something
+    comparable across a Journalism programme and a Quant one.
+
+    Seeded from content/capabilities.md and keyed on name, like every other
+    taxonomy row. The specific Skill stays the evidence; this is only the index.
+    """
+
+    __tablename__ = "capability"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    name: Mapped[str] = mapped_column(String(160), unique=True)
+    slug: Mapped[str] = mapped_column(String(160), unique=True)
+    summary: Mapped[str] = mapped_column(Text)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
+
+    skills: Mapped[list[SkillCapability]] = relationship(
+        back_populates="capability", cascade="all, delete-orphan"
+    )
+
+
+class SkillCapability(Base):
+    """Which axes a skill rolls up onto. A skill may map onto more than one.
+
+    Because of that, anything counted off this join counts distinct programmes
+    or distinct attesters, never rows — a skill mapping onto two capabilities
+    must not make a profile look like it earned twice the evidence.
+    """
+
+    __tablename__ = "skill_capability"
+
+    skill_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("skill.id", ondelete="CASCADE"), primary_key=True
+    )
+    capability_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("capability.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    skill: Mapped[Skill] = relationship(back_populates="capabilities")
+    capability: Mapped[Capability] = relationship(back_populates="skills")

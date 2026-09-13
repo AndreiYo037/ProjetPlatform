@@ -30,6 +30,19 @@ def _report_readiness(bundle) -> None:
     print(f"  clusters           {len({r.cluster for r in bundle.roles})}")
     print(f"  skills             {len(bundle.skills)}")
     print(f"  source entries     {unverified} (all unverified — see projet-verify-sources)")
+
+    links = sum(len(entry.capabilities) for entry in bundle.skill_capabilities)
+    print(f"  capabilities       {len(bundle.capabilities)} ({links} skill links)")
+    # The spread is the review signal for derived content: an axis almost
+    # nothing maps onto is a word in a table, and one almost everything maps
+    # onto carries no signal on a profile.
+    per_axis: dict[str, int] = {c.name: 0 for c in bundle.capabilities}
+    for entry in bundle.skill_capabilities:
+        for name in entry.capabilities:
+            per_axis[name] += 1
+    spread = ", ".join(f"{name} {count}" for name, count in sorted(per_axis.items()))
+    print(f"  mapped per axis    {spread}")
+
     if at_risk:
         print(f"  tight at 6 days    {', '.join(at_risk)}")
 
@@ -78,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print("\nseeded:")
     for key, value in report.as_dict().items():
-        print(f"  {key.replace('_', ' '):<18} {value}")
+        print(f"  {key.replace('_', ' '):<24} {value}")
     return 0
 
 

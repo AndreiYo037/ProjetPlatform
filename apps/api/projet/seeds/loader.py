@@ -5,11 +5,16 @@ aspect, rather than one file per role. So the loader joins them on role name and
 refuses to seed unless every role appears in every document. That join is where
 drift would otherwise creep in silently — a role renamed in rubrics.md but not
 in deliverables.md would simply lose its deliverable.
+
+capabilities.md joins the same way, on skill name rather than role name, and is
+held to the same standard: every skill the roles rank must map onto at least one
+capability, or the seed refuses to run.
 """
 
 from __future__ import annotations
 
 import json
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -18,16 +23,25 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.config import get_settings
-from projet.models import DataPackResource, Role, RoleTemplate, Skill
+from projet.models import (
+    Capability,
+    DataPackResource,
+    Role,
+    RoleTemplate,
+    Skill,
+    SkillCapability,
+)
 from projet.models.enums import Provenance, SkillStatus, SkillType, VerificationStatus
 from projet.seeds.parsers import (
     CLUSTERS,
+    parse_capabilities,
     parse_deliverables,
     parse_resources,
     parse_rubrics,
     parse_skills,
     parse_universal_rubric,
 )
+from projet.seeds.parsers.capabilities import CapabilitySpec, SkillCapabilities
 from projet.seeds.parsers.common import slugify
 from projet.seeds.parsers.rubrics import CriterionSpec
 
@@ -63,6 +77,8 @@ class ContentBundle:
     roles: list[RoleSeed]
     universal_rubric: list[CriterionSpec]
     universal_memo: str | None
+    capabilities: list[CapabilitySpec] = field(default_factory=list)
+    skill_capabilities: list[SkillCapabilities] = field(default_factory=list)
     baseline_provided: list[str] = field(default_factory=list)
     baseline_asks: list[str] = field(default_factory=list)
     baseline_student_stack: list[str] = field(default_factory=list)
@@ -87,6 +103,7 @@ def load_content(content_dir: Path | None = None) -> ContentBundle:
     deliverables_doc = parse_deliverables(root / "deliverables.md")
     resources_doc = parse_resources(root / "resources.md")
     skills = parse_skills(root / "skills.md")
+    capabilities = parse_capabilities(root / "capabilities.md")
 
     by_name: dict[str, dict[str, Any]] = {
         "rubrics.md": {r.role: r for r in rubrics},
@@ -128,10 +145,15 @@ def load_content(content_dir: Path | None = None) -> ContentBundle:
         )
 
     _assert_unique_slugs(seeds)
+    bundle_skills = {name for seed in seeds for name in seed.hard_skills + seed.soft_skills}
+    _assert_capabilities_cover(bundle_skills, capabilities.skill_map)
+
     return ContentBundle(
         roles=seeds,
         universal_rubric=universal,
         universal_memo=deliverables_doc.universal_memo,
+        capabilities=capabilities.capabilities,
+        skill_capabilities=capabilities.skill_map,
         baseline_provided=resources_doc.baseline_provided,
         baseline_asks=resources_doc.baseline_asks,
         baseline_student_stack=resources_doc.baseline_student_stack,
@@ -172,6 +194,36 @@ def _assert_clusters_agree(by_name: dict[str, dict[str, Any]]) -> None:
     unknown = {r.cluster for r in reference.values()} - set(CLUSTERS)
     if unknown:
         raise SeedError(f"unknown clusters: {sorted(unknown)}")
+
+
+def _assert_capabilities_cover(skill_names: set[str], skill_map: list[SkillCapabilities]) -> None:
+    """Both directions, because both failures are silent.
+
+    A skill with no capability never appears on a profile — the rollup simply
+    has nothing to join through, and nobody notices until someone asks why a
+    participant's Investigation axis is thin. A capability row for a skill that
+    no longer exists means capabilities.md is stale against skills.md, which is
+    how the two drift apart.
+    """
+    mapped = {entry.skill for entry in skill_map}
+    problems = []
+    unmapped = sorted(skill_names - mapped)
+    if unmapped:
+        problems.append(
+            "  skills.md skills with no capability in capabilities.md: " + ", ".join(unmapped)
+        )
+    orphaned = sorted(mapped - skill_names)
+    if orphaned:
+        problems.append(
+            "  capabilities.md maps skills that are not in skills.md: " + ", ".join(orphaned)
+        )
+    if problems:
+        raise SeedError(
+            "the capability map and the skills taxonomy disagree.\n"
+            + "\n".join(problems)
+            + "\n\nEvery skill must map to at least one capability: an unmapped skill "
+            "is invisible on a profile."
+        )
 
 
 def _assert_unique_slugs(seeds: list[RoleSeed]) -> None:
@@ -238,6 +290,8 @@ class SeedReport:
     roles_updated: int = 0
     templates_written: int = 0
     skills_created: int = 0
+    capabilities_created: int = 0
+    capability_links_created: int = 0
     sources_created: int = 0
 
     def as_dict(self) -> dict:
@@ -268,9 +322,58 @@ def seed_skills(session: Session, bundle: ContentBundle, report: SeedReport) -> 
     return existing
 
 
+def seed_capabilities(
+    session: Session,
+    bundle: ContentBundle,
+    skills: dict[str, Skill],
+    report: SeedReport,
+) -> None:
+    """Upsert the capability vocabulary and the skill links, keyed on name.
+
+    Links are additive on re-run and are pruned when the content drops one, so
+    a re-mapped skill does not keep rolling up onto the axis it was moved off.
+    """
+    existing = {c.name: c for c in session.scalars(select(Capability))}
+    for spec in bundle.capabilities:
+        capability = existing.get(spec.name)
+        if capability is None:
+            capability = Capability(name=spec.name, slug=slugify(spec.name))
+            session.add(capability)
+            existing[spec.name] = capability
+            report.capabilities_created += 1
+        capability.summary = spec.summary
+        capability.sort_order = spec.sort_order
+    session.flush()
+
+    wanted: set[tuple[uuid.UUID, uuid.UUID]] = set()
+    for entry in bundle.skill_capabilities:
+        skill = skills.get(entry.skill)
+        if skill is None:
+            # _assert_capabilities_cover already rejects this at parse time; the
+            # guard is here so a direct seed_capabilities() call cannot skip it.
+            raise SeedError(
+                f"capability map names skill {entry.skill!r}, which is not in the taxonomy"
+            )
+        for name in entry.capabilities:
+            wanted.add((skill.id, existing[name].id))
+
+    present = {
+        (link.skill_id, link.capability_id) for link in session.scalars(select(SkillCapability))
+    }
+    for skill_id, capability_id in sorted(wanted - present):
+        session.add(SkillCapability(skill_id=skill_id, capability_id=capability_id))
+        report.capability_links_created += 1
+    for skill_id, capability_id in present - wanted:
+        link = session.get(SkillCapability, (skill_id, capability_id))
+        if link is not None:
+            session.delete(link)
+    session.flush()
+
+
 def seed_roles(session: Session, bundle: ContentBundle, report: SeedReport) -> None:
     skills = seed_skills(session, bundle, report)
     _assert_skills_resolve(bundle, skills)
+    seed_capabilities(session, bundle, skills, report)
 
     existing = {r.slug: r for r in session.scalars(select(Role))}
     for seed in bundle.roles:

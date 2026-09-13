@@ -104,7 +104,13 @@ def test_slug_lock_matches_the_content(content_dir):
 def test_a_renamed_role_in_one_file_fails_the_join(tmp_path, content_dir):
     """The failure mode this prevents: a role renamed in rubrics.md but not in
     deliverables.md would silently lose its deliverable."""
-    for name in ("rubrics.md", "resources.md", "deliverables.md", "skills.md"):
+    for name in (
+        "rubrics.md",
+        "resources.md",
+        "deliverables.md",
+        "skills.md",
+        "capabilities.md",
+    ):
         (tmp_path / name).write_text(
             (content_dir / name).read_text(encoding="utf-8"), encoding="utf-8"
         )
