@@ -39,6 +39,20 @@ from projet.models.enums import (
 CONTENT_DIR = Path(__file__).resolve().parents[3] / "content"
 
 
+def next_kickoff() -> datetime:
+    """A kickoff date a company would actually be offered.
+
+    Every programme starts on a Wednesday (services/schedule.py), so tests must
+    pick one the same way the date picker does rather than counting days from
+    today and hoping.
+    """
+    from projet.services.schedule import next_kickoff_days
+
+    # The second offered Wednesday, so "applications close in two days" is
+    # always still before kickoff even when today is a Tuesday.
+    return next_kickoff_days(datetime.now(UTC), count=2)[1]
+
+
 @pytest.fixture(scope="session")
 def content_dir() -> Path:
     return CONTENT_DIR

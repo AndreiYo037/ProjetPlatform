@@ -4,12 +4,14 @@ import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import {
+  getKickoffDays,
   getProgramme,
   getPublicationCheck,
   listApplications,
   publishProgramme,
   updateProgramme,
   type ApplicationOut,
+  type KickoffOption,
   type ProgrammeDetail,
   type PublicationCheck,
 } from "@/lib/api";
@@ -109,14 +111,14 @@ export default function ChallengeDetailPage({
               <dd>{programme.slug}</dd>
               <dt>Capacity</dt>
               <dd>{programme.capacity ?? "Uncapped"}</dd>
-              <dt>Team size</dt>
-              <dd>Up to {programme.team_size_max}</dd>
               <dt>Apps close</dt>
               <dd>{programme.applications_close_at ? new Date(programme.applications_close_at).toLocaleString() : "Not set"}</dd>
               <dt>Starts</dt>
               <dd>{programme.start_at ? new Date(programme.start_at).toLocaleString() : "Not set"}</dd>
               <dt>Deadline</dt>
               <dd>{programme.submit_deadline_at ? new Date(programme.submit_deadline_at).toLocaleString() : "Not set"}</dd>
+              <dt>Pitch day</dt>
+              <dd>{programme.pitch_at ? new Date(programme.pitch_at).toLocaleString() : "Not set"}</dd>
             </dl>
           </div>
 
@@ -148,6 +150,23 @@ export default function ChallengeDetailPage({
         </>
       )}
 
+      <h2>The brief</h2>
+      {programme.problem_statement ? (
+        <div className="panel">
+          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{programme.problem_statement}</p>
+        </div>
+      ) : (
+        <p className="muted small">No problem statement yet.</p>
+      )}
+      <h3>Deliverable</h3>
+      {programme.deliverable_spec ? (
+        <div className="panel">
+          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{programme.deliverable_spec}</p>
+        </div>
+      ) : (
+        <p className="muted small">No deliverable described yet.</p>
+      )}
+
       <h2>Rubric</h2>
       <p className="small muted">
         The four criteria judges will score each pitch against.
@@ -177,6 +196,17 @@ export default function ChallengeDetailPage({
   );
 }
 
+/** "Wed 4 Nov, pitches Wed 11 Nov" — the whole commitment in one line. */
+function weekOf(option: KickoffOption): string {
+  const day = (value: string) =>
+    new Date(value).toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  return `${day(option.kickoff_at)}, pitches ${day(option.pitch_at)}`;
+}
+
 function DraftSection({
   programme,
   pubCheck,
@@ -198,16 +228,22 @@ function DraftSection({
       ? programme.applications_close_at.slice(0, 16)
       : "",
   );
-  const [startAt, setStartAt] = useState(
-    programme.start_at ? programme.start_at.slice(0, 16) : "",
+  const [startAt, setStartAt] = useState(programme.start_at ?? "");
+  const [kickoffDays, setKickoffDays] = useState<KickoffOption[]>([]);
+  const [problemStatement, setProblemStatement] = useState(
+    programme.problem_statement ?? "",
   );
-  const [submitDeadlineAt, setSubmitDeadlineAt] = useState(
-    programme.submit_deadline_at
-      ? programme.submit_deadline_at.slice(0, 16)
-      : "",
+  const [deliverableSpec, setDeliverableSpec] = useState(
+    programme.deliverable_spec ?? "",
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getKickoffDays()
+      .then(setKickoffDays)
+      .catch(() => setKickoffDays([]));
+  }, []);
 
   async function save() {
     setSaving(true);
@@ -218,7 +254,8 @@ function DraftSection({
         capacity: capacity ? Number(capacity) : null,
         applications_close_at: appsCloseAt || null,
         start_at: startAt || null,
-        submit_deadline_at: submitDeadlineAt || null,
+        problem_statement: problemStatement.trim() || null,
+        deliverable_spec: deliverableSpec.trim() || null,
       });
       setEditing(false);
       onSaved();
@@ -242,14 +279,14 @@ function DraftSection({
             <dd>{programme.slug}</dd>
             <dt>Capacity</dt>
             <dd>{programme.capacity ?? "Uncapped"}</dd>
-            <dt>Team size</dt>
-            <dd>Up to {programme.team_size_max}</dd>
             <dt>Apps close</dt>
             <dd>{programme.applications_close_at ? new Date(programme.applications_close_at).toLocaleString() : "Not set"}</dd>
             <dt>Starts</dt>
             <dd>{programme.start_at ? new Date(programme.start_at).toLocaleString() : "Not set"}</dd>
             <dt>Deadline</dt>
             <dd>{programme.submit_deadline_at ? new Date(programme.submit_deadline_at).toLocaleString() : "Not set"}</dd>
+            <dt>Pitch day</dt>
+            <dd>{programme.pitch_at ? new Date(programme.pitch_at).toLocaleString() : "Not set"}</dd>
           </dl>
           <button className="secondary" onClick={() => setEditing(true)}>
             Edit details
@@ -287,21 +324,44 @@ function DraftSection({
             />
           </div>
           <div className="field">
-            <label htmlFor="edit-start">Starts</label>
-            <input
+            <label htmlFor="edit-start">Kickoff Wednesday</label>
+            <select
               id="edit-start"
-              type="datetime-local"
               value={startAt}
               onChange={(e) => setStartAt(e.target.value)}
+            >
+              <option value="">Not picked yet</option>
+              {kickoffDays.map((option) => (
+                <option key={option.kickoff_at} value={option.kickoff_at}>
+                  {weekOf(option)}
+                </option>
+              ))}
+            </select>
+            <p className="small muted">
+              Every programme runs the same week: kickoff Wednesday, work due the
+              following Tuesday night, pitches the Wednesday after. The deadline
+              and the pitch day follow from this date, so there is nothing else
+              to set.
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor="edit-problem">Problem statement</label>
+            <textarea
+              id="edit-problem"
+              rows={8}
+              value={problemStatement}
+              onChange={(e) => setProblemStatement(e.target.value)}
+              placeholder="What the participants are being asked to solve."
             />
           </div>
           <div className="field">
-            <label htmlFor="edit-deadline">Submission deadline</label>
-            <input
-              id="edit-deadline"
-              type="datetime-local"
-              value={submitDeadlineAt}
-              onChange={(e) => setSubmitDeadlineAt(e.target.value)}
+            <label htmlFor="edit-deliverable">Deliverable</label>
+            <textarea
+              id="edit-deliverable"
+              rows={5}
+              value={deliverableSpec}
+              onChange={(e) => setDeliverableSpec(e.target.value)}
+              placeholder="What they hand in, and in what form."
             />
           </div>
           {saveError && <div className="notice bad">{saveError}</div>}

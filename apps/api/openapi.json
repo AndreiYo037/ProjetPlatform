@@ -1185,6 +1185,60 @@
         }
       }
     },
+    "/programmes/kickoff-days": {
+      "get": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Kickoff Days",
+        "description": "The Wednesdays a company may choose from.\n\nOffering the list is what makes the weekday rule invisible: nobody types a\ndate that is then rejected.",
+        "operationId": "kickoff_days_programmes_kickoff_days_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KickoffOption"
+                  },
+                  "title": "Response Kickoff Days Programmes Kickoff Days Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programmes/{programme_id}": {
       "get": {
         "tags": [
@@ -1456,7 +1510,7 @@
           "programmes"
         ],
         "summary": "Publish Programme",
-        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric.",
+        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric.\n\nThe same setup checks the draft page shows run again here, because the\ncompany is not the only caller and a half-built challenge that reaches\napplicants costs more than one that never publishes.",
         "operationId": "publish_programme_programmes__programme_id__publish_post",
         "parameters": [
           {
@@ -5481,6 +5535,33 @@
         ],
         "title": "JudgingSlot"
       },
+      "KickoffOption": {
+        "properties": {
+          "kickoff_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Kickoff At"
+          },
+          "submit_deadline_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submit Deadline At"
+          },
+          "pitch_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Pitch At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kickoff_at",
+          "submit_deadline_at",
+          "pitch_at"
+        ],
+        "title": "KickoffOption",
+        "description": "One choosable week, expanded server-side.\n\nThe company picks a kickoff and the other two dates follow. Sending all\nthree means the picker can show a participant-facing promise (\"pitches on\nthe 22nd\") without the browser re-deriving a rule that lives on the server."
+      },
       "LinkRequest": {
         "properties": {
           "slot": {
@@ -5961,11 +6042,6 @@
             ],
             "title": "Capacity"
           },
-          "team_size_max": {
-            "type": "integer",
-            "title": "Team Size Max",
-            "default": 1
-          },
           "applications_open_at": {
             "anyOf": [
               {
@@ -6000,19 +6076,30 @@
                 "type": "null"
               }
             ],
-            "title": "Start At"
+            "title": "Start At",
+            "description": "Kickoff. Must be a Wednesday; the deadline and pitch day derive from it."
           },
-          "submit_deadline_at": {
+          "problem_statement": {
             "anyOf": [
               {
-                "type": "string",
-                "format": "date-time"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Submit Deadline At"
+            "title": "Problem Statement"
+          },
+          "deliverable_spec": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable Spec"
           },
           "winners_count": {
             "type": "integer",
@@ -6114,6 +6201,18 @@
             ],
             "title": "Submit Deadline At"
           },
+          "pitch_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch At"
+          },
           "company": {
             "anyOf": [
               {
@@ -6144,6 +6243,33 @@
               }
             ],
             "title": "Brief Url"
+          },
+          "problem_statement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Statement"
+          },
+          "deliverable_spec": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable Spec"
+          },
+          "requires_confidentiality_ack": {
+            "type": "boolean",
+            "title": "Requires Confidentiality Ack",
+            "default": false
           },
           "criteria": {
             "items": {
@@ -6256,6 +6382,18 @@
             ],
             "title": "Submit Deadline At"
           },
+          "pitch_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch At"
+          },
           "company": {
             "anyOf": [
               {
@@ -6312,6 +6450,28 @@
             ],
             "title": "Brief Url"
           },
+          "problem_statement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem Statement"
+          },
+          "deliverable_spec": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliverable Spec"
+          },
           "capacity": {
             "anyOf": [
               {
@@ -6322,17 +6482,6 @@
               }
             ],
             "title": "Capacity"
-          },
-          "team_size_max": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Team Size Max"
           },
           "applications_open_at": {
             "anyOf": [
@@ -6370,18 +6519,6 @@
             ],
             "title": "Start At"
           },
-          "submit_deadline_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Submit Deadline At"
-          },
           "winners_count": {
             "anyOf": [
               {
@@ -6395,7 +6532,8 @@
           }
         },
         "type": "object",
-        "title": "ProgrammeUpdate"
+        "title": "ProgrammeUpdate",
+        "description": "The submission deadline and pitch day are not settable.\n\nThey derive from kickoff (see services/schedule.py), so letting either be\nedited independently would let a programme drift out of the shape every\nparticipant was promised at application time."
       },
       "PublicCriterion": {
         "properties": {
@@ -6528,6 +6666,18 @@
             ],
             "title": "Submit Deadline At"
           },
+          "pitch_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch At"
+          },
           "seats_total": {
             "anyOf": [
               {
@@ -6578,6 +6728,7 @@
           "applications_close_at",
           "start_at",
           "submit_deadline_at",
+          "pitch_at",
           "seats_total",
           "seats_remaining",
           "criteria",

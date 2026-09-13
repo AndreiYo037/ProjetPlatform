@@ -98,11 +98,17 @@ class ProgrammeOut(BaseModel):
     applications_close_at: datetime | None = None
     start_at: datetime | None = None
     submit_deadline_at: datetime | None = None
+    # Derived from kickoff, never stored: the seventh day. Carried on the wire
+    # so the apply form can name both dates a participant is committing to.
+    pitch_at: datetime | None = None
     company: CompanySummary | None = None
     role: RoleSummary | None = None
 
 
 class ProgrammeDetail(ProgrammeOut):
     brief_url: str | None = None
+    problem_statement: str | None = None
+    deliverable_spec: str | None = None
+    requires_confidentiality_ack: bool = False
     criteria: list[CriterionOut] = []
     winners_count: int = 1

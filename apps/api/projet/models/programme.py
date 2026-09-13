@@ -90,6 +90,23 @@ class Programme(Base):
         back_populates="programme", cascade="all, delete-orphan"
     )
 
+    @property
+    def pitch_at(self) -> datetime | None:
+        """The seventh day, derived rather than stored.
+
+        Storing it would let it drift out of step with kickoff; deriving it
+        means the two can never disagree.
+        """
+        from projet.services.schedule import ScheduleError, derive
+
+        if self.start_at is None:
+            return None
+        try:
+            return derive(self.start_at).pitch_at
+        except ScheduleError:
+            # Programmes created before the weekday rule existed keep working.
+            return None
+
 
 class JudgingSession(Base):
     """Promoted from PRD section 4's inline judging_sessions[] array.

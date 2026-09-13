@@ -23,6 +23,7 @@ from projet.models.enums import ActorType
 from projet.outbox.worker import run_once
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
+from tests.conftest import next_kickoff
 
 
 @pytest.fixture
@@ -97,8 +98,9 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
             "slug": "churn",
             "capacity": 1,
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "start_at": (now + timedelta(days=5)).isoformat(),
-            "submit_deadline_at": (now + timedelta(days=11)).isoformat(),
+            "start_at": next_kickoff().isoformat(),
+            "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
+            "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
     )
     assert programme.status_code == 201
@@ -306,7 +308,9 @@ def test_the_writeup_word_range_is_enforced(client, session, admin, seeded):
             "title": "Words",
             "slug": "words-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "submit_deadline_at": (now + timedelta(days=9)).isoformat(),
+            "start_at": next_kickoff().isoformat(),
+            "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
+            "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
     ).json()
     client.post(f"/programmes/{programme['id']}/publish")
@@ -352,7 +356,9 @@ def test_an_application_can_decline_both_consents(client, session, admin, seeded
             "title": "Consent",
             "slug": "consent-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "submit_deadline_at": (now + timedelta(days=9)).isoformat(),
+            "start_at": next_kickoff().isoformat(),
+            "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
+            "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
     ).json()
     client.post(f"/programmes/{programme['id']}/publish")
@@ -403,7 +409,9 @@ def test_a_non_google_address_warns_without_blocking(client, session, admin, see
             "title": "Warn",
             "slug": "warn-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "submit_deadline_at": (now + timedelta(days=9)).isoformat(),
+            "start_at": next_kickoff().isoformat(),
+            "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
+            "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
     ).json()
     client.post(f"/programmes/{programme['id']}/publish")

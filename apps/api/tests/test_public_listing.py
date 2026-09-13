@@ -21,6 +21,7 @@ from projet.models import PlatformUser, Role
 from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
+from tests.conftest import next_kickoff
 
 
 @pytest.fixture
@@ -92,8 +93,9 @@ def make_programme(
             "slug": slug,
             "capacity": capacity,
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "start_at": (now + timedelta(days=5)).isoformat(),
-            "submit_deadline_at": (now + timedelta(days=11)).isoformat(),
+            "start_at": next_kickoff().isoformat(),
+            "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
+            "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
     )
     assert programme.status_code == 201, programme.text

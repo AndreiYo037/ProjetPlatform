@@ -68,6 +68,9 @@ class PublicListing(BaseModel):
     applications_close_at: datetime | None
     start_at: datetime | None
     submit_deadline_at: datetime | None
+    # The seventh day. Published before anyone applies, because the whole point
+    # of a fixed week is that the commitment is knowable up front (FR-800).
+    pitch_at: datetime | None
     seats_total: int | None
     seats_remaining: int | None
     criteria: list[PublicCriterion]
@@ -260,6 +263,7 @@ def listing(
         applications_close_at=programme.applications_close_at,
         start_at=programme.start_at,
         submit_deadline_at=programme.submit_deadline_at,
+        pitch_at=programme.pitch_at,
         # FR-101 — seat count displays only where capacity is set.
         seats_total=programme.capacity,
         seats_remaining=seats_remaining,

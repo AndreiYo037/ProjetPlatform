@@ -43,6 +43,16 @@ from projet.services.rubric import (
     publish,
     validate_for_publication,
 )
+from projet.services.schedule import (
+    KICKOFF_WEEKDAY_NAME,
+    Schedule,
+    ScheduleError,
+    next_kickoff_days,
+    validate_applications_close,
+)
+from projet.services.schedule import (
+    derive as derive_schedule,
+)
 
 router = APIRouter(tags=["programmes"])
 
@@ -54,23 +64,36 @@ class ProgrammeCreate(BaseModel):
     slug: str = Field(min_length=1, max_length=160)
     delivery_mode: str = DeliveryMode.ONLINE.value
     capacity: int | None = None
-    team_size_max: int = 1
     applications_open_at: datetime | None = None
     applications_close_at: datetime | None = None
-    start_at: datetime | None = None
-    submit_deadline_at: datetime | None = None
+    start_at: datetime | None = Field(
+        default=None,
+        description="Kickoff. Must be a Wednesday; the deadline and pitch day derive from it.",
+    )
+    # Usually filled in later, from a draft the company accepts and edits. They
+    # are accepted here so a caller who already knows the brief is not forced
+    # through a second request to say so.
+    problem_statement: str | None = None
+    deliverable_spec: str | None = None
     winners_count: int = 1
 
 
 class ProgrammeUpdate(BaseModel):
+    """The submission deadline and pitch day are not settable.
+
+    They derive from kickoff (see services/schedule.py), so letting either be
+    edited independently would let a programme drift out of the shape every
+    participant was promised at application time.
+    """
+
     title: str | None = None
     brief_url: str | None = None
+    problem_statement: str | None = None
+    deliverable_spec: str | None = None
     capacity: int | None = None
-    team_size_max: int | None = None
     applications_open_at: datetime | None = None
     applications_close_at: datetime | None = None
     start_at: datetime | None = None
-    submit_deadline_at: datetime | None = None
     winners_count: int | None = None
 
 
@@ -172,6 +195,11 @@ def create_programme(
     if clash is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "That slug is taken for this company.")
 
+    try:
+        clock = _clock(payload.start_at, payload.applications_close_at)
+    except ScheduleError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+
     programme = Programme(
         company_id=company_id,
         role_id=payload.role_id,
@@ -179,11 +207,14 @@ def create_programme(
         slug=payload.slug,
         delivery_mode=DeliveryMode(payload.delivery_mode),
         capacity=payload.capacity,
-        team_size_max=payload.team_size_max,
+        # Individuals only: one submission, one pitch, one verdict per person.
+        team_size_max=1,
         applications_open_at=payload.applications_open_at,
         applications_close_at=payload.applications_close_at,
         start_at=payload.start_at,
-        submit_deadline_at=payload.submit_deadline_at,
+        submit_deadline_at=clock.submit_deadline_at if clock else None,
+        problem_statement=payload.problem_statement,
+        deliverable_spec=payload.deliverable_spec,
         winners_count=payload.winners_count,
         status=ProgrammeStatus.DRAFT,
     )
@@ -198,6 +229,20 @@ def create_programme(
     _seed_data_pack_from_role(db, programme)
     db.commit()
     return _detail(db, programme)
+
+
+def _clock(start_at: datetime | None, close_at: datetime | None) -> Schedule | None:
+    """Validate and expand the kickoff date, where one has been set.
+
+    A draft is allowed to exist without dates — a company often picks the role
+    and writes the brief before it knows which Wednesday it wants. Publication
+    is where the date becomes mandatory.
+    """
+    if start_at is None:
+        return None
+    clock = derive_schedule(start_at)
+    validate_applications_close(close_at, clock.kickoff_at)
+    return clock
 
 
 def _seed_data_pack_from_role(db: Session, programme: Programme) -> None:
@@ -220,6 +265,41 @@ def _seed_data_pack_from_role(db: Session, programme: Programme) -> None:
         )
 
 
+class KickoffOption(BaseModel):
+    """One choosable week, expanded server-side.
+
+    The company picks a kickoff and the other two dates follow. Sending all
+    three means the picker can show a participant-facing promise ("pitches on
+    the 22nd") without the browser re-deriving a rule that lives on the server.
+    """
+
+    kickoff_at: datetime
+    submit_deadline_at: datetime
+    pitch_at: datetime
+
+
+@router.get("/programmes/kickoff-days", response_model=list[KickoffOption])
+def kickoff_days(
+    actor: Actor = Depends(require_company_manager),
+) -> list[KickoffOption]:
+    """The Wednesdays a company may choose from.
+
+    Offering the list is what makes the weekday rule invisible: nobody types a
+    date that is then rejected.
+    """
+    options: list[KickoffOption] = []
+    for day in next_kickoff_days(utcnow()):
+        clock = derive_schedule(day)
+        options.append(
+            KickoffOption(
+                kickoff_at=clock.kickoff_at,
+                submit_deadline_at=clock.submit_deadline_at,
+                pitch_at=clock.pitch_at,
+            )
+        )
+    return options
+
+
 @router.get("/programmes/{programme_id}", response_model=ProgrammeDetail)
 def get_programme(
     programme: Programme = Depends(get_programme_or_404),
@@ -235,8 +315,20 @@ def update_programme(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    changes = payload.model_dump(exclude_unset=True)
+    for field, value in changes.items():
         setattr(programme, field, value)
+
+    # Re-derive whenever either end of the clock moves, so the deadline can
+    # never be left pointing at the previous kickoff week.
+    if "start_at" in changes or "applications_close_at" in changes:
+        try:
+            clock = _clock(programme.start_at, programme.applications_close_at)
+        except ScheduleError as error:
+            db.rollback()
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+        programme.submit_deadline_at = clock.submit_deadline_at if clock else None
+
     db.commit()
     return _detail(db, programme)
 
@@ -281,11 +373,28 @@ def publication_check(
     db: Session = Depends(get_session),
 ) -> PublicationCheck:
     problems = validate_for_publication(db, programme)
-    if programme.applications_close_at is None:
-        problems.append("applications_close_at is not set")
-    if programme.submit_deadline_at is None:
-        problems.append("submit_deadline_at is not set")
+    problems.extend(_setup_problems(programme))
     return PublicationCheck(ready=not problems, problems=problems)
+
+
+def _setup_problems(programme: Programme) -> list[str]:
+    """What a company still owes before applicants can see this.
+
+    Phrased as sentences rather than field names: this list is shown to the
+    company on their own draft page, not to a developer reading a log.
+    """
+    problems: list[str] = []
+    if not (programme.problem_statement or "").strip():
+        problems.append("The problem statement is empty. Draft one or write your own.")
+    if not (programme.deliverable_spec or "").strip():
+        problems.append(
+            "The deliverable is not described, so applicants cannot know what to produce."
+        )
+    if programme.start_at is None:
+        problems.append(f"No kickoff {KICKOFF_WEEKDAY_NAME} has been picked.")
+    if programme.applications_close_at is None:
+        problems.append("Applications have no closing date.")
+    return problems
 
 
 @router.post("/programmes/{programme_id}/publish", response_model=ProgrammeDetail)
@@ -294,7 +403,15 @@ def publish_programme(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
-    """FR-075 — validation blocks publication with an incomplete rubric."""
+    """FR-075 — validation blocks publication with an incomplete rubric.
+
+    The same setup checks the draft page shows run again here, because the
+    company is not the only caller and a half-built challenge that reaches
+    applicants costs more than one that never publishes.
+    """
+    setup = _setup_problems(programme)
+    if setup:
+        raise HTTPException(status.HTTP_409_CONFLICT, " ".join(setup))
     try:
         publish(db, programme)
     except RubricError as error:

@@ -6,9 +6,11 @@ import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import {
   createProgramme,
+  getKickoffDays,
   getRoleClusters,
   getRoleImplications,
   type ClusterGroup,
+  type KickoffOption,
   type RoleImplications,
 } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
@@ -37,10 +39,9 @@ export default function NewChallengePage() {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [capacity, setCapacity] = useState("");
-  const [teamSizeMax, setTeamSizeMax] = useState("1");
   const [appsCloseAt, setAppsCloseAt] = useState("");
   const [startAt, setStartAt] = useState("");
-  const [submitDeadlineAt, setSubmitDeadlineAt] = useState("");
+  const [kickoffDays, setKickoffDays] = useState<KickoffOption[]>([]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export default function NewChallengePage() {
   useEffect(() => {
     if (gate.status !== "ready") return;
     getRoleClusters().then(setClusters).catch(() => setClusters([]));
+    getKickoffDays().then(setKickoffDays).catch(() => setKickoffDays([]));
   }, [gate.status]);
 
   const selectRole = useCallback(
@@ -81,10 +83,8 @@ export default function NewChallengePage() {
         title: title.trim(),
         slug: slug.trim(),
         capacity: capacity ? Number(capacity) : null,
-        team_size_max: Number(teamSizeMax) || 1,
         applications_close_at: appsCloseAt || null,
         start_at: startAt || null,
-        submit_deadline_at: submitDeadlineAt || null,
       });
       router.push(`/company/challenges/${programme.id}`);
     } catch (err) {
@@ -103,7 +103,8 @@ export default function NewChallengePage() {
       </Link>
       <h1 style={{ marginTop: "0.5rem" }}>New challenge</h1>
       <p className="lede">
-        Pick a role, fill in the details, and publish when you are ready.
+        One challenge, one role. Pick the role, pick the week, and publish when
+        the brief is ready.
       </p>
 
       {error && <div className="notice bad">{error}</div>}
@@ -126,20 +127,17 @@ export default function NewChallengePage() {
           title={title}
           slug={slug}
           capacity={capacity}
-          teamSizeMax={teamSizeMax}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
-          submitDeadlineAt={submitDeadlineAt}
+          kickoffDays={kickoffDays}
           onTitleChange={handleTitleChange}
           onSlugChange={(v) => {
             setSlugTouched(true);
             setSlug(v);
           }}
           onCapacityChange={setCapacity}
-          onTeamSizeMaxChange={setTeamSizeMax}
           onAppsCloseAtChange={setAppsCloseAt}
           onStartAtChange={setStartAt}
-          onSubmitDeadlineAtChange={setSubmitDeadlineAt}
           onBack={() => setStep("role")}
           onNext={() => {
             if (title.trim() && slug.trim()) setStep("review");
@@ -154,8 +152,7 @@ export default function NewChallengePage() {
           slug={slug}
           capacity={capacity}
           appsCloseAt={appsCloseAt}
-          startAt={startAt}
-          submitDeadlineAt={submitDeadlineAt}
+          week={kickoffDays.find((d) => d.kickoff_at === startAt) ?? null}
           busy={busy}
           onBack={() => setStep("details")}
           onSubmit={submit}
@@ -309,37 +306,32 @@ function DetailsForm({
   title,
   slug,
   capacity,
-  teamSizeMax,
   appsCloseAt,
   startAt,
-  submitDeadlineAt,
+  kickoffDays,
   onTitleChange,
   onSlugChange,
   onCapacityChange,
-  onTeamSizeMaxChange,
   onAppsCloseAtChange,
   onStartAtChange,
-  onSubmitDeadlineAtChange,
   onBack,
   onNext,
 }: {
   title: string;
   slug: string;
   capacity: string;
-  teamSizeMax: string;
   appsCloseAt: string;
   startAt: string;
-  submitDeadlineAt: string;
+  kickoffDays: KickoffOption[];
   onTitleChange: (v: string) => void;
   onSlugChange: (v: string) => void;
   onCapacityChange: (v: string) => void;
-  onTeamSizeMaxChange: (v: string) => void;
   onAppsCloseAtChange: (v: string) => void;
   onStartAtChange: (v: string) => void;
-  onSubmitDeadlineAtChange: (v: string) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
+  const chosen = kickoffDays.find((d) => d.kickoff_at === startAt) ?? null;
   return (
     <>
       <h2>2. Challenge details</h2>
@@ -381,17 +373,6 @@ function DetailsForm({
           />
           <div className="hint">Leave empty for uncapped</div>
         </div>
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="ch-team">Max team size</label>
-          <input
-            id="ch-team"
-            type="number"
-            min={1}
-            max={10}
-            value={teamSizeMax}
-            onChange={(e) => onTeamSizeMaxChange(e.target.value)}
-          />
-        </div>
       </div>
       <div className="field">
         <label htmlFor="ch-apps-close">Applications close</label>
@@ -403,23 +384,41 @@ function DetailsForm({
         />
       </div>
       <div className="field">
-        <label htmlFor="ch-start">Programme starts</label>
-        <input
+        <label htmlFor="ch-start">Kickoff week</label>
+        <select
           id="ch-start"
-          type="datetime-local"
           value={startAt}
           onChange={(e) => onStartAtChange(e.target.value)}
-        />
+        >
+          <option value="">Pick a week</option>
+          {kickoffDays.map((option) => (
+            <option key={option.kickoff_at} value={option.kickoff_at}>
+              {formatWeek(option)}
+            </option>
+          ))}
+        </select>
+        <div className="hint">
+          Every programme runs the same shape: kickoff call on the Wednesday,
+          work due the following Tuesday night, pitches the Wednesday after.
+        </div>
       </div>
-      <div className="field">
-        <label htmlFor="ch-deadline">Submission deadline</label>
-        <input
-          id="ch-deadline"
-          type="datetime-local"
-          value={submitDeadlineAt}
-          onChange={(e) => onSubmitDeadlineAtChange(e.target.value)}
-        />
-      </div>
+
+      {chosen && (
+        <div className="panel">
+          <dl className="facts">
+            <dt>Kickoff call</dt>
+            <dd>{new Date(chosen.kickoff_at).toLocaleString()}</dd>
+            <dt>Work due</dt>
+            <dd>{new Date(chosen.submit_deadline_at).toLocaleString()}</dd>
+            <dt>Pitches</dt>
+            <dd>{new Date(chosen.pitch_at).toLocaleString()}</dd>
+          </dl>
+          <p className="small muted" style={{ margin: 0 }}>
+            Applicants see both dates before they apply, and confirm they can
+            make them.
+          </p>
+        </div>
+      )}
 
       <div className="row" style={{ marginTop: "1.5rem", gap: "0.75rem" }}>
         <button className="secondary" onClick={onBack}>
@@ -433,14 +432,24 @@ function DetailsForm({
   );
 }
 
+/** "Wed 4 Nov, pitches Wed 11 Nov" — the whole commitment in one line. */
+function formatWeek(option: KickoffOption): string {
+  const day = (value: string) =>
+    new Date(value).toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+  return `${day(option.kickoff_at)}, pitches ${day(option.pitch_at)}`;
+}
+
 function ReviewStep({
   implications,
   title,
   slug,
   capacity,
   appsCloseAt,
-  startAt,
-  submitDeadlineAt,
+  week,
   busy,
   onBack,
   onSubmit,
@@ -450,8 +459,7 @@ function ReviewStep({
   slug: string;
   capacity: string;
   appsCloseAt: string;
-  startAt: string;
-  submitDeadlineAt: string;
+  week: KickoffOption | null;
   busy: boolean;
   onBack: () => void;
   onSubmit: () => void;
@@ -482,10 +490,12 @@ function ReviewStep({
           <dd>{capacity || "Uncapped"}</dd>
           <dt>Apps close</dt>
           <dd>{formatDate(appsCloseAt)}</dd>
-          <dt>Starts</dt>
-          <dd>{formatDate(startAt)}</dd>
-          <dt>Deadline</dt>
-          <dd>{formatDate(submitDeadlineAt)}</dd>
+          <dt>Kickoff call</dt>
+          <dd>{formatDate(week?.kickoff_at ?? "")}</dd>
+          <dt>Work due</dt>
+          <dd>{formatDate(week?.submit_deadline_at ?? "")}</dd>
+          <dt>Pitches</dt>
+          <dd>{formatDate(week?.pitch_at ?? "")}</dd>
         </dl>
       </div>
       <p className="small muted">
