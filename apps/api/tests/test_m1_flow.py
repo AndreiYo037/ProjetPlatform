@@ -144,6 +144,8 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
             "organisation": "NUS",
             "year_course": "Y2 Business Analytics",
             "writeup": writeup(),
+            "linkedin_url": "https://www.linkedin.com/in/sam-student",
+            "availability_confirmed": "true",
             "consent_share_company": "true",
             "consent_recording": "true",
             "password": "hunter22",
@@ -166,6 +168,8 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
 
     detail = client.get(f"/programmes/{programme_id}/applications/{application_id}").json()
     assert detail["writeup"]
+    assert detail["linkedin_url"].endswith("/sam-student")
+    assert detail["availability_confirmed"] is True
     assert detail["cv_url"] and "sig=" in detail["cv_url"], "CVs are served signed"
 
     scored = client.patch(
@@ -371,6 +375,7 @@ def test_an_application_can_decline_both_consents(client, session, admin, seeded
             "contact_email": "private@school.edu.sg",
             "google_email": "private@gmail.com",
             "writeup": writeup(),
+            "availability_confirmed": "true",
             "consent_share_company": "false",
             "consent_recording": "false",
             "password": "hunter22",
@@ -424,6 +429,7 @@ def test_a_non_google_address_warns_without_blocking(client, session, admin, see
             "contact_email": "person@school.edu.sg",
             "google_email": "person@outlook.com",
             "writeup": writeup(),
+            "availability_confirmed": "true",
             "consent_share_company": "true",
             "password": "hunter22",
         },

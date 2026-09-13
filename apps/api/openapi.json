@@ -4151,6 +4151,33 @@
             ],
             "title": "Cv Url"
           },
+          "linkedin_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedin Url"
+          },
+          "availability_confirmed": {
+            "type": "boolean",
+            "title": "Availability Confirmed",
+            "default": false
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
+          },
           "google_email": {
             "anyOf": [
               {
@@ -4508,6 +4535,35 @@
           "writeup": {
             "type": "string",
             "title": "Writeup"
+          },
+          "linkedin_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedin Url"
+          },
+          "availability_confirmed": {
+            "type": "boolean",
+            "title": "Availability Confirmed",
+            "default": false
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
           },
           "consent_share_company": {
             "type": "boolean",
@@ -6735,6 +6791,10 @@
             },
             "type": "array",
             "title": "Data Pack Preview"
+          },
+          "writeup_prompt": {
+            "type": "string",
+            "title": "Writeup Prompt"
           }
         },
         "type": "object",
@@ -6754,7 +6814,8 @@
           "seats_total",
           "seats_remaining",
           "criteria",
-          "data_pack_preview"
+          "data_pack_preview",
+          "writeup_prompt"
         ],
         "title": "PublicListing",
         "description": "FR-101 \u2014 company, role, summary, dates, commitment, and what they get.\n\nThe full rubric renders here (FR-078): publishing it tells participants what\nthey are judged on and removes the \"it felt arbitrary\" complaint. There is\nno advantage in concealing it \u2014 the rubric rewards things that cannot be faked."

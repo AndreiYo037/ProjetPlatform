@@ -71,6 +71,17 @@ class Application(Base):
     person_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("person.id", ondelete="CASCADE"))
     cv_url: Mapped[str | None] = mapped_column(Text)
     writeup: Mapped[str | None] = mapped_column(Text)
+    # The CV says what they have done; the profile says who is saying it. Asked
+    # for here rather than on Person because it is a claim made to this company.
+    linkedin_url: Mapped[str | None] = mapped_column(Text)
+
+    # The commitment, declared before a seat is consumed. The programme runs on
+    # a fixed week with a kickoff on day 1 and a pitch on day 7, so someone who
+    # cannot make day 7 should find that out on the form rather than on day 6.
+    availability_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Anything they already know will get in the way in between. Optional, and
+    # not a reason to refuse: the two fixed dates are the hard part.
+    availability_note: Mapped[str | None] = mapped_column(Text)
 
     # FR-203 — stored with a timestamp, immutably.
     consent_share_company: Mapped[bool] = mapped_column(Boolean, default=False)

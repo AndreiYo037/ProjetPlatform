@@ -31,6 +31,7 @@ from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
 from projet.services.auth import hash_password, validate_password
 from projet.services.people import google_email_warning, looks_like_email, resolve_person
+from projet.services.writeup import writeup_prompt_for
 from projet.storage import get_storage
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -75,6 +76,10 @@ class PublicListing(BaseModel):
     seats_remaining: int | None
     criteria: list[PublicCriterion]
     data_pack_preview: list[str]
+    # What the apply form asks for, written for this role (FR-201). It renders
+    # on the listing too, so someone can read the question before committing to
+    # the form.
+    writeup_prompt: str
 
 
 def _state(programme: Programme) -> str:
@@ -278,7 +283,38 @@ def listing(
             for c in criteria
         ],
         data_pack_preview=[r.label for r in data_pack],
+        writeup_prompt=writeup_prompt_for(role, template),
     )
+
+
+def looks_like_linkedin(url: str) -> bool:
+    """Loose on purpose: linkedin.com/in/, /pub/, and the country subdomains.
+
+    The point is to catch a typed name or an email in the wrong box, not to
+    police the URL shape and lock out a legitimate profile.
+    """
+    lowered = url.strip().lower()
+    if not lowered.startswith(("http://", "https://", "linkedin.com", "www.linkedin.com")):
+        return False
+    return "linkedin.com/" in lowered
+
+
+def _commitment_refusal(programme: Programme) -> str:
+    """Name the two dates in the refusal, so the reason is the dates themselves."""
+    kickoff = _readable(programme.start_at)
+    pitch = _readable(programme.pitch_at)
+    if kickoff and pitch:
+        return (
+            f"Applications need the commitment confirmed: kickoff on {kickoff} and "
+            f"the pitch on {pitch}."
+        )
+    return "Applications need the commitment to the kickoff and the pitch confirmed."
+
+
+def _readable(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.strftime("%a %-d %b, %H:%M UTC")
 
 
 def count_words(text: str) -> int:
@@ -309,6 +345,11 @@ async def apply(
     job_title: str | None = Form(default=None, max_length=200),
     timezone: str = Form(default="Asia/Singapore"),
     writeup: str = Form(),
+    linkedin_url: str | None = Form(default=None, max_length=400),
+    # FR-800's fixed week, declared rather than assumed. Defaulted to false so a
+    # form that simply omits it is refused, not silently taken as a yes.
+    availability_confirmed: bool = Form(default=False),
+    availability_note: str | None = Form(default=None, max_length=2000),
     consent_share_company: bool = Form(default=False),
     consent_recording: bool = Form(default=False),
     password: str = Form(min_length=1, max_length=200),
@@ -351,6 +392,19 @@ async def apply(
             f"The writeup must be {WRITEUP_MIN_WORDS}-{WRITEUP_MAX_WORDS} words; yours is {words}.",
         )
 
+    if not availability_confirmed:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            _commitment_refusal(programme),
+        )
+
+    linkedin = (linkedin_url or "").strip() or None
+    if linkedin is not None and not looks_like_linkedin(linkedin):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "That does not look like a LinkedIn profile URL.",
+        )
+
     content = await cv.read()
     if len(content) > MAX_CV_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "CV must be under 5MB.")
@@ -390,6 +444,9 @@ async def apply(
         person_id=person.id,
         cv_url=key,
         writeup=writeup,
+        linkedin_url=linkedin,
+        availability_confirmed=True,
+        availability_note=(availability_note or "").strip() or None,
         consent_share_company=consent_share_company,
         consent_recording=consent_recording,
         consent_captured_at=utcnow(),

@@ -65,6 +65,11 @@ class RoleTemplate(Base):
 
     delivery_risk_note: Mapped[str | None] = mapped_column(Text)
 
+    # What the application form asks for, when this role wants its own wording.
+    # Null is the normal case: services/writeup.py derives the prompt from the
+    # rubric, so an edited rubric changes the question the same day.
+    writeup_prompt: Mapped[str | None] = mapped_column(Text)
+
     role: Mapped[Role] = relationship(back_populates="template")
 
 

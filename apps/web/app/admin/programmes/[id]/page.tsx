@@ -245,6 +245,11 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
             <span>{detail.contact_email}</span>
             {detail.organisation && <span>· {detail.organisation}</span>}
             {detail.year_course && <span>· {detail.year_course}</span>}
+            {detail.linkedin_url && (
+              <a href={detail.linkedin_url} target="_blank" rel="noreferrer">
+                · LinkedIn
+              </a>
+            )}
             <button className="secondary small" onClick={() => setDetail(null)}>
               Close
             </button>
@@ -253,6 +258,11 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
             <h3 style={{ marginTop: 0 }}>Writeup</h3>
             <p style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>{detail.writeup}</p>
           </div>
+          {detail.availability_note && (
+            <div className="notice warn">
+              <strong>Heads up for the week:</strong> {detail.availability_note}
+            </div>
+          )}
           {detail.cv_url && (
             <p>
               <a

@@ -1,7 +1,7 @@
 "use client";
 
-import { use, useMemo, useState } from "react";
-import { apiUrl } from "@/lib/api";
+import { use, useEffect, useMemo, useState } from "react";
+import { apiUrl, getListing, type PublicListing } from "@/lib/api";
 
 const MIN_WORDS = 200;
 const MAX_WORDS = 300;
@@ -10,20 +10,45 @@ function countWords(text: string) {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+/**
+ * The day and the time, both. A date alone is not a commitment: the pitch is a
+ * live session at a fixed hour, and someone agreeing to it needs to know which.
+ */
+function formatMoment(value: string | null | undefined) {
+  if (!value) return null;
+  return new Date(value).toLocaleString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function ApplyPage({
   params,
 }: {
   params: Promise<{ company: string; programme: string }>;
 }) {
   const { company, programme } = use(params);
+  const [listing, setListing] = useState<PublicListing | null>(null);
   const [writeup, setWriteup] = useState("");
   const [cv, setCv] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ warning: string | null } | null>(null);
 
+  useEffect(() => {
+    getListing(company, programme)
+      .then(setListing)
+      .catch(() => setListing(null));
+  }, [company, programme]);
+
   const words = useMemo(() => countWords(writeup), [writeup]);
   const wordsOk = words >= MIN_WORDS && words <= MAX_WORDS;
+
+  const kickoff = formatMoment(listing?.start_at);
+  const pitch = formatMoment(listing?.pitch_at);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -135,6 +160,16 @@ export default function ApplyPage({
         </div>
 
         <div className="field">
+          <label htmlFor="linkedin_url">LinkedIn (optional)</label>
+          <input
+            id="linkedin_url"
+            name="linkedin_url"
+            type="url"
+            placeholder="https://www.linkedin.com/in/yourname"
+          />
+        </div>
+
+        <div className="field">
           <label htmlFor="cv">CV (PDF, max 5MB)</label>
           <input
             id="cv"
@@ -147,7 +182,12 @@ export default function ApplyPage({
         </div>
 
         <div className="field">
-          <label htmlFor="writeup">Why this challenge, and what you would bring</label>
+          <label htmlFor="writeup">Your writeup</label>
+          {listing?.writeup_prompt && (
+            <div className="rubric" style={{ whiteSpace: "pre-wrap", marginBottom: "0.5rem" }}>
+              {listing.writeup_prompt}
+            </div>
+          )}
           <textarea
             id="writeup"
             name="writeup"
@@ -158,6 +198,46 @@ export default function ApplyPage({
           <div className="hint" style={{ color: wordsOk ? undefined : "var(--warn)" }}>
             {words} words · {MIN_WORDS}–{MAX_WORDS} required
           </div>
+        </div>
+
+        <h2>The week</h2>
+        <p className="small muted">
+          Two dates are fixed and everything else is yours to plan around. If you cannot
+          make both, this is the moment to say so: a seat you cannot use is a seat nobody
+          else got.
+        </p>
+        <dl className="facts">
+          <dt>Kickoff call</dt>
+          <dd>{kickoff ?? "To be confirmed"}</dd>
+          <dt>Pitch, day 7</dt>
+          <dd>{pitch ?? "To be confirmed"}</dd>
+        </dl>
+        <div className="check">
+          <input
+            id="availability_confirmed"
+            name="availability_confirmed"
+            type="checkbox"
+            value="true"
+            required
+          />
+          <label htmlFor="availability_confirmed">
+            {kickoff && pitch ? (
+              <>
+                I can attend the kickoff on {kickoff} and pitch live on {pitch}.
+              </>
+            ) : (
+              <>I can attend the kickoff and pitch live on day 7.</>
+            )}
+          </label>
+        </div>
+        <div className="field">
+          <label htmlFor="availability_note">Anything in the way during the week (optional)</label>
+          <textarea
+            id="availability_note"
+            name="availability_note"
+            rows={2}
+            placeholder="Exams, shifts, travel. Not a problem, we just plan around it."
+          />
         </div>
 
         <h2>Consent</h2>
