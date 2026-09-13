@@ -3,6 +3,10 @@
 Where this implementation departs from the PRD, and why. Each entry is a thing
 to disagree with deliberately rather than discover later.
 
+The PRD itself is `docs/prd.md`, kept at v1.2 "as built": every passage the build
+changed is rewritten in place and followed by a build note saying what v1.1 said.
+That file is the requirement; this one is the reasoning behind it.
+
 ---
 
 ## Deviations from PRD §4 (data model)
