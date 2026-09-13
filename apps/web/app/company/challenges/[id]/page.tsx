@@ -4,14 +4,17 @@ import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import {
+  draftProblemStatements,
   getKickoffDays,
   getProgramme,
   getPublicationCheck,
   listApplications,
+  listProblemStatementDrafts,
   publishProgramme,
   updateProgramme,
   type ApplicationOut,
   type KickoffOption,
+  type ProblemStatementAngle,
   type ProgrammeDetail,
   type PublicationCheck,
 } from "@/lib/api";
@@ -344,6 +347,11 @@ function DraftSection({
               to set.
             </p>
           </div>
+          <AnglePicker
+            programmeId={programme.id}
+            roleName={programme.role?.name ?? ""}
+            onUse={(angle) => setProblemStatement(angle.rendered)}
+          />
           <div className="field">
             <label htmlFor="edit-problem">Problem statement</label>
             <textarea
@@ -396,5 +404,107 @@ function DraftSection({
         </button>
       </div>
     </>
+  );
+}
+
+/**
+ * Two or three angles on the same role, drafted from research on the company.
+ *
+ * Picking one drops it into the editor rather than saving it, because a
+ * drafted brief is a starting point: the company is expected to rewrite it,
+ * and cannot do that if accepting an angle is also publishing it.
+ */
+function AnglePicker({
+  programmeId,
+  roleName,
+  onUse,
+}: {
+  programmeId: string;
+  roleName: string;
+  onUse: (angle: ProblemStatementAngle) => void;
+}) {
+  const [angles, setAngles] = useState<ProblemStatementAngle[]>([]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [drafting, setDrafting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listProblemStatementDrafts(programmeId)
+      .then(setAngles)
+      .catch(() => setAngles([]));
+  }, [programmeId]);
+
+  async function draft() {
+    setDrafting(true);
+    setError(null);
+    try {
+      setAngles(await draftProblemStatements(programmeId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Drafting is not available right now.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+
+  return (
+    <div className="panel" style={{ marginBottom: "1rem" }}>
+      <div className="row" style={{ justifyContent: "space-between" }}>
+        <strong>Draft the problem</strong>
+        <button className="secondary" disabled={drafting} onClick={draft}>
+          {drafting ? "Researching…" : angles.length ? "Draft again" : "Draft angles"}
+        </button>
+      </div>
+      <p className="small muted">
+        Researches {roleName ? `your ${roleName} role` : "the role"} and your company, then
+        offers a few different problems within it. Pick the one closest to a real
+        question you have, then edit it. Takes a minute or two.
+      </p>
+
+      {error && <div className="notice bad">{error}</div>}
+
+      {angles.length === 0 && !drafting && !error && (
+        <p className="small muted">Nothing drafted yet.</p>
+      )}
+
+      {angles.map((angle) => (
+        <div className="rubric" key={angle.id}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <strong>
+              {angle.angle}. {angle.title}
+            </strong>
+            {!angle.based_on_live_listing && <span className="tag">no live listing</span>}
+          </div>
+          <p className="small" style={{ margin: "0.35rem 0" }}>
+            {angle.question}
+          </p>
+          {open === angle.id && (
+            <>
+              <p className="small muted" style={{ whiteSpace: "pre-wrap" }}>
+                {angle.context}
+              </p>
+              <ul className="small" style={{ margin: "0.3rem 0", paddingLeft: "1.2rem" }}>
+                {angle.outputs.map((output, i) => (
+                  <li key={i}>{output}</li>
+                ))}
+              </ul>
+              {angle.grounding && (
+                <p className="small muted">
+                  <b>Based on:</b> {angle.grounding}
+                </p>
+              )}
+            </>
+          )}
+          <div className="row" style={{ gap: "0.75rem" }}>
+            <button onClick={() => onUse(angle)}>Use this one</button>
+            <button
+              className="secondary"
+              onClick={() => setOpen(open === angle.id ? null : angle.id)}
+            >
+              {open === angle.id ? "Less" : "See the whole thing"}
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

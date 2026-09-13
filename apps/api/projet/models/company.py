@@ -24,6 +24,9 @@ class Company(Base):
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(120), unique=True)
     logo_url: Mapped[str | None] = mapped_column(Text)
+    # What drafting researches. Held on the company rather than asked for on
+    # every run, because it is the same answer every time.
+    website_url: Mapped[str | None] = mapped_column(Text)
     contact_name: Mapped[str | None] = mapped_column(String(200))
     contact_email: Mapped[str | None] = mapped_column(String(320))
     tier: Mapped[CompanyTier] = mapped_column(enum_column(CompanyTier), default=CompanyTier.SME)

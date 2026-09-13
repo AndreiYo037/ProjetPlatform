@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session
 from projet.api.deps import (
     get_programme_or_404,
     require_company_manager,
-    require_platform,
     visible_programmes,
 )
 from projet.api.schemas import (
@@ -497,6 +496,10 @@ class DraftRequest(BaseModel):
 
 class DraftOut(BaseModel):
     id: uuid.UUID
+    batch_id: uuid.UUID | None = None
+    # Which of the run's angles this is. The company chooses between them, so
+    # the number has to mean the same thing on every screen.
+    angle: int = 1
     title: str
     context: str
     question: str
@@ -504,6 +507,8 @@ class DraftOut(BaseModel):
     grounding: str | None
     based_on_live_listing: bool
     model: str | None
+    # The angle in the plain-text shape the format specifies, ready to paste
+    # into the problem statement as is.
     rendered: str
     accepted_at: datetime | None = None
 
@@ -518,9 +523,11 @@ def _draft_out(draft: ProblemStatementDraft, role_name: str) -> DraftOut:
         outputs=draft.outputs or [],
         grounding=draft.grounding or "",
         based_on_live_listing=draft.based_on_live_listing,
-    ).render(1, role_name)
+    ).render(draft.angle, role_name)
     return DraftOut(
         id=draft.id,
+        batch_id=draft.batch_id,
+        angle=draft.angle,
         title=draft.title,
         context=draft.context,
         question=draft.question,
@@ -533,19 +540,24 @@ def _draft_out(draft: ProblemStatementDraft, role_name: str) -> DraftOut:
     )
 
 
-@router.post("/programmes/{programme_id}/problem-statement/draft", response_model=DraftOut)
+@router.post(
+    "/programmes/{programme_id}/problem-statement/draft", response_model=list[DraftOut]
+)
 def draft_problem_statement_endpoint(
     payload: DraftRequest,
     programme: Programme = Depends(get_programme_or_404),
     db: Session = Depends(get_session),
-    actor: Actor = Depends(require_platform),
-) -> DraftOut:
-    """FR-061 — draft from the role plus research on the company.
+    actor: Actor = Depends(require_company_manager),
+) -> list[DraftOut]:
+    """FR-061 — two or three angles on the role, from research on the company.
 
-    Admin-only and never auto-published: the draft lands in a review queue
-    (FR-063), and admin rewrites before anything reaches the company.
+    The company runs this themselves, and admin can run it for them: both pass
+    this guard, and the company account is the one thing everything hangs off.
+
+    Nothing is auto-published (FR-063). The angles land in a review list, the
+    company picks one, and whoever is editing rewrites it before it runs.
     """
-    from projet.integrations.claude import DraftingUnavailable, draft_problem_statement
+    from projet.integrations.claude import DraftingUnavailable, draft_problem_statements
     from projet.models import RoleTemplate
 
     company = db.get(Company, programme.company_id)
@@ -555,9 +567,9 @@ def draft_problem_statement_endpoint(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Programme is not fully configured.")
 
     try:
-        drafted = draft_problem_statement(
+        angles = draft_problem_statements(
             company_name=company.name,
-            company_url=payload.company_url,
+            company_url=payload.company_url or company.website_url,
             role_name=role.name,
             deliverable=programme.deliverable_spec or template.default_deliverable,
             admin_notes=payload.admin_notes,
@@ -565,33 +577,47 @@ def draft_problem_statement_endpoint(
     except DraftingUnavailable as error:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
 
-    row = ProblemStatementDraft(
-        programme_id=programme.id,
-        title=drafted.title,
-        context=drafted.context,
-        question=drafted.question,
-        outputs=drafted.outputs,
-        grounding=drafted.grounding,
-        based_on_live_listing=drafted.based_on_live_listing,
-        model=drafted.model,
-        created_by=actor.id,
-    )
-    db.add(row)
+    batch_id = uuid.uuid4()
+    # One run, one timestamp. Letting each row take its own would order the
+    # angles newest-first inside a batch, which reverses the offered order.
+    drafted_at = utcnow()
+    rows = [
+        ProblemStatementDraft(
+            programme_id=programme.id,
+            batch_id=batch_id,
+            angle=index,
+            title=drafted.title,
+            context=drafted.context,
+            question=drafted.question,
+            outputs=drafted.outputs,
+            grounding=drafted.grounding,
+            based_on_live_listing=drafted.based_on_live_listing,
+            model=drafted.model,
+            created_by=actor.id,
+            created_at=drafted_at,
+        )
+        for index, drafted in enumerate(angles, start=1)
+    ]
+    db.add_all(rows)
     db.commit()
-    return _draft_out(row, role.name)
+    return [_draft_out(row, role.name) for row in rows]
 
 
 @router.get("/programmes/{programme_id}/problem-statement/drafts", response_model=list[DraftOut])
 def list_drafts(
     programme: Programme = Depends(get_programme_or_404),
     db: Session = Depends(get_session),
-    actor: Actor = Depends(require_platform),
+    actor: Actor = Depends(require_company_manager),
 ) -> list[DraftOut]:
+    """Every angle drafted so far, newest run first, angles in offered order."""
     role = db.get(Role, programme.role_id)
     drafts = db.scalars(
         select(ProblemStatementDraft)
         .where(ProblemStatementDraft.programme_id == programme.id)
-        .order_by(ProblemStatementDraft.created_at.desc())
+        .order_by(
+            ProblemStatementDraft.created_at.desc(),
+            ProblemStatementDraft.angle.asc(),
+        )
     )
     return [_draft_out(d, role.name if role else "") for d in drafts]
 

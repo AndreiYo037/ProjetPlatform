@@ -1777,7 +1777,7 @@
           "programmes"
         ],
         "summary": "Draft Problem Statement Endpoint",
-        "description": "FR-061 \u2014 draft from the role plus research on the company.\n\nAdmin-only and never auto-published: the draft lands in a review queue\n(FR-063), and admin rewrites before anything reaches the company.",
+        "description": "FR-061 \u2014 two or three angles on the role, from research on the company.\n\nThe company runs this themselves, and admin can run it for them: both pass\nthis guard, and the company account is the one thing everything hangs off.\n\nNothing is auto-published (FR-063). The angles land in a review list, the\ncompany picks one, and whoever is editing rewrites it before it runs.",
         "operationId": "draft_problem_statement_endpoint_programmes__programme_id__problem_statement_draft_post",
         "parameters": [
           {
@@ -1823,7 +1823,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DraftOut"
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DraftOut"
+                  },
+                  "title": "Response Draft Problem Statement Endpoint Programmes  Programme Id  Problem Statement Draft Post"
                 }
               }
             }
@@ -1847,6 +1851,7 @@
           "programmes"
         ],
         "summary": "List Drafts",
+        "description": "Every angle drafted so far, newest run first, angles in offered order.",
         "operationId": "list_drafts_programmes__programme_id__problem_statement_drafts_get",
         "parameters": [
           {
@@ -5310,6 +5315,23 @@
             "type": "string",
             "format": "uuid",
             "title": "Id"
+          },
+          "batch_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Id"
+          },
+          "angle": {
+            "type": "integer",
+            "title": "Angle",
+            "default": 1
           },
           "title": {
             "type": "string",

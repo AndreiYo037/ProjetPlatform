@@ -160,7 +160,7 @@ class RubricCriterion(Base):
 
 
 class ProblemStatementDraft(Base):
-    """A drafted problem statement awaiting admin review (FR-063).
+    """One angle from a drafting run, awaiting review (FR-063).
 
     Drafts are never auto-published, so they need somewhere to live that is not
     the programme itself. Keeping the grounding and the model that produced it
@@ -171,6 +171,11 @@ class ProblemStatementDraft(Base):
 
     id: Mapped[uuid.UUID] = uuid_pk()
     programme_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("programme.id", ondelete="CASCADE"))
+    # One run produces two or three angles on the same role. They are chosen
+    # between, so they have to stay grouped and stay in their offered order:
+    # "angle 2" must mean the same thing to the company as to admin.
+    batch_id: Mapped[uuid.UUID | None] = mapped_column()
+    angle: Mapped[int] = mapped_column(Integer, default=1)
     title: Mapped[str] = mapped_column(String(300))
     context: Mapped[str] = mapped_column(Text)
     question: Mapped[str] = mapped_column(Text)

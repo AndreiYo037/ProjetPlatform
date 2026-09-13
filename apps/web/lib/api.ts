@@ -188,6 +188,38 @@ export type KickoffOption = {
 /** The Wednesdays a company may kick off on, so nobody types a rejected date. */
 export const getKickoffDays = () => api.get<KickoffOption[]>("/programmes/kickoff-days");
 
+/** One angle from a drafting run. A run returns two or three of them. */
+export type ProblemStatementAngle = {
+  id: string;
+  batch_id: string | null;
+  angle: number;
+  title: string;
+  context: string;
+  question: string;
+  outputs: string[];
+  grounding: string | null;
+  based_on_live_listing: boolean;
+  model: string | null;
+  /** The angle as plain text, in the shape the brief is written in. */
+  rendered: string;
+  accepted_at: string | null;
+};
+/**
+ * Research the company and draft two or three angles on the chosen role.
+ * Slow by design: it searches the web before it writes anything.
+ */
+export const draftProblemStatements = (
+  id: string,
+  body: { company_url?: string | null; admin_notes?: string | null } = {},
+) => api.post<ProblemStatementAngle[]>(`/programmes/${id}/problem-statement/draft`, body);
+export const listProblemStatementDrafts = (id: string) =>
+  api.get<ProblemStatementAngle[]>(`/programmes/${id}/problem-statement/drafts`);
+/** Accept an angle, edited or as drafted. Nothing is ever published unread. */
+export const setProblemStatement = (
+  id: string,
+  body: { problem_statement: string; deliverable_spec?: string | null; from_draft_id?: string },
+) => api.put<ProgrammeDetail>(`/programmes/${id}/problem-statement`, body);
+
 export type PublicationCheck = { ready: boolean; problems: string[] };
 export const getPublicationCheck = (id: string) =>
   api.get<PublicationCheck>(`/programmes/${id}/publication-check`);
