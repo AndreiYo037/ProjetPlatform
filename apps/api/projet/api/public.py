@@ -11,7 +11,7 @@ import secrets
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -86,6 +86,127 @@ def _state(programme: Programme) -> str:
     if programme.applications_open_at and programme.applications_open_at > now:
         return "closed"
     return "open"
+
+
+class PublicListingSummary(BaseModel):
+    """FR-104/FR-105 — the row shape for both listing endpoints below.
+
+    Deliberately thinner than `PublicListing`: a browsing stranger picking
+    between programmes does not need the rubric or the data pack yet, only
+    enough to decide whether to open the full page.
+    """
+
+    company: str
+    company_slug: str
+    programme_slug: str
+    title: str
+    role: str
+    cluster: str
+    state: str
+    applications_close_at: datetime | None
+    start_at: datetime | None
+    seats_total: int | None
+    seats_remaining: int | None
+
+
+def _summarize(db: Session, programme: Programme, company: Company) -> PublicListingSummary:
+    role = db.get(Role, programme.role_id)
+    seats_remaining = None
+    if programme.capacity is not None:
+        taken = db.scalar(
+            select(func.count())
+            .select_from(Participant)
+            .where(Participant.programme_id == programme.id)
+        )
+        seats_remaining = max(0, programme.capacity - (taken or 0))
+    return PublicListingSummary(
+        company=company.name,
+        company_slug=company.slug,
+        programme_slug=programme.slug,
+        title=programme.title,
+        role=role.name if role else "",
+        cluster=role.cluster if role else "",
+        state=_state(programme),
+        applications_close_at=programme.applications_close_at,
+        start_at=programme.start_at,
+        seats_total=programme.capacity,
+        seats_remaining=seats_remaining,
+    )
+
+
+_STATE_ORDER = {"open": 0, "closed": 1, "complete": 2}
+
+
+def _sort_key(summary: PublicListingSummary) -> tuple:
+    close_or_start = summary.applications_close_at or summary.start_at
+    return (
+        _STATE_ORDER.get(summary.state, 3),
+        close_or_start is None,
+        close_or_start,
+    )
+
+
+@router.get("/x/{company_slug}", response_model=list[PublicListingSummary])
+def company_listing(
+    company_slug: str,
+    db: Session = Depends(get_session),
+) -> list[PublicListingSummary]:
+    """FR-104 — one company's own programmes, e.g. for a careers page.
+
+    A draft stays unreachable here too (FR-056) — the same rule as the
+    single-programme page, just applied across the whole company.
+    """
+    company = db.scalar(select(Company).where(Company.slug == company_slug))
+    if company is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+
+    programmes = db.scalars(
+        select(Programme)
+        .where(Programme.company_id == company.id)
+        .where(Programme.status != ProgrammeStatus.DRAFT)
+    )
+    summaries = [_summarize(db, p, company) for p in programmes]
+    summaries.sort(key=_sort_key)
+    return summaries
+
+
+@router.get("/challenges", response_model=list[PublicListingSummary])
+def platform_directory(
+    role_slug: str | None = Query(default=None),
+    cluster: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_session),
+) -> list[PublicListingSummary]:
+    """FR-105 — every open programme across companies, for a browse page.
+
+    Only `state == "open"` is indexed here: a stranger browsing a directory
+    cares what they can still apply to, not what already closed. The
+    single-company listing above does show closed and complete programmes,
+    since a company's own careers page is a different audience.
+    """
+    query = select(Programme).where(Programme.status == ProgrammeStatus.OPEN)
+    if role_slug is not None:
+        role = db.scalar(select(Role).where(Role.slug == role_slug))
+        if role is None:
+            return []
+        query = query.where(Programme.role_id == role.id)
+
+    companies = {c.id: c for c in db.scalars(select(Company))}
+    summaries: list[PublicListingSummary] = []
+    for programme in db.scalars(query):
+        company = companies.get(programme.company_id)
+        if company is None:
+            continue
+        summary = _summarize(db, programme, company)
+        if summary.state != "open":
+            continue
+        if cluster is not None and summary.cluster != cluster:
+            continue
+        summaries.append(summary)
+
+    summaries.sort(key=_sort_key)
+    return summaries[offset : offset + limit]
 
 
 @router.get("/x/{company_slug}/{programme_slug}", response_model=PublicListing)

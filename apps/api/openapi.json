@@ -792,17 +792,45 @@
         ],
         "summary": "List Clusters",
         "operationId": "list_clusters_roles_clusters_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "array",
                   "items": {
                     "$ref": "#/components/schemas/ClusterOut"
                   },
-                  "type": "array",
                   "title": "Response List Clusters Roles Clusters Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -828,6 +856,22 @@
               "minLength": 1,
               "maxLength": 100,
               "title": "Q"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
             }
           }
         ],
@@ -2204,6 +2248,146 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Decline Decline Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/x/{company_slug}": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Company Listing",
+        "description": "FR-104 \u2014 one company's own programmes, e.g. for a careers page.\n\nA draft stays unreachable here too (FR-056) \u2014 the same rule as the\nsingle-programme page, just applied across the whole company.",
+        "operationId": "company_listing_public_x__company_slug__get",
+        "parameters": [
+          {
+            "name": "company_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Company Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicListingSummary"
+                  },
+                  "title": "Response Company Listing Public X  Company Slug  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/public/challenges": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Platform Directory",
+        "description": "FR-105 \u2014 every open programme across companies, for a browse page.\n\nOnly `state == \"open\"` is indexed here: a stranger browsing a directory\ncares what they can still apply to, not what already closed. The\nsingle-company listing above does show closed and complete programmes,\nsince a company's own careers page is a different audience.",
+        "operationId": "platform_directory_public_challenges_get",
+        "parameters": [
+          {
+            "name": "role_slug",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role Slug"
+            }
+          },
+          {
+            "name": "cluster",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cluster"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PublicListingSummary"
+                  },
+                  "title": "Response Platform Directory Public Challenges Get"
                 }
               }
             }
@@ -6022,6 +6206,100 @@
         ],
         "title": "PublicListing",
         "description": "FR-101 \u2014 company, role, summary, dates, commitment, and what they get.\n\nThe full rubric renders here (FR-078): publishing it tells participants what\nthey are judged on and removes the \"it felt arbitrary\" complaint. There is\nno advantage in concealing it \u2014 the rubric rewards things that cannot be faked."
+      },
+      "PublicListingSummary": {
+        "properties": {
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "company_slug": {
+            "type": "string",
+            "title": "Company Slug"
+          },
+          "programme_slug": {
+            "type": "string",
+            "title": "Programme Slug"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "cluster": {
+            "type": "string",
+            "title": "Cluster"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "applications_close_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applications Close At"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "seats_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seats Total"
+          },
+          "seats_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seats Remaining"
+          }
+        },
+        "type": "object",
+        "required": [
+          "company",
+          "company_slug",
+          "programme_slug",
+          "title",
+          "role",
+          "cluster",
+          "state",
+          "applications_close_at",
+          "start_at",
+          "seats_total",
+          "seats_remaining"
+        ],
+        "title": "PublicListingSummary",
+        "description": "FR-104/FR-105 \u2014 the row shape for both listing endpoints below.\n\nDeliberately thinner than `PublicListing`: a browsing stranger picking\nbetween programmes does not need the rubric or the data pack yet, only\nenough to decide whether to open the full page."
       },
       "PublicationCheck": {
         "properties": {

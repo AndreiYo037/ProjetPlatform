@@ -27,6 +27,7 @@ export type CompanyHome = Schemas["CompanyHome"];
 export type ProgrammeOut = Schemas["ProgrammeOut"];
 export type ProgrammeDetail = Schemas["ProgrammeDetail"];
 export type PublicListing = Schemas["PublicListing"];
+export type PublicListingSummary = Schemas["PublicListingSummary"];
 export type ApplicationOut = Schemas["ApplicationOut"];
 export type ApplicationDetail = Schemas["ApplicationDetail"];
 export type ClusterOut = Schemas["ClusterOut"];
@@ -105,6 +106,25 @@ export const listProgrammes = () => api.get<ProgrammeOut[]>("/programmes");
 
 export const getListing = (company: string, programme: string) =>
   api.get<PublicListing>(`/public/x/${company}/${programme}`);
+
+export const listCompanyChallenges = (company: string) =>
+  api.get<PublicListingSummary[]>(`/public/x/${company}`);
+
+export type ChallengeDirectoryParams = {
+  roleSlug?: string;
+  cluster?: string;
+  limit?: number;
+  offset?: number;
+};
+export const listChallenges = (params: ChallengeDirectoryParams = {}) => {
+  const query = new URLSearchParams();
+  if (params.roleSlug) query.set("role_slug", params.roleSlug);
+  if (params.cluster) query.set("cluster", params.cluster);
+  if (params.limit != null) query.set("limit", String(params.limit));
+  if (params.offset != null) query.set("offset", String(params.offset));
+  const qs = query.toString();
+  return api.get<PublicListingSummary[]>(`/public/challenges${qs ? `?${qs}` : ""}`);
+};
 
 export const listApplications = (programmeId: string, status?: string) =>
   api.get<ApplicationOut[]>(
