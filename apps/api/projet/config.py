@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     # drafting is unavailable rather than failing obscurely.
     anthropic_api_key: str | None = None
 
+    # Admin access code — a shared secret that signs in as platform admin with
+    # no password. Unset (the default) disables the endpoint entirely; it does
+    # not fall back to some default code. Treat a configured code exactly like
+    # a shared password: anyone holding it has full admin access, with no
+    # per-person identity and no audit trail. This is strictly weaker than the
+    # per-account password auth every actor type otherwise uses.
+    admin_access_code: str | None = None
+    admin_bootstrap_email: str = "admin@projet.sg"
+    admin_bootstrap_name: str = "Admin"
+
     # Outbox
     outbox_max_attempts: int = 5
     outbox_backoff_base_seconds: int = 30

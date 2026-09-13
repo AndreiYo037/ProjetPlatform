@@ -86,6 +86,7 @@ export type ActorTypeParam = "participant" | "company_user" | "platform";
 export const getSession = () => api.get<Actor | null>("/auth/session");
 export const login = (email: string, password: string, actorType: ActorTypeParam) =>
   api.post<Actor>("/auth/login", { email, password, actor_type: actorType });
+export const signInWithAdminCode = (code: string) => api.post<Actor>("/auth/admin-code", { code });
 export const logout = () => api.post<{ signed_out: boolean }>("/auth/logout");
 export const requestPasswordReset = (email: string, actorType: ActorTypeParam) =>
   api.post<{ sent: boolean; message: string }>("/auth/password/forgot", {

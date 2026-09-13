@@ -254,3 +254,40 @@ def test_logging_in_as_the_wrong_actor_type_is_refused_over_http(client, session
         json={"email": rep.email, "password": "hunter22", "actor_type": "participant"},
     )
     assert response.status_code == 401
+
+
+def test_the_admin_code_endpoint_is_404_when_unconfigured(client, monkeypatch):
+    from projet.config import get_settings
+
+    monkeypatch.delenv("PROJET_ADMIN_ACCESS_CODE", raising=False)
+    get_settings.cache_clear()
+    response = client.post("/auth/admin-code", json={"code": "anything"})
+    assert response.status_code == 404
+    get_settings.cache_clear()
+
+
+def test_the_admin_code_endpoint_signs_in_and_sets_a_cookie(client, monkeypatch):
+    from projet.config import get_settings
+
+    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
+    get_settings.cache_clear()
+
+    response = client.post("/auth/admin-code", json={"code": "let-me-in"})
+    assert response.status_code == 200
+    assert response.json()["actor_type"] == "platform"
+    assert SESSION_COOKIE in response.cookies
+
+    me = client.get("/auth/me")
+    assert me.status_code == 200
+    assert me.json()["actor_type"] == "platform"
+    get_settings.cache_clear()
+
+
+def test_the_wrong_admin_code_is_rejected_over_http(client, monkeypatch):
+    from projet.config import get_settings
+
+    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
+    get_settings.cache_clear()
+    response = client.post("/auth/admin-code", json={"code": "nope"})
+    assert response.status_code == 401
+    get_settings.cache_clear()

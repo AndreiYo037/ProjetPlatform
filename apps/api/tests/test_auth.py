@@ -387,3 +387,61 @@ def test_platform_users_resolve_as_platform(session, platform_user):
 
     assert actor is not None and actor.is_platform
     assert not actor.is_company_user
+
+
+# -- admin access code (dev/demo shortcut, not a hardened login) -----------
+
+
+def test_the_admin_code_is_disabled_unless_configured(session, monkeypatch):
+    """No fallback default: unset means off, not 'guessable'."""
+    from projet.config import get_settings
+    from projet.services.auth import authenticate_admin_code
+
+    get_settings.cache_clear()
+    monkeypatch.delenv("PROJET_ADMIN_ACCESS_CODE", raising=False)
+    assert authenticate_admin_code(session, "anything") is None
+    get_settings.cache_clear()
+
+
+def test_the_right_admin_code_bootstraps_and_signs_in(session, monkeypatch):
+    from projet.config import get_settings
+    from projet.services.auth import authenticate_admin_code
+
+    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
+    get_settings.cache_clear()
+
+    assert session.query(PlatformUser).count() == 0
+    subject_id = authenticate_admin_code(session, "let-me-in")
+    assert subject_id is not None
+    assert session.query(PlatformUser).count() == 1
+
+    # A second use reuses the same bootstrapped user rather than creating another.
+    again = authenticate_admin_code(session, "let-me-in")
+    assert again == subject_id
+    assert session.query(PlatformUser).count() == 1
+    get_settings.cache_clear()
+
+
+def test_the_wrong_admin_code_is_refused(session, monkeypatch):
+    from projet.config import get_settings
+    from projet.services.auth import authenticate_admin_code
+
+    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
+    get_settings.cache_clear()
+    assert authenticate_admin_code(session, "wrong-code") is None
+    get_settings.cache_clear()
+
+
+def test_a_disabled_bootstrapped_admin_cannot_reauthenticate(session, monkeypatch):
+    from projet.config import get_settings
+    from projet.services.auth import authenticate_admin_code
+
+    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", "let-me-in")
+    get_settings.cache_clear()
+    subject_id = authenticate_admin_code(session, "let-me-in")
+    user = session.get(PlatformUser, subject_id)
+    user.is_active = False
+    session.flush()
+
+    assert authenticate_admin_code(session, "let-me-in") is None
+    get_settings.cache_clear()

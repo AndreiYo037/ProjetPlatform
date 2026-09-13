@@ -1,3 +1,4 @@
+import AdminCodeSignIn from "@/components/AdminCodeSignIn";
 import PortalLogin from "@/components/PortalLogin";
 
 export default function AdminSignInPage() {
@@ -10,6 +11,7 @@ export default function AdminSignInPage() {
       defaultHome="/admin"
       forgotHref="/admin/forgot-password"
       crossLinks={[]}
+      extra={<AdminCodeSignIn />}
     />
   );
 }

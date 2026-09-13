@@ -176,6 +176,37 @@ def resolve_actor_by_email(session: Session, email: str) -> tuple[ActorType, uui
     return None
 
 
+def authenticate_admin_code(session: Session, code: str) -> uuid.UUID | None:
+    """A shared secret that signs straight in as platform admin, no password.
+
+    Disabled unless PROJET_ADMIN_ACCESS_CODE is set — no fallback default, so
+    an unconfigured deploy exposes nothing. Comparison is constant-time; the
+    code is a password in every way that matters and should be treated like
+    one — everyone who holds it has full admin access, with no per-person
+    identity and no audit trail. Strictly weaker than the per-account password
+    auth every other path here uses; it exists as a deliberate convenience
+    trade-off, not a security feature.
+
+    The admin user is bootstrapped on first use rather than requiring a
+    platform_user row to pre-exist, since the whole point is not depending on
+    anything else being set up first.
+    """
+    settings = get_settings()
+    configured = settings.admin_access_code
+    if not configured or not hmac.compare_digest(configured, code):
+        return None
+
+    email = normalise_email(settings.admin_bootstrap_email) or settings.admin_bootstrap_email
+    user = session.scalar(select(PlatformUser).where(PlatformUser.email == email))
+    if user is None:
+        user = PlatformUser(name=settings.admin_bootstrap_name, email=email)
+        session.add(user)
+        session.flush()
+    elif not user.is_active:
+        return None
+    return user.id
+
+
 def resolve_actor_of_type(session: Session, email: str, actor_type: ActorType) -> uuid.UUID | None:
     """The same lookup as resolve_actor_by_email, but scoped to one portal.
 

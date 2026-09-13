@@ -26,6 +26,7 @@ export default function PortalLogin({
   defaultHome,
   forgotHref,
   crossLinks,
+  extra,
 }: {
   actorType: ActorTypeParam;
   portalLabel: string;
@@ -34,6 +35,9 @@ export default function PortalLogin({
   defaultHome: string;
   forgotHref: string;
   crossLinks: CrossLink[];
+  /** Extra content rendered under the password form, above the cross-links —
+   * used only by the admin portal to offer the shared-code shortcut. */
+  extra?: React.ReactNode;
 }) {
   return (
     <main className="narrow">
@@ -49,6 +53,7 @@ export default function PortalLogin({
           forgotHref={forgotHref}
         />
       </Suspense>
+      {extra}
       {crossLinks.length > 0 && (
         <div className="panel small" style={{ marginTop: "2rem" }}>
           {crossLinks.map((link) => (

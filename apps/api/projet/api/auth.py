@@ -25,6 +25,7 @@ from projet.services.auth import (
     AuthError,
     account_action_url,
     authenticate,
+    authenticate_admin_code,
     consume_account_action_token,
     end_session,
     issue_password_reset,
@@ -241,6 +242,44 @@ def set_initial_password(
 
     _set_session_cookie(response, raw_session)
     actor = load_actor(db, token.actor_type, token.subject_id)
+    assert actor is not None
+    return ActorResponse.of(actor)
+
+
+class AdminCodeRequest(BaseModel):
+    code: str = Field(min_length=1, max_length=200)
+
+
+@router.post("/admin-code", response_model=ActorResponse)
+def sign_in_with_admin_code(
+    payload: AdminCodeRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_session),
+) -> ActorResponse:
+    """A shared-secret shortcut into platform admin.
+
+    Disabled unless PROJET_ADMIN_ACCESS_CODE is configured — an unconfigured
+    deploy gets a 404 rather than a code nobody can guess, so this never reads
+    as "admin login is broken" versus "this path is off".
+    """
+    if not get_settings().admin_access_code:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+
+    subject_id = authenticate_admin_code(db, payload.code)
+    if subject_id is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That code is not valid.")
+
+    _, raw_session = start_session(
+        db,
+        actor_type=ActorType.PLATFORM,
+        subject_id=subject_id,
+        user_agent=request.headers.get("user-agent"),
+    )
+    db.commit()
+
+    _set_session_cookie(response, raw_session)
+    actor = load_actor(db, ActorType.PLATFORM, subject_id)
     assert actor is not None
     return ActorResponse.of(actor)
 
