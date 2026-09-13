@@ -1,28 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getSession, listProgrammes, type ProgrammeOut } from "@/lib/api";
+import ActorGateNotice from "@/components/ActorGateNotice";
+import { listProgrammes, type ProgrammeOut } from "@/lib/api";
+import { useActor } from "@/lib/useActor";
 
 export default function AdminPage() {
   const [programmes, setProgrammes] = useState<ProgrammeOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const gate = useActor("platform");
+  const ready = gate.status === "ready";
 
   useEffect(() => {
-    getSession()
-      .then((actor) => {
-        if (!actor) {
-          router.replace("/admin/login?next=/admin");
-          return null;
-        }
-        return listProgrammes();
-      })
-      .then((rows) => rows && setProgrammes(rows))
+    if (!ready) return;
+    listProgrammes()
+      .then(setProgrammes)
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load."));
-  }, [router]);
+  }, [ready]);
 
+  if (!ready) return <ActorGateNotice gate={gate} />;
   if (error) return <main><div className="notice bad">{error}</div></main>;
   if (!programmes) return <main><p className="muted">Loading…</p></main>;
 

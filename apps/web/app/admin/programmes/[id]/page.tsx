@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
+import ActorGateNotice from "@/components/ActorGateNotice";
 import {
   disposition,
   getApplication,
@@ -13,6 +14,7 @@ import {
   type ProgrammeDetail,
   type SeatsOut,
 } from "@/lib/api";
+import { useActor } from "@/lib/useActor";
 
 const CRITERIA = ["relevance", "specificity", "capability", "followthrough"] as const;
 type Criterion = (typeof CRITERIA)[number];
@@ -39,8 +41,11 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const gate = useActor("platform");
+  const ready = gate.status === "ready";
 
   const reload = useCallback(async () => {
+    if (!ready) return;
     try {
       const [p, apps, s] = await Promise.all([
         getProgramme(id),
@@ -53,7 +58,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load this programme.");
     }
-  }, [id, filter]);
+  }, [id, filter, ready]);
 
   useEffect(() => {
     reload();
@@ -102,6 +107,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
     });
   }
 
+  if (!ready) return <ActorGateNotice gate={gate} />;
   if (error && !programme) return <main><div className="notice bad">{error}</div></main>;
   if (!programme) return <main><p className="muted">Loading…</p></main>;
 

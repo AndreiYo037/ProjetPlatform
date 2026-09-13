@@ -30,7 +30,10 @@ class ClusterOut(BaseModel):
 
 
 @router.get("/clusters", response_model=list[ClusterOut])
-def list_clusters(db: Session = Depends(get_session)) -> list[ClusterOut]:
+def list_clusters(
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_actor),
+) -> list[ClusterOut]:
     roles = list(db.scalars(select(Role).where(Role.is_active).order_by(Role.sort_order)))
     grouped: dict[str, list[RoleSummary]] = {}
     for role in roles:
@@ -42,6 +45,7 @@ def list_clusters(db: Session = Depends(get_session)) -> list[ClusterOut]:
 def search_roles(
     q: str = Query(min_length=1, max_length=100),
     db: Session = Depends(get_session),
+    actor: Actor = Depends(require_actor),
 ) -> list[RoleSummary]:
     """FR-043 — search runs across names and aliases, so "data analyst" or "BI"
     lands on Data Analytics rather than creating a near-duplicate."""

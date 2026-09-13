@@ -1,17 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import ActorGateNotice from "@/components/ActorGateNotice";
 import Countdown from "@/components/Countdown";
 import {
   getDashboard,
-  getSession,
   markThreadRead,
   putSubmissionLink,
   recheckSubmission,
   type Dashboard,
   type SubmissionOut,
 } from "@/lib/api";
+import { useActor } from "@/lib/useActor";
 
 const SLOT_LABELS: Record<string, string> = {
   artifact: "Your artifact",
@@ -28,25 +28,23 @@ const SLOT_HINTS: Record<string, string> = {
 export default function DashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const gate = useActor("participant");
+  const ready = gate.status === "ready";
 
   const load = useCallback(async () => {
-    const actor = await getSession().catch(() => null);
-    if (!actor) {
-      router.replace("/signin?next=/dashboard");
-      return;
-    }
+    if (!ready) return;
     try {
       setData(await getDashboard());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load your dashboard.");
     }
-  }, [router]);
+  }, [ready]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  if (!ready) return <ActorGateNotice gate={gate} />;
   if (error) return <main><div className="notice bad">{error}</div></main>;
   if (!data) return <main><p className="muted">Loading…</p></main>;
 

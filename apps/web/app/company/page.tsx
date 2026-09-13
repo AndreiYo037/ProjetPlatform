@@ -1,36 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { getCompanyHome, getSession, type CompanyHome } from "@/lib/api";
+import ActorGateNotice from "@/components/ActorGateNotice";
+import { getCompanyHome, type CompanyHome } from "@/lib/api";
+import { useActor } from "@/lib/useActor";
 
 export default function CompanyHomePage() {
   const [home, setHome] = useState<CompanyHome | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
+  const gate = useActor("company_user");
 
   const load = useCallback(async () => {
-    const actor = await getSession().catch(() => null);
-    if (!actor) {
-      router.replace("/company/signin?next=/company");
-      return;
-    }
-    if (!actor.company_id) {
+    if (gate.status !== "ready") return;
+    // Platform staff pass the gate to see what a company sees, but they have
+    // no company of their own to land on.
+    if (!gate.actor.company_id) {
       setError("This account is not attached to a company.");
       return;
     }
     try {
-      setHome(await getCompanyHome(actor.company_id));
+      setHome(await getCompanyHome(gate.actor.company_id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load your company.");
     }
-  }, [router]);
+  }, [gate]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  if (gate.status !== "ready") return <ActorGateNotice gate={gate} />;
   if (error) return <main><div className="notice bad">{error}</div></main>;
   if (!home) return <main><p className="muted">Loading…</p></main>;
 
