@@ -108,9 +108,19 @@ def derive(kickoff_at: datetime) -> Schedule:
 
 
 def validate_applications_close(close_at: datetime | None, kickoff_at: datetime) -> None:
-    """Applications must close before kickoff, or seats are sold twice."""
+    """Applications must close before kickoff, or seats are sold twice.
+
+    `close_at` typically comes straight off an HTML `datetime-local` input,
+    which carries no offset at all — naive by construction, not by mistake.
+    `kickoff_at` here is a full Schedule's, already normalised to
+    PROGRAMME_TZ by `derive()`. Comparing the two without normalising `close_at`
+    the same way raises `TypeError` instead of a clean `ScheduleError`, which is
+    exactly the crash this function exists to prevent.
+    """
     if close_at is None:
         return
+    if close_at.tzinfo is None:
+        close_at = close_at.replace(tzinfo=PROGRAMME_TZ)
     if close_at >= kickoff_at:
         raise ScheduleError(
             "Applications must close before kickoff, so offers can go out and "

@@ -77,3 +77,16 @@ def test_applications_must_close_before_kickoff():
 def test_no_close_date_is_not_a_schedule_error():
     """A draft may have no closing date yet; publication is what requires it."""
     schedule.validate_applications_close(None, wednesday())
+
+
+def test_a_naive_close_date_is_judged_in_singapore_not_rejected_outright():
+    """An HTML `datetime-local` input sends no offset at all — naive by
+    construction, not by mistake. Comparing it against an aware kickoff without
+    normalising first used to raise TypeError instead of a clean ScheduleError."""
+    clock = schedule.derive(wednesday())
+    naive_the_day_before = datetime(2026, 10, 6, 18, 0)
+    schedule.validate_applications_close(naive_the_day_before, clock.kickoff_at)
+
+    naive_after_kickoff = datetime(2026, 10, 7, 10, 0)
+    with pytest.raises(schedule.ScheduleError):
+        schedule.validate_applications_close(naive_after_kickoff, clock.kickoff_at)

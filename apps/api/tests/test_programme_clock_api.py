@@ -111,6 +111,25 @@ def test_applications_cannot_close_after_the_programme_has_begun(client, company
     assert response.status_code == 422
 
 
+def test_a_naive_applications_close_date_from_the_datetime_picker_is_accepted(
+    client, company_id, role_id
+):
+    """The company form's apps-close field is an HTML `datetime-local` input,
+    which submits no timezone offset at all — unlike start_at, which comes off
+    the kickoff-day picker as a full offset-aware timestamp. The two used to be
+    uncomparable and this crashed the whole request with a 500."""
+    kickoff = next_kickoff()
+    naive_the_day_before = kickoff.replace(tzinfo=None) - timedelta(days=1)
+    response = create(
+        client,
+        company_id,
+        role_id,
+        start_at=kickoff.isoformat(),
+        applications_close_at=naive_the_day_before.isoformat(),
+    )
+    assert response.status_code == 201, response.text
+
+
 def test_moving_the_kickoff_moves_the_deadline_with_it(client, company_id, role_id):
     programme = create(client, company_id, role_id).json()
     later = datetime.fromisoformat(programme["start_at"]) + timedelta(days=7)
