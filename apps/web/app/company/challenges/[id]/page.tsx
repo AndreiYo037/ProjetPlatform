@@ -98,34 +98,15 @@ export default function ChallengeDetailPage({
       {error && <div className="notice bad">{error}</div>}
 
       {isDraft && (
-        <DraftSection
-          programme={programme}
-          pubCheck={pubCheck}
-          busy={busy}
-          onPublish={handlePublish}
-          onSaved={load}
-        />
+        <div className="notice warn">
+          This challenge is still a draft. It will not appear in listings until you publish it.
+        </div>
       )}
+
+      <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
 
       {!isDraft && (
         <>
-          <div className="panel">
-            <dl className="facts">
-              <dt>Slug</dt>
-              <dd>{programme.slug}</dd>
-              <dt>Capacity</dt>
-              <dd>{programme.capacity ?? "Uncapped"}</dd>
-              <dt>Apps close</dt>
-              <dd>{programme.applications_close_at ? new Date(programme.applications_close_at).toLocaleString() : "Not set"}</dd>
-              <dt>Starts</dt>
-              <dd>{programme.start_at ? new Date(programme.start_at).toLocaleString() : "Not set"}</dd>
-              <dt>Deadline</dt>
-              <dd>{programme.submit_deadline_at ? new Date(programme.submit_deadline_at).toLocaleString() : "Not set"}</dd>
-              <dt>Pitch day</dt>
-              <dd>{programme.pitch_at ? new Date(programme.pitch_at).toLocaleString() : "Not set"}</dd>
-            </dl>
-          </div>
-
           <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ margin: 0 }}>Judging</h2>
             <Link className="btn" href={`/company/challenges/${programme.id}/judging`}>
@@ -165,22 +146,7 @@ export default function ChallengeDetailPage({
         </>
       )}
 
-      <h2>The brief</h2>
-      {programme.problem_statement ? (
-        <div className="panel">
-          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{programme.problem_statement}</p>
-        </div>
-      ) : (
-        <p className="muted small">No problem statement yet.</p>
-      )}
-      <h3>Deliverable</h3>
-      {programme.deliverable_spec ? (
-        <div className="panel">
-          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{programme.deliverable_spec}</p>
-        </div>
-      ) : (
-        <p className="muted small">No deliverable described yet.</p>
-      )}
+      <BriefSection programme={programme} onSaved={load} />
 
       <DataPackPanel programmeId={programme.id} />
 
@@ -209,6 +175,30 @@ export default function ChallengeDetailPage({
           </div>
         </div>
       ))}
+
+      {isDraft && (
+        <>
+          {pubCheck && pubCheck.problems.length > 0 && (
+            <div className="notice warn">
+              <strong>{pubCheck.ready ? "Before you go live:" : "Not ready to publish:"}</strong>
+              <ul className="small" style={{ margin: "0.3rem 0 0", paddingLeft: "1.2rem" }}>
+                {pubCheck.problems.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="row" style={{ marginTop: "1rem" }}>
+            <button
+              disabled={busy || (pubCheck !== null && !pubCheck.ready)}
+              onClick={handlePublish}
+            >
+              {busy ? "Publishing…" : "Publish challenge"}
+            </button>
+          </div>
+        </>
+      )}
     </main>
   );
 }
@@ -224,17 +214,18 @@ function weekOf(option: KickoffOption): string {
   return `${day(option.kickoff_at)}, pitches ${day(option.pitch_at)}`;
 }
 
-function DraftSection({
+/**
+ * Title, seats and the week. Logistics, not content — the brief lives in its
+ * own section below, and publishing lives at the bottom of the page, after
+ * the rubric a company is agreeing to run against.
+ */
+function ScheduleSection({
   programme,
-  pubCheck,
-  busy,
-  onPublish,
+  isDraft,
   onSaved,
 }: {
   programme: ProgrammeDetail;
-  pubCheck: PublicationCheck | null;
-  busy: boolean;
-  onPublish: () => void;
+  isDraft: boolean;
   onSaved: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -247,12 +238,6 @@ function DraftSection({
   );
   const [startAt, setStartAt] = useState(programme.start_at ?? "");
   const [kickoffDays, setKickoffDays] = useState<KickoffOption[]>([]);
-  const [problemStatement, setProblemStatement] = useState(
-    programme.problem_statement ?? "",
-  );
-  const [deliverableSpec, setDeliverableSpec] = useState(
-    programme.deliverable_spec ?? "",
-  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -271,8 +256,6 @@ function DraftSection({
         capacity: capacity ? Number(capacity) : null,
         applications_close_at: appsCloseAt || null,
         start_at: startAt || null,
-        problem_statement: problemStatement.trim() || null,
-        deliverable_spec: deliverableSpec.trim() || null,
       });
       setEditing(false);
       onSaved();
@@ -285,10 +268,6 @@ function DraftSection({
 
   return (
     <>
-      <div className="notice warn">
-        This challenge is still a draft. It will not appear in listings until you publish it.
-      </div>
-
       {!editing ? (
         <div className="panel">
           <dl className="facts">
@@ -305,9 +284,11 @@ function DraftSection({
             <dt>Pitch day</dt>
             <dd>{programme.pitch_at ? new Date(programme.pitch_at).toLocaleString() : "Not set"}</dd>
           </dl>
-          <button className="secondary" onClick={() => setEditing(true)}>
-            Edit details
-          </button>
+          {isDraft && (
+            <button className="secondary" onClick={() => setEditing(true)}>
+              Edit details
+            </button>
+          )}
         </div>
       ) : (
         <div className="panel">
@@ -361,40 +342,6 @@ function DraftSection({
               to set.
             </p>
           </div>
-          <AnglePicker
-            programmeId={programme.id}
-            roleName={programme.role?.name ?? ""}
-            onUse={(angle) => {
-              setProblemStatement(angle.rendered);
-              // The angle's five outputs are the deliverable, written out. Dropping
-              // them into the box rather than leaving it blank means the company
-              // edits a draft instead of starting from nothing - and it keeps the
-              // brief and the deliverable describing the same piece of work.
-              if (angle.outputs.length) {
-                setDeliverableSpec(angle.outputs.map((output) => `- ${output}`).join("\n"));
-              }
-            }}
-          />
-          <div className="field">
-            <label htmlFor="edit-problem">Problem statement</label>
-            <textarea
-              id="edit-problem"
-              rows={8}
-              value={problemStatement}
-              onChange={(e) => setProblemStatement(e.target.value)}
-              placeholder="What the participants are being asked to solve."
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="edit-deliverable">Deliverable</label>
-            <textarea
-              id="edit-deliverable"
-              rows={5}
-              value={deliverableSpec}
-              onChange={(e) => setDeliverableSpec(e.target.value)}
-              placeholder="What they hand in, and in what form."
-            />
-          </div>
           {saveError && <div className="notice bad">{saveError}</div>}
           <div className="row" style={{ gap: "0.75rem" }}>
             <button disabled={saving} onClick={save}>
@@ -406,24 +353,102 @@ function DraftSection({
           </div>
         </div>
       )}
+    </>
+  );
+}
 
-      {pubCheck && !pubCheck.ready && (
-        <div className="notice warn">
-          <strong>Not ready to publish:</strong>
-          <ul className="small" style={{ margin: "0.3rem 0 0", paddingLeft: "1.2rem" }}>
-            {pubCheck.problems.map((p, i) => (
-              <li key={i}>{p}</li>
-            ))}
-          </ul>
+/**
+ * The problem statement and deliverable: its own section, always here and
+ * always editable. Not tucked inside the scheduling panel, and not locked once
+ * published — a company can and should keep sharpening the brief (FR-067).
+ */
+function BriefSection({
+  programme,
+  onSaved,
+}: {
+  programme: ProgrammeDetail;
+  onSaved: () => void;
+}) {
+  const [problemStatement, setProblemStatement] = useState(
+    programme.problem_statement ?? "",
+  );
+  const [deliverableSpec, setDeliverableSpec] = useState(
+    programme.deliverable_spec ?? "",
+  );
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const dirty =
+    problemStatement !== (programme.problem_statement ?? "") ||
+    deliverableSpec !== (programme.deliverable_spec ?? "");
+
+  async function save() {
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      await updateProgramme(programme.id, {
+        problem_statement: problemStatement.trim() || null,
+        deliverable_spec: deliverableSpec.trim() || null,
+      });
+      setSaved(true);
+      onSaved();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <h2>The brief</h2>
+      <p className="small muted">
+        What participants are being asked to solve, and what they hand in.
+      </p>
+
+      <AnglePicker
+        programmeId={programme.id}
+        roleName={programme.role?.name ?? ""}
+        onUse={(angle) => {
+          setProblemStatement(angle.rendered);
+          // The angle's five outputs are the deliverable, written out. Dropping
+          // them into the box rather than leaving it blank means the company
+          // edits a draft instead of starting from nothing - and it keeps the
+          // brief and the deliverable describing the same piece of work.
+          if (angle.outputs.length) {
+            setDeliverableSpec(angle.outputs.map((output) => `- ${output}`).join("\n"));
+          }
+        }}
+      />
+
+      <div className="panel">
+        <div className="field">
+          <label htmlFor="edit-problem">Problem statement</label>
+          <textarea
+            id="edit-problem"
+            rows={8}
+            value={problemStatement}
+            onChange={(e) => setProblemStatement(e.target.value)}
+            placeholder="What the participants are being asked to solve."
+          />
         </div>
-      )}
-
-      <div className="row" style={{ marginTop: "1rem" }}>
-        <button
-          disabled={busy || (pubCheck !== null && !pubCheck.ready)}
-          onClick={onPublish}
-        >
-          {busy ? "Publishing…" : "Publish challenge"}
+        <h3>Deliverable</h3>
+        <div className="field">
+          <label htmlFor="edit-deliverable">Deliverable</label>
+          <textarea
+            id="edit-deliverable"
+            rows={5}
+            value={deliverableSpec}
+            onChange={(e) => setDeliverableSpec(e.target.value)}
+            placeholder="What they hand in, and in what form."
+          />
+        </div>
+        {saveError && <div className="notice bad">{saveError}</div>}
+        {saved && !dirty && <div className="notice good">Saved.</div>}
+        <button disabled={saving || !dirty} onClick={save}>
+          {saving ? "Saving…" : "Save brief"}
         </button>
       </div>
     </>

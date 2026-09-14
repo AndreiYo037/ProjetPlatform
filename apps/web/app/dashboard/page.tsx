@@ -58,6 +58,15 @@ export default function DashboardPage() {
             You do not have a programme yet. When you apply and are accepted, this
             page becomes your dashboard.
           </p>
+          <div className="panel">
+            <strong>Find a challenge</strong>
+            <p className="small muted">
+              Browse what companies are running right now and apply to one.
+            </p>
+            <Link className="btn" href="/challenges">
+              See open challenges
+            </Link>
+          </div>
           <ParticipantProfile />
         </main>
       );
