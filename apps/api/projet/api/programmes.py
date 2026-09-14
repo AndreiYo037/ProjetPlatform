@@ -415,6 +415,9 @@ def update_criterion(
 
 class PublicationCheck(BaseModel):
     ready: bool
+    # Blocking and advisory items are merged for display — the draft page
+    # shows one list either way — but `ready` is judged on the blocking ones
+    # only, via _setup_problems below.
     problems: list[str]
 
 
@@ -423,29 +426,43 @@ def publication_check(
     programme: Programme = Depends(get_programme_or_404),
     db: Session = Depends(get_session),
 ) -> PublicationCheck:
-    problems = validate_for_publication(db, programme)
-    problems.extend(_setup_problems(programme))
-    return PublicationCheck(ready=not problems, problems=problems)
+    blocking = validate_for_publication(db, programme) + _setup_problems(programme)
+    return PublicationCheck(
+        ready=not blocking,
+        problems=blocking + _setup_warnings(programme),
+    )
 
 
 def _setup_problems(programme: Programme) -> list[str]:
-    """What a company still owes before applicants can see this.
+    """What blocks this from going live.
 
-    Phrased as sentences rather than field names: this list is shown to the
-    company on their own draft page, not to a developer reading a log.
+    Only the kickoff date is a hard block: nothing else on the programme's
+    clock (deadline, pitch day) can be computed without it, and the apply
+    form's commitment checkbox has no dates to name. The problem statement,
+    deliverable and applications-close date are left to the company's
+    judgement instead of enforced here — a company can publish a bare-bones
+    shell to test the pipeline end to end and fill in the brief before a real
+    applicant sees it. `publication-check` still surfaces the gaps below as
+    warnings, not refusals, so the draft page keeps nudging without blocking.
     """
     problems: list[str] = []
-    if not (programme.problem_statement or "").strip():
-        problems.append("The problem statement is empty. Draft one or write your own.")
-    if not (programme.deliverable_spec or "").strip():
-        problems.append(
-            "The deliverable is not described, so applicants cannot know what to produce."
-        )
     if programme.start_at is None:
         problems.append(f"No kickoff {KICKOFF_WEEKDAY_NAME} has been picked.")
-    if programme.applications_close_at is None:
-        problems.append("Applications have no closing date.")
     return problems
+
+
+def _setup_warnings(programme: Programme) -> list[str]:
+    """Non-blocking nudges shown on the draft page, not enforced at publish."""
+    warnings: list[str] = []
+    if not (programme.problem_statement or "").strip():
+        warnings.append("The problem statement is empty. Draft one or write your own.")
+    if not (programme.deliverable_spec or "").strip():
+        warnings.append(
+            "The deliverable is not described, so applicants cannot know what to produce."
+        )
+    if programme.applications_close_at is None:
+        warnings.append("Applications have no closing date.")
+    return warnings
 
 
 @router.post("/programmes/{programme_id}/publish", response_model=ProgrammeDetail)
@@ -454,11 +471,10 @@ def publish_programme(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
-    """FR-075 — validation blocks publication with an incomplete rubric.
-
-    The same setup checks the draft page shows run again here, because the
-    company is not the only caller and a half-built challenge that reaches
-    applicants costs more than one that never publishes.
+    """FR-075 — validation blocks publication with an incomplete rubric, and
+    the one hard setup requirement (a kickoff date) runs again here, because
+    the company is not the only caller. The brief and applications-close date
+    are the company's judgement call, not a gate — see _setup_problems.
     """
     setup = _setup_problems(programme)
     if setup:

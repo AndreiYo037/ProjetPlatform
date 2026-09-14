@@ -179,9 +179,11 @@ def test_the_offered_kickoff_days_are_all_wednesdays(client, company_id, role_id
         assert (pitch - kickoff).days == 7
 
 
-def test_publication_is_blocked_until_the_brief_and_the_week_exist(
-    client, company_id, role_id
-):
+def test_publication_is_blocked_until_the_week_exists(client, company_id, role_id):
+    """The kickoff date is the one hard block: nothing else on the clock
+    (deadline, pitch day) can be computed without it. The brief is a warning,
+    not a refusal — a company can publish a shell to test the pipeline end to
+    end and write the brief before a real applicant sees it."""
     bare = client.post(
         "/programmes",
         json={
@@ -196,8 +198,35 @@ def test_publication_is_blocked_until_the_brief_and_the_week_exist(
 
     check = client.get(f"/programmes/{programme_id}/publication-check").json()
     assert check["ready"] is False
-    assert any("problem statement" in problem for problem in check["problems"])
     assert any("kickoff" in problem for problem in check["problems"])
+    # Still surfaced as a nudge on the draft page, just not a blocker.
+    assert any("problem statement" in problem for problem in check["problems"])
 
     refused = client.post(f"/programmes/{programme_id}/publish")
     assert refused.status_code == 409
+
+
+def test_a_kickoff_alone_is_enough_to_publish(client, company_id, role_id):
+    """A company can publish a bare-bones shell to test the flow end to end
+    and write the real brief before an applicant ever sees the listing."""
+    created = client.post(
+        "/programmes",
+        json={
+            "company_id": company_id,
+            "role_id": role_id,
+            "title": "Bare but scheduled",
+            "slug": "bare-but-scheduled",
+            "start_at": next_kickoff().isoformat(),
+        },
+    )
+    assert created.status_code == 201, created.text
+    programme_id = created.json()["id"]
+
+    check = client.get(f"/programmes/{programme_id}/publication-check").json()
+    assert check["ready"] is True
+    assert any("problem statement" in problem for problem in check["problems"])
+    assert any("closing date" in problem for problem in check["problems"])
+
+    published = client.post(f"/programmes/{programme_id}/publish")
+    assert published.status_code == 200, published.text
+    assert published.json()["status"] == "open"
