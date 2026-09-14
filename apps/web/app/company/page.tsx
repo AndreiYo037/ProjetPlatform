@@ -76,7 +76,7 @@ export default function CompanyHomePage() {
                   {programme.role?.name} · {programme.status}
                 </div>
               </div>
-              <Link className="btn secondary" href={`/admin/programmes/${programme.id}`}>
+              <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
                 Open
               </Link>
             </div>
@@ -89,8 +89,15 @@ export default function CompanyHomePage() {
           <h2>Past programmes</h2>
           {home.past_programmes.map((programme) => (
             <div className="card" key={programme.id}>
-              <strong>{programme.title}</strong>
-              <div className="small muted">{programme.role?.name}</div>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <div>
+                  <strong>{programme.title}</strong>
+                  <div className="small muted">{programme.role?.name}</div>
+                </div>
+                <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
+                  Open
+                </Link>
+              </div>
             </div>
           ))}
         </>
