@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.api.deps import get_programme_or_404, require_company_manager, require_platform
+from projet.config import get_settings
 from projet.db import get_session
 from projet.models import Application, Programme
 from projet.models.enums import ApplicationStatus
@@ -86,6 +87,13 @@ class ApplicationDetail(ApplicationOut):
     # week is something to read before offering a seat, not after.
     availability_confirmed: bool = False
     availability_note: str | None = None
+    # The same link the offer email carries. FR-401 keeps acceptance
+    # tokenised and passwordless by email; this surfaces it here too so a
+    # company or admin can hand it to someone directly, or step through it
+    # themselves, when the outbox's email never reaches an inbox (no Google
+    # credentials configured, a bounced address). Present only while an offer
+    # is outstanding — accept_offer clears offer_token once it's used.
+    offer_url: str | None = None
     google_email: str | None = None
     phone: str | None = None
 
@@ -168,6 +176,8 @@ def get_application(
     detail.availability_note = application.availability_note
     detail.google_email = application.person.google_email
     detail.phone = application.person.phone
+    if application.offer_token:
+        detail.offer_url = f"{get_settings().app_base_url}/accept?token={application.offer_token}"
     if application.cv_url:
         # Section 8 — CVs are not publicly addressable; served through a signed,
         # expiring URL rather than a guessable path.
@@ -222,9 +232,18 @@ def disposition(
     payload: DispositionRequest,
     programme: Programme = Depends(get_programme_or_404),
     db: Session = Depends(get_session),
-    actor: Actor = Depends(require_platform),
+    actor: Actor = Depends(require_company_manager),
 ) -> DispositionResult:
-    """FR-304 — bulk offer, waitlist and reject, each firing its email."""
+    """FR-304 — bulk offer, waitlist and reject, each firing its email.
+
+    Company self-serve is the default (CLAUDE.md): who runs their own
+    programme, including who to admit, is the company's call, not something
+    that has to go through platform staff. `require_company_manager` lets
+    platform staff act for a company too, the same as everywhere else.
+    Scoring the prescreen rubric stays platform-only below — FR-079 keeps
+    that number itself from ever reaching a company or applicant — but the
+    admission decision it feeds into does not need to.
+    """
     updated = 0
     skipped: list[str] = []
     for application_id in payload.application_ids:

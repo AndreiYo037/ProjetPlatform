@@ -5,7 +5,9 @@ import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import DataPackPanel from "@/components/DataPackPanel";
 import {
+  disposition,
   draftProblemStatements,
+  getApplication,
   getKickoffDays,
   getProgramme,
   getPublicationCheck,
@@ -13,6 +15,7 @@ import {
   listProblemStatementDrafts,
   publishProgramme,
   updateProgramme,
+  type ApplicationDetail,
   type ApplicationOut,
   type KickoffOption,
   type ProblemStatementAngle,
@@ -118,31 +121,11 @@ export default function ChallengeDetailPage({
             that person's scoring card.
           </p>
 
-          <h2>Applicants ({applications.length})</h2>
-          {applications.length === 0 ? (
-            <p className="muted small">No applications yet.</p>
-          ) : (
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Organisation</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {applications.map((app) => (
-                    <tr key={app.id}>
-                      <td>{app.name}</td>
-                      <td className="muted">{app.organisation ?? "—"}</td>
-                      <td>{app.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <ApplicantsPanel
+            programmeId={programme.id}
+            applications={applications}
+            onChanged={load}
+          />
         </>
       )}
 
@@ -554,5 +537,188 @@ function AnglePicker({
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * Admitting applicants is the company's own call (CLAUDE.md: self-serve is
+ * the default), so this runs the same offer/waitlist/reject actions the admin
+ * screen has. What's deliberately missing is the prescreen score itself —
+ * that stays platform-only, never shown to a company or applicant.
+ */
+function ApplicantsPanel({
+  programmeId,
+  applications,
+  onChanged,
+}: {
+  programmeId: string;
+  applications: ApplicationOut[];
+  onChanged: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [detail, setDetail] = useState<ApplicationDetail | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggle(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function act(action: "offer" | "waitlist" | "reject") {
+    if (selected.size === 0) return;
+    const feedback =
+      action === "reject"
+        ? (window.prompt("One line of feedback for the rejection email (optional):") ?? undefined)
+        : undefined;
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const result = await disposition(programmeId, [...selected], action, feedback);
+      setFlash(
+        `${result.updated} application${result.updated === 1 ? "" : "s"} ` +
+          `${action === "offer" ? "offered" : action === "waitlist" ? "waitlisted" : "rejected"}.` +
+          (result.skipped.length ? ` ${result.skipped.length} skipped.` : ""),
+      );
+      setSelected(new Set());
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That did not work.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function view(id: string) {
+    try {
+      setDetail(await getApplication(programmeId, id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load that application.");
+    }
+  }
+
+  return (
+    <>
+      <h2>Applicants ({applications.length})</h2>
+      {flash && <div className="notice good">{flash}</div>}
+      {error && <div className="notice bad">{error}</div>}
+
+      {applications.length === 0 ? (
+        <p className="muted small">No applications yet.</p>
+      ) : (
+        <>
+          <div className="row" style={{ marginBottom: "0.75rem", alignItems: "center" }}>
+            <span className="small muted">
+              {selected.size > 0 ? `${selected.size} selected` : `${applications.length} shown`}
+            </span>
+            {selected.size > 0 && (
+              <>
+                <button disabled={busy} onClick={() => act("offer")}>
+                  Offer
+                </button>
+                <button className="secondary" disabled={busy} onClick={() => act("waitlist")}>
+                  Waitlist
+                </button>
+                <button className="danger" disabled={busy} onClick={() => act("reject")}>
+                  Reject
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th />
+                  <th>Name</th>
+                  <th>Organisation</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map((app) => (
+                  <tr key={app.id} data-selected={selected.has(app.id)}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(app.id)}
+                        onChange={() => toggle(app.id)}
+                        aria-label={`Select ${app.name}`}
+                      />
+                    </td>
+                    <td>{app.name}</td>
+                    <td className="muted">{app.organisation ?? "—"}</td>
+                    <td className="muted">{app.status}</td>
+                    <td>
+                      <button className="secondary small" onClick={() => view(app.id)}>
+                        View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {detail && (
+        <div className="panel">
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <h3 style={{ margin: 0 }}>{detail.name}</h3>
+            <button className="secondary small" onClick={() => setDetail(null)}>
+              Close
+            </button>
+          </div>
+          <div className="row small muted" style={{ margin: "0.4rem 0 0.75rem" }}>
+            <span>{detail.contact_email}</span>
+            {detail.organisation && <span>· {detail.organisation}</span>}
+            {detail.linkedin_url && (
+              <a href={detail.linkedin_url} target="_blank" rel="noreferrer">
+                · LinkedIn
+              </a>
+            )}
+          </div>
+          <p style={{ whiteSpace: "pre-wrap" }}>{detail.writeup}</p>
+          {detail.availability_note && (
+            <div className="notice warn">
+              <strong>Heads up for the week:</strong> {detail.availability_note}
+            </div>
+          )}
+          {detail.cv_url && (
+            <p>
+              <a
+                className="btn secondary"
+                href={detail.cv_url.startsWith("http") ? detail.cv_url : `/backend${detail.cv_url}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open CV
+              </a>
+            </p>
+          )}
+          {detail.offer_url && (
+            <div className="notice">
+              <strong>Offer link:</strong> not yet accepted. Send this to them directly if the
+              offer email hasn't reached their inbox.
+              <div className="row" style={{ marginTop: "0.4rem" }}>
+                <input readOnly value={detail.offer_url} style={{ flex: 1 }} />
+                <a className="btn secondary small" href={detail.offer_url} target="_blank" rel="noreferrer">
+                  Open
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
   );
 }

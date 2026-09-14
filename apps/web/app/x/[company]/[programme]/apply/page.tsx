@@ -131,7 +131,9 @@ export default function ApplyPage({
             autoComplete="new-password"
           />
           <div className="hint">
-            At least 8 characters. This is how you'll sign back in to your dashboard.
+            At least 8 characters. There's no separate login step later — this is the
+            account you'll use to check your application status, and it becomes your
+            dashboard if you're accepted.
           </div>
         </div>
 

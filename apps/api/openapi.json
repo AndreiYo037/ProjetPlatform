@@ -1678,7 +1678,7 @@
           "programmes"
         ],
         "summary": "Publish Programme",
-        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric.\n\nThe same setup checks the draft page shows run again here, because the\ncompany is not the only caller and a half-built challenge that reaches\napplicants costs more than one that never publishes.",
+        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric, and\nthe one hard setup requirement (a kickoff date) runs again here, because\nthe company is not the only caller. The brief and applications-close date\nare the company's judgement call, not a gate \u2014 see _setup_problems.",
         "operationId": "publish_programme_programmes__programme_id__publish_post",
         "parameters": [
           {
@@ -2666,7 +2666,7 @@
           "applications"
         ],
         "summary": "Disposition",
-        "description": "FR-304 \u2014 bulk offer, waitlist and reject, each firing its email.",
+        "description": "FR-304 \u2014 bulk offer, waitlist and reject, each firing its email.\n\nCompany self-serve is the default (CLAUDE.md): who runs their own\nprogramme, including who to admit, is the company's call, not something\nthat has to go through platform staff. `require_company_manager` lets\nplatform staff act for a company too, the same as everywhere else.\nScoring the prescreen rubric stays platform-only below \u2014 FR-079 keeps\nthat number itself from ever reaching a company or applicant \u2014 but the\nadmission decision it feeds into does not need to.",
         "operationId": "disposition_programmes__programme_id__applications_disposition_post",
         "parameters": [
           {
@@ -5037,6 +5037,17 @@
               }
             ],
             "title": "Availability Note"
+          },
+          "offer_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offer Url"
           },
           "google_email": {
             "anyOf": [
