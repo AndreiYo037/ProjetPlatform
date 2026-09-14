@@ -106,6 +106,23 @@ No Postgres server or Docker daemon exists in the build environment, so:
 Tests run on SQLite locally and against `postgres:16` in CI. CI is where the
 production dialect is actually proved; local runs are a fast approximation.
 
+### No general software engineering role
+
+The 75 roles include AI/AI Engineering, Machine Learning Engineering, QA/Testing,
+Robotics, and Blockchain/Web3, but deliberately no plain Software Engineering /
+Backend / Frontend / Full-stack role. Confirmed by Andrei, not an oversight.
+
+A generic "build software" brief does not fit the shape the rest of the platform
+is built around: no natural data pack, no one-week deliverable with a fixed
+form (dashboard, memo, model, article), and it competes directly with take-home
+coding tests that already exist elsewhere. Every other role's rubric, deliverable
+spec and resource map lean on the constraint of working with someone's real data
+or a real research question; general SWE has neither.
+
+Not a closed door — adding it later is markdown rows and a slug, the same as any
+other role — but it needs its own deliverable shape (a scoped feature against a
+sample repo, most likely) rather than being forced into the existing template.
+
 ### Markdown is the canonical seed source
 
 The role taxonomy lives in `content/*.md`, parsed directly. Not converted to
