@@ -14,10 +14,12 @@ from pathlib import Path
 from projet.seeds.parsers.common import (
     CLUSTERS,
     ContentError,
+    SourceRef,
     parse_table_rows,
     read_lines,
     split_comma_list,
     split_list,
+    split_source_refs,
     strip_markdown,
 )
 
@@ -32,7 +34,7 @@ _BASELINE_STACK = re.compile(r"^\*\*Baseline student stack \(all free\):\*\*\s*(
 class RoleResources:
     role: str
     cluster: str
-    public_sources: list[str] = field(default_factory=list)
+    public_sources: list[SourceRef] = field(default_factory=list)
     asks_easy: list[str] = field(default_factory=list)
     asks_moderate: list[str] = field(default_factory=list)
     asks_hard: list[str] = field(default_factory=list)
@@ -109,7 +111,7 @@ def parse_resources(path: Path) -> ResourcesDocument:
                 entry = RoleResources(
                     role=role,
                     cluster=cluster,
-                    public_sources=split_comma_list(strip_markdown(row.cells[1])),
+                    public_sources=split_source_refs(strip_markdown(row.cells[1])),
                     student_tools=split_comma_list(strip_markdown(row.cells[3])),
                 )
                 _route_asks(row.cells[2], path, row.line_no, entry)

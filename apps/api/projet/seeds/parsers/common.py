@@ -72,6 +72,40 @@ def split_comma_list(value: str) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
+_SOURCE_LINK = re.compile(r"^\[(.+?)\]\((\S+?)\)$")
+
+
+@dataclass
+class SourceRef:
+    """One named source, with a URL where the document supplies one.
+
+    Most of resources.md names things that have no single canonical URL
+    ("annual reports", "site visits") — those stay `url=None` rather than
+    getting a fabricated link. Named platforms get a real one, written as a
+    markdown link in the cell: `[SingStat](https://www.singstat.gov.sg)`.
+    """
+
+    label: str
+    url: str | None = None
+
+
+def split_source_refs(value: str) -> list[SourceRef]:
+    """Split a comma-separated Public resources cell into labelled refs.
+
+    Splitting happens before the per-item link match, the same way every
+    other comma-separated cell in this document works — nothing here needs
+    escaping because none of the seeded URLs contain a comma.
+    """
+    refs = []
+    for item in split_comma_list(value):
+        match = _SOURCE_LINK.match(item)
+        if match:
+            refs.append(SourceRef(label=match.group(1).strip(), url=match.group(2).strip()))
+        else:
+            refs.append(SourceRef(label=item))
+    return refs
+
+
 def is_separator_row(cells: list[str]) -> bool:
     return all(set(cell.strip()) <= {"-", ":"} and cell.strip() for cell in cells)
 

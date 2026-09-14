@@ -42,7 +42,7 @@ from projet.seeds.parsers import (
     parse_universal_rubric,
 )
 from projet.seeds.parsers.capabilities import CapabilitySpec, SkillCapabilities
-from projet.seeds.parsers.common import slugify
+from projet.seeds.parsers.common import SourceRef, slugify
 from projet.seeds.parsers.rubrics import CriterionSpec
 
 SLUGS_LOCK = "slugs.lock"
@@ -60,7 +60,7 @@ class RoleSeed:
     sort_order: int
     aliases: list[str]
     deliverable: str
-    public_sources: list[str]
+    public_sources: list[SourceRef]
     student_tools: list[str]
     asks_easy: list[str]
     asks_moderate: list[str]
@@ -398,8 +398,12 @@ def seed_roles(session: Session, bundle: ContentBundle, report: SeedReport) -> N
             session.add(template)
         template.default_deliverable = seed.deliverable
         template.public_sources = [
-            {"label": label, "verification_status": VerificationStatus.UNVERIFIED.value}
-            for label in seed.public_sources
+            {
+                "label": ref.label,
+                "url": ref.url,
+                "verification_status": VerificationStatus.UNVERIFIED.value,
+            }
+            for ref in seed.public_sources
         ]
         template.student_tools = seed.student_tools
         template.asks_easy = seed.asks_easy
@@ -428,23 +432,34 @@ def _seed_registry_sources(
 ) -> None:
     """Registry entries per role, seeded unverified.
 
-    The resource map names sources ("SingStat", "LTA DataMall") without URLs, so
-    url_or_storage_key stays null until projet-verify-sources has something to
-    fetch. Milestone 0's real work is filling these in.
+    Most named sources now carry a URL straight from the document
+    (`[SingStat](https://www.singstat.gov.sg)`); the rest are categories or
+    company-specific things with no single canonical link
+    (`sector datasets`, `their open-source repos`) and stay null. Either way,
+    `verification_status` stays unverified until `projet-verify-sources`
+    actually fetches the link — a URL existing is not the same as it working.
+
+    Backfills the URL onto an existing row of the same label, so adding a link
+    to a source that was already seeded takes effect on the next re-seed
+    rather than needing the row dropped and recreated.
     """
     existing = {
-        r.label
+        r.label: r
         for r in session.scalars(
             select(DataPackResource).where(DataPackResource.role_id == role.id)
         )
     }
-    for label in seed.public_sources:
-        if label in existing:
+    for ref in seed.public_sources:
+        row = existing.get(ref.label)
+        if row is not None:
+            if ref.url and not row.url_or_storage_key:
+                row.url_or_storage_key = ref.url
             continue
         session.add(
             DataPackResource(
                 role_id=role.id,
-                label=label,
+                label=ref.label,
+                url_or_storage_key=ref.url,
                 provenance=Provenance.PUBLIC,
                 verification_status=VerificationStatus.UNVERIFIED,
             )

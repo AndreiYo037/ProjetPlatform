@@ -20,10 +20,28 @@ from projet.seeds.loader import (
     seed_all,
 )
 from projet.seeds.parsers import ContentError, parse_rubrics
-from projet.seeds.parsers.common import slugify
+from projet.seeds.parsers.common import SourceRef, slugify, split_source_refs
 
 EXPECTED_ROLES = 77
 EXPECTED_CLUSTERS = 11
+
+
+def test_split_source_refs_extracts_markdown_links():
+    """A named source may carry a link; a category or company-specific thing
+    ('sector datasets', 'their open-source repos') never gets one invented."""
+    refs = split_source_refs(
+        "[SingStat](https://www.singstat.gov.sg), sector datasets, "
+        "[Kaggle](https://www.kaggle.com)"
+    )
+    assert refs == [
+        SourceRef(label="SingStat", url="https://www.singstat.gov.sg"),
+        SourceRef(label="sector datasets", url=None),
+        SourceRef(label="Kaggle", url="https://www.kaggle.com"),
+    ]
+
+
+def test_split_source_refs_handles_an_empty_cell():
+    assert split_source_refs("") == []
 
 
 def test_all_four_documents_cover_the_same_roles(content_dir):
@@ -153,15 +171,42 @@ def test_seeding_is_idempotent(session, content_dir):
     assert session.query(RoleTemplate).count() == EXPECTED_ROLES
 
 
-def test_seeded_sources_are_unverified_with_no_url(session, content_dir):
-    """The resource map names sources without URLs. Marking them verified would
-    be a lie, and Milestone 0's real work is filling them in."""
+def test_seeded_sources_start_unverified_even_with_a_url(session, content_dir):
+    """Most named sources now carry a URL straight from the document; a
+    handful of categories and company-specific things ("sector datasets",
+    "their open-source repos") still have none, and never will. Either way, a
+    URL existing is not the same as it working: verification_status stays
+    unverified until projet-verify-sources actually fetches it, or marking
+    something verified would be a lie."""
     seed_all(session, content_dir)
     sources = list(session.scalars(select(DataPackResource)))
 
     assert sources
     assert all(s.verification_status == VerificationStatus.UNVERIFIED for s in sources)
-    assert all(s.url_or_storage_key is None for s in sources)
+    with_url = [s for s in sources if s.url_or_storage_key]
+    assert with_url, "the seed should have carried real links through by now"
+    assert all(s.url_or_storage_key.startswith("http") for s in with_url)
+
+
+def test_a_source_link_is_backfilled_onto_an_existing_row(session, content_dir, tmp_path):
+    """Adding a URL to a source that was already seeded should update that
+    row on the next re-seed, not require it dropped and recreated."""
+    seed_all(session, content_dir)
+    role = session.scalar(select(Role).where(Role.slug == "data-science"))
+    row = session.scalar(
+        select(DataPackResource)
+        .where(DataPackResource.role_id == role.id)
+        .where(DataPackResource.label == "sector datasets")
+    )
+    assert row is not None and row.url_or_storage_key is None
+
+    row.url_or_storage_key = "https://example.test/manually-added"
+    session.flush()
+
+    # Re-seeding must not clobber a URL someone already filled in by hand.
+    seed_all(session, content_dir)
+    session.refresh(row)
+    assert row.url_or_storage_key == "https://example.test/manually-added"
 
 
 def test_every_ranked_skill_resolves_to_a_skill_row(session, content_dir):
