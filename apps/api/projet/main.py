@@ -19,6 +19,7 @@ from projet import __version__
 from projet.api.applications import router as applications_router
 from projet.api.auth import router as auth_router
 from projet.api.companies import router as companies_router
+from projet.api.judging import router as judging_router
 from projet.api.participant import router as participant_router
 from projet.api.programmes import router as programmes_router
 from projet.api.public import router as public_router
@@ -83,6 +84,7 @@ def create_app() -> FastAPI:
     app.include_router(roles_router)
     app.include_router(programmes_router)
     app.include_router(applications_router)
+    app.include_router(judging_router)
     app.include_router(public_router)
     app.include_router(participant_router)
     app.include_router(threads_router)

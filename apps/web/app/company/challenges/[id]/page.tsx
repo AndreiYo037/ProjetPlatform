@@ -126,6 +126,17 @@ export default function ChallengeDetailPage({
             </dl>
           </div>
 
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>Judging</h2>
+            <Link className="btn" href={`/company/challenges/${programme.id}/judging`}>
+              Open the cards
+            </Link>
+          </div>
+          <p className="small muted">
+            One submission card per participant, in pitch order, each opening onto
+            that person's scoring card.
+          </p>
+
           <h2>Applicants ({applications.length})</h2>
           {applications.length === 0 ? (
             <p className="muted small">No applications yet.</p>

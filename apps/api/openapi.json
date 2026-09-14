@@ -2818,6 +2818,217 @@
         }
       }
     },
+    "/programmes/{programme_id}/submissions": {
+      "get": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "List Submission Cards",
+        "description": "FR-1051 - the judging day list, in the order people pitch.",
+        "operationId": "list_submission_cards_programmes__programme_id__submissions_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SubmissionCard"
+                  },
+                  "title": "Response List Submission Cards Programmes  Programme Id  Submissions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/participants/{participant_id}/score": {
+      "get": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Get Scoring Card",
+        "operationId": "get_scoring_card_programmes__programme_id__participants__participant_id__score_get",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoringCard"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Update Scoring Card",
+        "description": "Auto-saving, like the prescreen rubric. A judge is watching a pitch, not\nfilling in a form, so nothing waits on a Save they will forget to press.",
+        "operationId": "update_scoring_card_programmes__programme_id__participants__participant_id__score_patch",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScoringUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScoringCard"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/public/x/{company_slug}": {
       "get": {
         "tags": [
@@ -7740,6 +7951,204 @@
         "type": "object",
         "title": "ScoreRequest"
       },
+      "ScoringAnchor": {
+        "properties": {
+          "slot": {
+            "type": "integer",
+            "title": "Slot"
+          },
+          "criterion_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Criterion Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "is_universal": {
+            "type": "boolean",
+            "title": "Is Universal"
+          },
+          "anchor_5": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 5"
+          },
+          "anchor_3": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 3"
+          },
+          "anchor_1": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor 1"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "criterion_id",
+          "name",
+          "is_universal",
+          "anchor_5",
+          "anchor_3",
+          "anchor_1",
+          "value"
+        ],
+        "title": "ScoringAnchor"
+      },
+      "ScoringCard": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Participant Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "submission": {
+            "$ref": "#/components/schemas/SubmissionCard"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/ScoringAnchor"
+            },
+            "type": "array",
+            "title": "Criteria"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "would_refer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Refer"
+          },
+          "skill_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Skill Ids"
+          },
+          "skill_options": {
+            "items": {
+              "$ref": "#/components/schemas/SkillOption"
+            },
+            "type": "array",
+            "title": "Skill Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "name",
+          "submission",
+          "criteria",
+          "total",
+          "complete",
+          "would_refer",
+          "skill_ids",
+          "skill_options"
+        ],
+        "title": "ScoringCard",
+        "description": "The rubric for this pitch, with the submission kept alongside it."
+      },
+      "ScoringUpdate": {
+        "properties": {
+          "ratings": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "format": "uuid"
+            },
+            "type": "object",
+            "title": "Ratings"
+          },
+          "would_refer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Refer"
+          },
+          "skill_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Ids"
+          }
+        },
+        "type": "object",
+        "title": "ScoringUpdate",
+        "description": "Partial by design: a judge fills this in a value at a time, live."
+      },
       "SeatsOut": {
         "properties": {
           "capacity": {
@@ -7833,6 +8242,30 @@
         ],
         "title": "SignupRequest"
       },
+      "SkillOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "SkillOption"
+      },
       "SlotOut": {
         "properties": {
           "slot": {
@@ -7886,6 +8319,103 @@
         ],
         "title": "SlotOut"
       },
+      "SubmissionCard": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Participant Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "run_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Order"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "locked": {
+            "type": "boolean",
+            "title": "Locked"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/SubmittedLink"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "scored": {
+            "type": "boolean",
+            "title": "Scored"
+          },
+          "your_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Your Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id",
+          "name",
+          "organisation",
+          "run_order",
+          "status",
+          "submitted_at",
+          "locked",
+          "complete",
+          "links",
+          "scored",
+          "your_total"
+        ],
+        "title": "SubmissionCard",
+        "description": "One participant, what they handed in, and where their scoring stands."
+      },
       "SubmissionOut": {
         "properties": {
           "status": {
@@ -7924,6 +8454,71 @@
           "slots"
         ],
         "title": "SubmissionOut"
+      },
+      "SubmittedLink": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "title": "Slot"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "access_status": {
+            "type": "string",
+            "title": "Access Status"
+          },
+          "snapshot_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Url"
+          },
+          "snapshot_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "url",
+          "filename",
+          "access_status"
+        ],
+        "title": "SubmittedLink"
       },
       "ThreadCreate": {
         "properties": {

@@ -362,6 +362,29 @@ export const disposition = (
 export const getSeats = (programmeId: string) =>
   api.get<SeatsOut>(`/programmes/${programmeId}/seats`);
 
+export type SubmissionCard = Schemas["SubmissionCard"];
+export type ScoringCard = Schemas["ScoringCard"];
+
+/** Judging day: one card per participant, in the order they pitch. */
+export const listSubmissionCards = (programmeId: string) =>
+  api.get<SubmissionCard[]>(`/programmes/${programmeId}/submissions`);
+export const getScoringCard = (programmeId: string, participantId: string) =>
+  api.get<ScoringCard>(`/programmes/${programmeId}/participants/${participantId}/score`);
+/** Auto-saving: a judge is watching a pitch, not filling in a form. */
+export const updateScoringCard = (
+  programmeId: string,
+  participantId: string,
+  body: {
+    ratings?: Record<string, number>;
+    would_refer?: string | null;
+    skill_ids?: string[];
+  },
+) =>
+  api.patch<ScoringCard>(
+    `/programmes/${programmeId}/participants/${participantId}/score`,
+    body,
+  );
+
 export const getDashboard = () => api.get<Dashboard>("/me/dashboard");
 export const putSubmissionLink = (slot: string, driveUrl: string) =>
   api.put<SubmissionOut>("/me/submission/link", { slot, drive_url: driveUrl });
