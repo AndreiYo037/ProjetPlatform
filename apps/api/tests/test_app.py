@@ -32,7 +32,7 @@ def test_readyz_is_ok_once_seeded(session, content_dir):
     body = _client(session).get("/readyz").json()
 
     assert body["status"] == "ok"
-    assert body["checks"]["roles_seeded"] == 75
+    assert body["checks"]["roles_seeded"] == 77
     assert body["checks"]["outbox"] == {"pending": 0, "done": 0, "failed": 0, "stuck": 0}
 
 

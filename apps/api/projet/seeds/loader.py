@@ -1,6 +1,6 @@
 """Seed the taxonomy from content/.
 
-The three supplied documents are cross-cutting: each covers all 75 roles for one
+The three supplied documents are cross-cutting: each covers every role for one
 aspect, rather than one file per role. So the loader joins them on role name and
 refuses to seed unless every role appears in every document. That join is where
 drift would otherwise creep in silently — a role renamed in rubrics.md but not

@@ -106,22 +106,36 @@ No Postgres server or Docker daemon exists in the build environment, so:
 Tests run on SQLite locally and against `postgres:16` in CI. CI is where the
 production dialect is actually proved; local runs are a fast approximation.
 
-### No general software engineering role
+### Every role needs a public substrate
 
-The 75 roles include AI/AI Engineering, Machine Learning Engineering, QA/Testing,
-Robotics, and Blockchain/Web3, but deliberately no plain Software Engineering /
-Backend / Frontend / Full-stack role. Confirmed by Andrei, not an oversight.
+The constraint that decides whether a role can exist here is not what the
+artifact is made of. It is whether there is something **publicly available and
+specific to that company** to make it against — their live product, their public
+API, their filings, their shelf, their sector's open data. That is what makes the
+output something the company can use, which is the whole premise.
 
-A generic "build software" brief does not fit the shape the rest of the platform
-is built around: no natural data pack, no one-week deliverable with a fixed
-form (dashboard, memo, model, article), and it competes directly with take-home
-coding tests that already exist elsewhere. Every other role's rubric, deliverable
-spec and resource map lean on the constraint of working with someone's real data
-or a real research question; general SWE has neither.
+Code was never the problem. QA/Testing tests their live public site, AI
+Engineering builds against their public docs and API spec, Blockchain deploys to
+a public testnet. Three shipping roles produce code, and each one found a public
+substrate first.
 
-Not a closed door — adding it later is markdown rows and a slug, the same as any
-other role — but it needs its own deliverable shape (a scoped feature against a
-sample repo, most likely) rather than being forced into the existing template.
+**Software Engineering is in, scoped to that constraint.** Its resource map says
+so in the public column: *requires a public API, SDK or open-source repo to build
+against*. A company with none of those cannot run it, and the readiness report is
+where that shows up — the same as a role whose data pack is unverified. The
+alternative, a feature built against a synthetic sample repo, produces a
+competent exercise the company has no use for, which is exactly what the resource
+map's design rule exists to prevent.
+
+**Data Engineering is in** on the same test. Its substrate is the public sources
+Data Analytics already uses, one layer down: the pipeline that produces the
+dataset that feeds the dashboard.
+
+An earlier version of this entry excluded Software Engineering on the grounds
+that it had "no one-week deliverable with a fixed form" and did not fit the
+platform's shape. Both were wrong — the deliverable shape was already drafted,
+and three code roles were already shipping. The substrate argument is the one
+that actually held, and it is narrower: it excludes a company, not a discipline.
 
 ### Markdown is the canonical seed source
 
@@ -129,7 +143,7 @@ The role taxonomy lives in `content/*.md`, parsed directly. Not converted to
 YAML, because FR-044 says editing a role is content work rather than a deploy,
 and a second copy would drift from the first.
 
-The three supplied documents are **cross-cutting** — each covers all 75 roles for
+The three supplied documents are **cross-cutting** — each covers every role for
 one aspect, rather than one file per role — so the loader joins them on role name
 and **fails unless every role appears in every document**. That join is the only
 thing standing between a rename in one file and a role silently losing its
@@ -141,11 +155,11 @@ reviewable diff instead of a surprise.
 
 ### Sources are seeded unverified, and do not block activation
 
-The resource map names sources ("SingStat", "LTA DataMall") without URLs. All 340
+The resource map names sources ("SingStat", "LTA DataMall") without URLs. All 349
 entries seed with `url` null and `verification_status: unverified`, and
 `projet-verify-sources` stamps them once URLs exist.
 
-Activation is **not** hard-gated on verification. Gating would hold all 75 roles
+Activation is **not** hard-gated on verification. Gating would hold every role
 and ship nothing. Instead the readiness report tells admin which roles have a
 validated data pack, which is what Milestone 0's "a role with an unvalidated data
 pack is worse than a role that isn't offered" actually needs to be actionable.

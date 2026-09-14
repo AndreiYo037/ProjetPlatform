@@ -4,7 +4,7 @@ Milestone 0's real work. The resource map names sources without URLs, so most
 entries cannot be verified until a URL is filled in; this command reports what
 is outstanding per role and verifies whatever it can reach.
 
-A role is never blocked from activation by this — blocking would hold all 75 —
+A role is never blocked from activation by this — blocking would hold every role —
 but the readiness report is what tells admin whether a role's data pack is real.
 """
 

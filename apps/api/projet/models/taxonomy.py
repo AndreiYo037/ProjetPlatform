@@ -14,7 +14,7 @@ from projet.models.enums import SkillStatus, SkillType
 
 
 class Role(Base):
-    """FR-041 — a controlled taxonomy, ~75 roles across 11 clusters."""
+    """FR-041 — a controlled taxonomy, 77 roles across 11 clusters."""
 
     __tablename__ = "role"
 

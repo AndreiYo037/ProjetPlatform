@@ -211,7 +211,7 @@ Event
 Role
   id, cluster, name, slug, aliases[],
   is_active, sort_order
-  -- the seeded taxonomy: ~75 roles across 11 clusters
+  -- the seeded taxonomy: 77 roles across 11 clusters
 
 DataPackResource
   id, programme_id, label, url_or_storage_key,
@@ -560,7 +560,7 @@ concludes the product is broken.
 
 ## 5.0a Role taxonomy — FR-040
 
-**FR-041** Roles are a **controlled taxonomy**, not free text. Roughly 75 roles across 11 clusters, seeded at build and editable as content.
+**FR-041** Roles are a **controlled taxonomy**, not free text. 77 roles across 11 clusters, seeded at build and editable as content.
 
 **FR-042** Every role carries a `RoleTemplate` holding everything that can be pre-built for it:
 
@@ -1201,8 +1201,8 @@ Instrument from day one.
 
 ## Milestone 0 — Seed content
 **Status — mostly done.** The taxonomy, rubric library, deliverable specs and
-company-ask tiers are seeded for all 75 roles from `content/*.md`. The **source
-registry is not**: all 340 entries seed with no URL and
+company-ask tiers are seeded for every role from `content/*.md`. The **source
+registry is not**: all 349 entries seed with no URL and
 `verification_status: unverified`, and `projet-verify-sources` exists to stamp
 them once URLs arrive. Two derived files, `content/skills.md` and
 `content/capabilities.md`, **need review before cohort 1** — they are what a
@@ -1212,7 +1212,7 @@ Not code. The role taxonomy and templates are content, and they gate everything 
 
 | | |
 |---|---|
-| Role taxonomy | ~75 roles across 11 clusters, deduplicated, with aliases |
+| Role taxonomy | 77 roles across 11 clusters, deduplicated, with aliases |
 | Rubric library | Slots 2 and 3 with 5/3/1 anchors for every role |
 | Deliverable specs | One-week artifact spec per role |
 | Source registry | Validated public sources per role, each fetched and confirmed live |
@@ -1222,11 +1222,11 @@ The rubric library and deliverable specs already exist as written material. The 
 
 Seed 6–8 roles properly rather than 75 thinly. A role with an unvalidated data pack is worse than a role that isn't offered.
 
-> **Build note —** all 75 roles are seeded, because the rubric, deliverable and
+> **Build note —** every role is seeded, because the rubric, deliverable and
 > ask content already existed for all of them and withholding it bought nothing.
 > The "6–8 properly" rule is unchanged in force and now applies to the source
 > registry alone: activation is **not** hard-gated on verification — gating
-> would hold all 75 roles and ship nothing — so a per-role readiness report is
+> would hold every role and ship nothing — so a per-role readiness report is
 > what tells admin which roles actually have a validated data pack.
 
 ## Milestone 1 — Can run a cohort

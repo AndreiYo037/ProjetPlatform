@@ -1,6 +1,6 @@
 # Deliverables by Role — Seed Data
 
-`RoleTemplate.default_deliverable` for all 75 roles. Scoped to the one-week format: kickoff day 1, submission due day 6, roughly 12–18 hours of work.
+`RoleTemplate.default_deliverable` for every role. Scoped to the one-week format: kickoff day 1, submission due day 6, roughly 12–18 hours of work.
 
 **Universal, every role:** the named artifact below **plus a half-page memo** — what the problem is, how they approached it, what they recommend, what they'd do next. The memo is what a judge reads first.
 
@@ -18,6 +18,7 @@ Companies can change any of this per programme (FR-067). These are defaults, not
 | Machine Learning Engineering | Notebook with a trained model, documented baseline comparison, and a metric table |
 | Data Science | Notebook with EDA, one hypothesis tested, and interpretation tied to a named decision |
 | Data Analytics | Dashboard with 3–4 decision-relevant views, plus the cleaned dataset and transformation notes |
+| Data Engineering | Pipeline ingesting 2+ public sources into a documented schema, with data quality checks and an architecture diagram carrying a cost estimate |
 | Research and Analysis | 6-page research brief with a comparison matrix and confidence levels stated |
 | Healthcare Analytics | Notebook plus a 3-view dashboard on a public health dataset, with a governance note |
 
@@ -25,6 +26,7 @@ Companies can change any of this per programme (FR-067). These are defaults, not
 
 | Role | Deliverable |
 |---|---|
+| Software Engineering | Working feature built against their public API, SDK or open-source repo, in a repo with commit history and tests, plus a note on what was cut under time pressure |
 | QA / Testing | Severity-ranked bug log of 15+ issues on their public product, plus one automated test script for a key flow |
 | Robotics | Simulation repo plus a 2-minute screen recording of the task running, with metrics across three test conditions |
 | Mechanical / Civil / Chemical | CAD model or process flow diagram plus a calculation set referenced to named standards |

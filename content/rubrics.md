@@ -56,6 +56,13 @@ Four criteria, 1–5 each, 20 total. Slots 1 and 4 are fixed. Slots 2 and 3 are 
 | **3** Data prepared correctly, transformations traceable | **3** Real findings, clearly presented, relevance stated |
 | **1** Silent row loss, unexplained transformations | **1** Descriptive statistics presented as insight |
 
+### Data Engineering
+| Slot 2 — *Data quality discipline* | Slot 3 — *Schema and cost judgement* |
+|---|---|
+| **5** Checks written for the failures these sources actually have, and states what happens when one fires | **5** Schema justified against how it would be queried, with cost at our volume and what they'd change at 10x |
+| **3** Quality checks present and sensible, errors handled rather than swallowed | **3** Clean schema, sensible architecture, cost noted |
+| **1** Happy path only. Breaks on the first malformed row and says nothing about it. | **1** No schema rationale, or cost never considered |
+
 ### Research and Analysis
 | Slot 2 — *Source quality* | Slot 3 — *Calibrated conclusions* |
 |---|---|
@@ -73,6 +80,13 @@ Four criteria, 1–5 each, 20 total. Slots 1 and 4 are fixed. Slots 2 and 3 are 
 ---
 
 # Engineering & Technical
+
+### Software Engineering
+| Slot 2 — *Code someone else can own* | Slot 3 — *Trade-offs under time pressure* |
+|---|---|
+| **5** Reads like the codebase it joins. Tests cover what would actually break it, and a stranger gets it running from the README first try. | **5** Named what they cut and why, and what they'd do first with another week. The cuts were the right ones. |
+| **3** Works, tested, documented well enough to follow | **3** Some trade-offs stated, scope choices reasonable |
+| **1** Works on their machine. No tests, or tests that assert nothing. | **1** Over-built one corner and left the feature unfinished, or claims no trade-offs were made |
 
 ### QA / Testing
 | Slot 2 — *Coverage and prioritisation* | Slot 3 — *Reproducibility* |

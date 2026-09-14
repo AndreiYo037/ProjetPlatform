@@ -1,7 +1,7 @@
 """Content parsing and seeding.
 
-The three supplied documents are cross-cutting — each covers all 75 roles for
-one aspect — so the join across them is where drift would appear. These tests
+The content documents are cross-cutting — each covers every role for one
+aspect — so the join across them is where drift would appear. These tests
 make drift a loud failure rather than a missing deliverable nobody notices.
 """
 
@@ -22,7 +22,7 @@ from projet.seeds.loader import (
 from projet.seeds.parsers import ContentError, parse_rubrics
 from projet.seeds.parsers.common import slugify
 
-EXPECTED_ROLES = 75
+EXPECTED_ROLES = 77
 EXPECTED_CLUSTERS = 11
 
 

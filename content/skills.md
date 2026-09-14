@@ -1,6 +1,6 @@
 # Skills and Aliases by Role — Seed Data
 
-`RoleTemplate.ranked_hard_skills`, `RoleTemplate.ranked_soft_skills` and `Role.aliases` for all 75 roles.
+`RoleTemplate.ranked_hard_skills`, `RoleTemplate.ranked_soft_skills` and `Role.aliases` for every role.
 
 **This file is derived, not authored from scratch.** Each role's skills were read off its slot 2 and slot 3 rubric criteria in `rubrics.md` and its artifact in `deliverables.md`. It needs Andrei's review before cohort 1 — it is what judges see in the tagging dropdown.
 
@@ -22,6 +22,7 @@ Separator is `·` throughout, as in `resources.md`.
 | Machine Learning Engineering | ML engineer · MLE · machine learning · deep learning | Model training · Feature engineering · Baseline design · Python · MLOps · Experiment tracking | Intellectual honesty · Attention to detail · Structured thinking · Written communication |
 | Data Science | data scientist · applied scientist · statistics · advanced analytics | Statistical inference · Hypothesis testing · Python · Exploratory data analysis · Data visualisation | Scepticism · Structured thinking · Commercial judgement · Written communication |
 | Data Analytics | data analyst · BI · business intelligence · analytics · reporting analyst | SQL · Data cleaning · Dashboard design · Data visualisation · KPI definition · Spreadsheet modelling | Executive communication · Attention to detail · Prioritisation · Structured thinking |
+| Data Engineering | data engineer · ETL · ELT · analytics engineering · pipeline engineer · data platform | Pipeline design · Data modelling · SQL · Python · Data quality testing · Orchestration | Attention to detail · Structured thinking · Intellectual honesty · Written communication |
 | Research and Analysis | research analyst · secondary research · insights analyst · desk research | Desk research · Source evaluation · Citation discipline · Comparative analysis · Report writing | Scepticism · Synthesis · Written communication · Curiosity |
 | Healthcare Analytics | health data analyst · clinical analytics · health informatics · healthcare data | Clinical coding literacy · Cohort definition · SQL · Data visualisation · De-identification | Ethical judgement · Attention to detail · Structured thinking · Written communication |
 
@@ -29,6 +30,7 @@ Separator is `·` throughout, as in `resources.md`.
 
 | Role | Aliases | Hard skills (ranked) | Soft skills (ranked) |
 |---|---|---|---|
+| Software Engineering | software engineer · SWE · backend · frontend · full-stack · developer · programmer | Feature implementation · Automated testing · API integration · Version control · Technical documentation · Code review literacy | Prioritisation · Intellectual honesty · Written communication · Attention to detail |
 | QA / Testing | QA · quality assurance · test engineer · SDET · software testing | Test case design · Exploratory testing · Bug reporting · Severity triage · Test automation · Accessibility testing | Attention to detail · Prioritisation · Written communication · Scepticism |
 | Robotics | robotics engineer · ROS · autonomy · mechatronics | ROS · Simulation · Control systems · Python · Sensor data analysis | Intellectual honesty · Structured thinking · Attention to detail · Written communication |
 | Mechanical / Civil / Chemical | mechanical engineering · civil engineering · chemical engineering · process engineering · structural | Engineering calculation · CAD modelling · Standards compliance · Simulation (FEA/CFD) · Technical drawing | Attention to detail · Intellectual honesty · Structured thinking · Written communication |

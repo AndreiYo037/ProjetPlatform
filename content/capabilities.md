@@ -88,6 +88,7 @@ which is worse than a seed that refuses to run.
 | Audience research | Investigation · Structuring |
 | Audience segmentation | Quantitative analysis · Structuring |
 | Audience targeting | Quantitative analysis · Judgement |
+| Automated testing | Technical craft · Delivery |
 | Backtesting | Quantitative analysis · Technical craft |
 | Baseline design | Technical craft · Quantitative analysis |
 | Brand audit | Investigation · Judgement |
@@ -113,6 +114,7 @@ which is worse than a seed that refuses to run.
 | Client reporting | Communication · Delivery |
 | Clinical coding literacy | Technical craft · Investigation |
 | Clinical trial literacy | Investigation · Judgement |
+| Code review literacy | Technical craft · Judgement |
 | Cohort definition | Quantitative analysis · Structuring |
 | Community consultation | Investigation · Communication |
 | Community management | Communication · Delivery |
@@ -150,6 +152,8 @@ which is worse than a seed that refuses to run.
 | Customer discovery | Investigation |
 | Dashboard design | Technical craft · Communication |
 | Data cleaning | Technical craft · Delivery |
+| Data modelling | Structuring · Technical craft |
+| Data quality testing | Technical craft · Investigation |
 | Data visualisation | Communication · Technical craft |
 | DCF valuation | Quantitative analysis · Technical craft |
 | De-identification | Technical craft · Judgement |
@@ -182,6 +186,7 @@ which is worse than a seed that refuses to run.
 | Exploratory testing | Investigation · Technical craft |
 | Fact verification | Investigation |
 | Feature engineering | Technical craft · Quantitative analysis |
+| Feature implementation | Technical craft · Delivery |
 | Feature specification | Structuring · Communication |
 | Field audit | Investigation |
 | Figma | Technical craft |
@@ -257,6 +262,7 @@ which is worse than a seed that refuses to run.
 | News writing | Communication · Delivery |
 | Operational diligence | Investigation · Judgement |
 | Options analysis | Structuring · Judgement |
+| Orchestration | Technical craft · Delivery |
 | Outbound sequence writing | Communication · Delivery |
 | Outreach writing | Communication |
 | Participant recruitment | Delivery · Investigation |
@@ -267,6 +273,7 @@ which is worse than a seed that refuses to run.
 | Persona development | Structuring · Communication |
 | Pilot design | Structuring · Delivery |
 | Pipeline analysis | Investigation · Quantitative analysis |
+| Pipeline design | Technical craft · Structuring |
 | Pipeline management | Delivery |
 | Platform-native content | Technical craft · Communication |
 | Policy and incentive analysis | Investigation · Judgement |
@@ -368,6 +375,7 @@ which is worse than a seed that refuses to run.
 | Synergy analysis | Quantitative analysis · Judgement |
 | Target screening | Investigation · Judgement |
 | Tax legislation research | Investigation |
+| Technical documentation | Communication · Technical craft |
 | Technical drawing | Technical craft · Communication |
 | Techno-economic modelling | Quantitative analysis · Technical craft |
 | Telematics analysis | Quantitative analysis · Technical craft |
@@ -389,6 +397,7 @@ which is worse than a seed that refuses to run.
 | User research synthesis | Structuring · Investigation |
 | Valuation | Quantitative analysis · Judgement |
 | Value proposition design | Structuring · Communication |
+| Version control | Technical craft · Delivery |
 | Video editing | Technical craft · Delivery |
 | Videography | Technical craft |
 | Web analytics | Quantitative analysis · Technical craft |
@@ -397,7 +406,7 @@ which is worse than a seed that refuses to run.
 
 ### Soft skills
 
-These already generalise — they are the same twenty words across all 75
+These already generalise — they are the same twenty words across all
 roles — so they compound without help. They are mapped anyway so a profile
 has one surface rather than two.
 
