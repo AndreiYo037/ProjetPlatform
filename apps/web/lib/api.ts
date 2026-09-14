@@ -385,6 +385,30 @@ export const updateScoringCard = (
     body,
   );
 
+export type Portfolio = Schemas["Portfolio"];
+export type TestimonialOut = Schemas["TestimonialOut"];
+export type CloseoutOut = Schemas["CloseoutOut"];
+
+/** What the participant keeps: attested skills, credentials, testimonials. */
+export const getPortfolio = () => api.get<Portfolio>("/me/portfolio");
+
+export const getTestimonial = (programmeId: string, participantId: string) =>
+  api.get<TestimonialOut | null>(
+    `/programmes/${programmeId}/participants/${participantId}/testimonial`,
+  );
+export const writeTestimonial = (
+  programmeId: string,
+  participantId: string,
+  body: { body: string; publish?: boolean },
+) =>
+  api.put<TestimonialOut>(
+    `/programmes/${programmeId}/participants/${participantId}/testimonial`,
+    body,
+  );
+/** Turns the evening's scores into what participants keep. Safe to repeat. */
+export const closeProgramme = (programmeId: string) =>
+  api.post<CloseoutOut>(`/programmes/${programmeId}/close`);
+
 export const getDashboard = () => api.get<Dashboard>("/me/dashboard");
 export const putSubmissionLink = (slot: string, driveUrl: string) =>
   api.put<SubmissionOut>("/me/submission/link", { slot, drive_url: driveUrl });

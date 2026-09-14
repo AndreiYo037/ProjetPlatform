@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import Countdown from "@/components/Countdown";
@@ -184,6 +185,15 @@ export default function DashboardPage() {
           </ul>
         </>
       )}
+
+      <h2>What you keep</h2>
+      <p className="small muted">
+        Skills the judges tagged, credentials, and anything they chose to write about
+        you. It fills in after you pitch.
+      </p>
+      <Link className="btn secondary" href="/portfolio">
+        Open your profile
+      </Link>
 
       <h2>Channel</h2>
       {data.threads.length === 0 ? (

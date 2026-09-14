@@ -27,6 +27,7 @@ from projet.access import company_visible_participants
 from projet.api.deps import can_score_programme, get_programme_or_404, require_actor
 from projet.db import get_session
 from projet.models import (
+    CompanyUser,
     CriterionScore,
     Participant,
     Person,
@@ -35,9 +36,12 @@ from projet.models import (
     ScoreSkillTag,
     Skill,
     SubmissionLink,
+    Testimonial,
 )
+from projet.models.base import utcnow
 from projet.models.enums import AccessStatus, ReferralIntent
 from projet.services.auth import Actor
+from projet.services.closeout import CloseoutError, close_programme
 from projet.services.scoring import (
     ScoringError,
     criteria_for,
@@ -362,3 +366,148 @@ def update_scoring_card(
     refresh_total(db, score)
     db.commit()
     return _scoring_card(db, programme, participant, actor)
+
+
+# -- testimonials (FR-1053) ---------------------------------------------------
+#
+# Deliberately not part of the scoring card. A testimonial is a public claim the
+# company is willing to put its name to; a score is a private working note. They
+# are written in the same sitting and must never travel together, so the
+# testimonial carries no reference to Score and reads back without one.
+
+
+class TestimonialOut(BaseModel):
+    id: uuid.UUID
+    participant_id: uuid.UUID
+    body: str
+    author_name: str | None
+    author_title: str | None
+    published_at: datetime | None
+    created_at: datetime
+
+
+class TestimonialWrite(BaseModel):
+    body: str = Field(min_length=1, max_length=4000)
+    # A draft is a real state: a rep should be able to write badly at 9pm and
+    # fix it in the morning before anyone can quote it.
+    publish: bool = False
+
+
+def _testimonial_out(db: Session, row: Testimonial) -> TestimonialOut:
+    author = db.get(CompanyUser, row.author_company_user_id)
+    return TestimonialOut(
+        id=row.id,
+        participant_id=row.participant_id,
+        body=row.body,
+        author_name=author.name if author else None,
+        author_title=author.title if author else None,
+        published_at=row.published_at,
+        created_at=row.created_at,
+    )
+
+
+@router.get(
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial",
+    response_model=TestimonialOut | None,
+)
+def get_testimonial(
+    participant_id: uuid.UUID,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> TestimonialOut | None:
+    """Your own, not your colleague's. Two reps may each write one."""
+    participant = _participant_or_404(db, programme, actor, participant_id)
+    if actor.is_platform:
+        return None
+    row = db.scalar(
+        select(Testimonial)
+        .where(Testimonial.participant_id == participant.id)
+        .where(Testimonial.author_company_user_id == actor.id)
+    )
+    return _testimonial_out(db, row) if row else None
+
+
+@router.put(
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial",
+    response_model=TestimonialOut,
+)
+def write_testimonial(
+    participant_id: uuid.UUID,
+    payload: TestimonialWrite,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> TestimonialOut:
+    """Optional by design (FR-1053).
+
+    A testimonial nobody chose to write is worth more than one everybody was
+    made to, so this is never required to finish scoring and never prompted for
+    until a pitch has actually been watched.
+    """
+    if actor.is_platform:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A testimonial is the company's word. Sign in as the company user.",
+        )
+    participant = _participant_or_404(db, programme, actor, participant_id)
+    row = db.scalar(
+        select(Testimonial)
+        .where(Testimonial.participant_id == participant.id)
+        .where(Testimonial.author_company_user_id == actor.id)
+    )
+    if row is None:
+        row = Testimonial(
+            participant_id=participant.id,
+            author_company_user_id=actor.id,
+            body=payload.body.strip(),
+        )
+        db.add(row)
+    else:
+        row.body = payload.body.strip()
+    # Publishing is one-way from the participant's side: they may already have
+    # put it on a CV, so unpublishing would retract something in use. Editing
+    # the text stays open.
+    if payload.publish and row.published_at is None:
+        row.published_at = utcnow()
+    db.commit()
+    return _testimonial_out(db, row)
+
+
+# -- closing the programme ----------------------------------------------------
+
+
+class CloseoutOut(BaseModel):
+    status: str
+    participants_closed: int
+    credentials_issued: int
+    skills_promoted: int
+    # Participants no judge scored. Named rather than silently skipped: an
+    # unscored pitch is usually somebody forgetting to finish a card, and that
+    # is fixable right up until the programme closes.
+    unscored: int
+
+
+@router.post("/programmes/{programme_id}/close", response_model=CloseoutOut)
+def close(
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> CloseoutOut:
+    """Turn the evening's scores into the thing participants keep.
+
+    Safe to repeat: a judge who finishes their card late still reaches the
+    profile on the next close.
+    """
+    try:
+        result = close_programme(db, programme)
+    except CloseoutError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    db.commit()
+    return CloseoutOut(
+        status=programme.status.value,
+        participants_closed=result.participants_closed,
+        credentials_issued=result.credentials_issued,
+        skills_promoted=result.skills_promoted,
+        unscored=len(result.skipped),
+    )

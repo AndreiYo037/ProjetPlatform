@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 from projet.api.deps import require_participant
 from projet.db import get_session
 from projet.models import (
+    Company,
+    CompanyUser,
     JudgingSession,
     Participant,
     Person,
@@ -27,11 +29,13 @@ from projet.models import (
     RoleTemplate,
     RubricCriterion,
     SubmissionLink,
+    Testimonial,
     Thread,
 )
 from projet.models.base import utcnow
 from projet.models.enums import ProgrammeStatus, SubmissionSlot
 from projet.services.auth import Actor
+from projet.services.closeout import credentials_for
 from projet.services.data_pack import released_resources, resource_url
 from projet.services.messaging import (
     mark_read,
@@ -39,6 +43,7 @@ from projet.services.messaging import (
     unread_counts,
     visible_threads,
 )
+from projet.services.profile import capability_rollup
 from projet.services.submission import (
     SubmissionError,
     clear_link,
@@ -92,6 +97,145 @@ def get_profile(
     actor: Actor = Depends(require_participant),
 ) -> ProfileOut:
     return _profile_out(_person(db, actor))
+
+
+class AttestedSkill(BaseModel):
+    name: str
+    type: str
+    # Who stands behind it. This is the entire difference between this and a
+    # skill somebody typed into a box about themselves.
+    attesters: list[str]
+    programme_count: int
+
+
+class CapabilityOut(BaseModel):
+    name: str
+    slug: str
+    summary: str
+    skills: list[AttestedSkill]
+    programme_count: int
+    attester_count: int
+
+
+class CredentialOut(BaseModel):
+    type: str
+    programme: str
+    company: str
+    issued_at: datetime
+    # The code is the credential. Carried here so the holder can give it to
+    # someone who was never in the room.
+    verify_code: str
+
+
+class TestimonialCard(BaseModel):
+    body: str
+    author_name: str | None
+    author_title: str | None
+    company: str
+    programme: str
+    published_at: datetime | None
+
+
+class Portfolio(BaseModel):
+    """What the participant keeps (FR-1201).
+
+    Deliberately separate from ProfileOut, which is the editable account. Nothing
+    on this page is editable, because nothing on it is the participant's claim:
+    every line was put there by a practitioner who watched them work.
+    """
+
+    name: str
+    handle: str | None
+    capabilities: list[CapabilityOut]
+    credentials: list[CredentialOut]
+    testimonials: list[TestimonialCard]
+    programmes_completed: int
+
+
+@router.get("/portfolio", response_model=Portfolio)
+def get_portfolio(
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> Portfolio:
+    """Judge tags, credentials and testimonials, compounded across programmes.
+
+    Scores are not here and cannot be: FR-1004 keeps them out of every
+    participant-facing schema, so a rating never reaches the person rated even
+    by accident. What they see is the evidence, not the arithmetic.
+    """
+    person = _person(db, actor)
+    return _portfolio(db, person)
+
+
+def _portfolio(db: Session, person: Person) -> Portfolio:
+    capabilities = [
+        CapabilityOut(
+            name=rollup.name,
+            slug=rollup.slug,
+            summary=rollup.summary,
+            skills=[
+                AttestedSkill(
+                    name=item.name,
+                    type=item.type.value,
+                    attesters=item.attesters,
+                    programme_count=len(item.programme_ids),
+                )
+                for item in rollup.skills
+            ],
+            programme_count=rollup.programme_count,
+            attester_count=rollup.attester_count,
+        )
+        for rollup in capability_rollup(db, person.id)
+    ]
+
+    credentials: list[CredentialOut] = []
+    for credential in credentials_for(db, person.id):
+        programme = db.get(Programme, credential.programme_id)
+        company = db.get(Company, programme.company_id) if programme else None
+        credentials.append(
+            CredentialOut(
+                type=credential.type.value,
+                programme=programme.title if programme else "",
+                company=company.name if company else "",
+                issued_at=credential.issued_at,
+                verify_code=credential.verify_code,
+            )
+        )
+
+    # Published only. A draft is a rep still thinking, and showing it to the
+    # person it is about would make every draft a promise.
+    rows = db.execute(
+        select(Testimonial, CompanyUser, Company, Programme)
+        .join(Participant, Participant.id == Testimonial.participant_id)
+        .join(CompanyUser, CompanyUser.id == Testimonial.author_company_user_id)
+        .join(Company, Company.id == CompanyUser.company_id)
+        .join(Programme, Programme.id == Participant.programme_id)
+        .where(Participant.person_id == person.id)
+        .where(Testimonial.published_at.isnot(None))
+        .order_by(Testimonial.published_at.desc())
+    ).all()
+    testimonials = [
+        TestimonialCard(
+            body=row.Testimonial.body,
+            author_name=row.CompanyUser.name,
+            author_title=row.CompanyUser.title,
+            company=row.Company.name,
+            programme=row.Programme.title,
+            published_at=row.Testimonial.published_at,
+        )
+        for row in rows
+    ]
+
+    return Portfolio(
+        name=person.name,
+        handle=person.handle,
+        capabilities=capabilities,
+        credentials=credentials,
+        testimonials=testimonials,
+        programmes_completed=len(
+            {c.programme_id for c in credentials_for(db, person.id)}
+        ),
+    )
 
 
 @router.patch("/profile", response_model=ProfileOut)

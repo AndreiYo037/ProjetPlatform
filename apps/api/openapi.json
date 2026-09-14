@@ -3029,6 +3029,222 @@
         }
       }
     },
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial": {
+      "get": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Get Testimonial",
+        "description": "Your own, not your colleague's. Two reps may each write one.",
+        "operationId": "get_testimonial_programmes__programme_id__participants__participant_id__testimonial_get",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/TestimonialOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Testimonial Programmes  Programme Id  Participants  Participant Id  Testimonial Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Write Testimonial",
+        "description": "Optional by design (FR-1053).\n\nA testimonial nobody chose to write is worth more than one everybody was\nmade to, so this is never required to finish scoring and never prompted for\nuntil a pitch has actually been watched.",
+        "operationId": "write_testimonial_programmes__programme_id__participants__participant_id__testimonial_put",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestimonialWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestimonialOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/close": {
+      "post": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Close",
+        "description": "Turn the evening's scores into the thing participants keep.\n\nSafe to repeat: a judge who finishes their card late still reaches the\nprofile on the next close.",
+        "operationId": "close_programmes__programme_id__close_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloseoutOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/public/x/{company_slug}": {
       "get": {
         "tags": [
@@ -3435,6 +3651,56 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/portfolio": {
+      "get": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Get Portfolio",
+        "description": "Judge tags, credentials and testimonials, compounded across programmes.\n\nScores are not here and cannot be: FR-1004 keeps them out of every\nparticipant-facing schema, so a rating never reaches the person rated even\nby accident. What they see is the evidence, not the arithmetic.",
+        "operationId": "get_portfolio_me_portfolio_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Portfolio"
                 }
               }
             }
@@ -5031,6 +5297,37 @@
         ],
         "title": "AttachmentOut"
       },
+      "AttestedSkill": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "attesters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Attesters"
+          },
+          "programme_count": {
+            "type": "integer",
+            "title": "Programme Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "attesters",
+          "programme_count"
+        ],
+        "title": "AttestedSkill"
+      },
       "Body_add_attachment_threads__thread_id__attachments_post": {
         "properties": {
           "file": {
@@ -5300,6 +5597,80 @@
           "name"
         ],
         "title": "CandidateOut"
+      },
+      "CapabilityOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/AttestedSkill"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "programme_count": {
+            "type": "integer",
+            "title": "Programme Count"
+          },
+          "attester_count": {
+            "type": "integer",
+            "title": "Attester Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "slug",
+          "summary",
+          "skills",
+          "programme_count",
+          "attester_count"
+        ],
+        "title": "CapabilityOut"
+      },
+      "CloseoutOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "participants_closed": {
+            "type": "integer",
+            "title": "Participants Closed"
+          },
+          "credentials_issued": {
+            "type": "integer",
+            "title": "Credentials Issued"
+          },
+          "skills_promoted": {
+            "type": "integer",
+            "title": "Skills Promoted"
+          },
+          "unscored": {
+            "type": "integer",
+            "title": "Unscored"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "participants_closed",
+          "credentials_issued",
+          "skills_promoted",
+          "unscored"
+        ],
+        "title": "CloseoutOut"
       },
       "ClusterOut": {
         "properties": {
@@ -5616,6 +5987,40 @@
           "database"
         ],
         "title": "ConfigOut"
+      },
+      "CredentialOut": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "programme": {
+            "type": "string",
+            "title": "Programme"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          },
+          "verify_code": {
+            "type": "string",
+            "title": "Verify Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "programme",
+          "company",
+          "issued_at",
+          "verify_code"
+        ],
+        "title": "CredentialOut"
       },
       "CriterionOut": {
         "properties": {
@@ -6524,6 +6929,61 @@
           "actor_type"
         ],
         "title": "PasswordResetRequest"
+      },
+      "Portfolio": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handle"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityOut"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/CredentialOut"
+            },
+            "type": "array",
+            "title": "Credentials"
+          },
+          "testimonials": {
+            "items": {
+              "$ref": "#/components/schemas/TestimonialCard"
+            },
+            "type": "array",
+            "title": "Testimonials"
+          },
+          "programmes_completed": {
+            "type": "integer",
+            "title": "Programmes Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "handle",
+          "capabilities",
+          "credentials",
+          "testimonials",
+          "programmes_completed"
+        ],
+        "title": "Portfolio",
+        "description": "What the participant keeps (FR-1201).\n\nDeliberately separate from ProfileOut, which is the editable account. Nothing\non this page is editable, because nothing on it is the participant's claim:\nevery line was put there by a practitioner who watched them work."
       },
       "PostOut": {
         "properties": {
@@ -8519,6 +8979,154 @@
           "access_status"
         ],
         "title": "SubmittedLink"
+      },
+      "TestimonialCard": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "author_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Title"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "programme": {
+            "type": "string",
+            "title": "Programme"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body",
+          "author_name",
+          "author_title",
+          "company",
+          "programme",
+          "published_at"
+        ],
+        "title": "TestimonialCard"
+      },
+      "TestimonialOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "participant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Participant Id"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "author_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Title"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "participant_id",
+          "body",
+          "author_name",
+          "author_title",
+          "published_at",
+          "created_at"
+        ],
+        "title": "TestimonialOut"
+      },
+      "TestimonialWrite": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Body"
+          },
+          "publish": {
+            "type": "boolean",
+            "title": "Publish",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "TestimonialWrite"
       },
       "ThreadCreate": {
         "properties": {

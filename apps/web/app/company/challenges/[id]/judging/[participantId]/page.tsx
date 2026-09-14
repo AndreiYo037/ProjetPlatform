@@ -6,8 +6,11 @@ import ActorGateNotice from "@/components/ActorGateNotice";
 import {
   assetUrl,
   getScoringCard,
+  getTestimonial,
   updateScoringCard,
+  writeTestimonial,
   type ScoringCard,
+  type TestimonialOut,
 } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
 
@@ -189,6 +192,8 @@ export default function ScoringCardPage({
         ))}
       </div>
 
+      <TestimonialBox programmeId={id} participantId={participantId} />
+
       <h2>Would you refer them</h2>
       <p className="small muted">
         Never shown to the participant. It is the answer that makes this worth
@@ -207,5 +212,93 @@ export default function ScoringCardPage({
         ))}
       </div>
     </main>
+  );
+}
+
+/**
+ * Optional, and kept away from the score on purpose.
+ *
+ * A testimonial is a public claim the company puts its name to; a score is a
+ * private working note. They get written in the same sitting and must never
+ * travel together, so this saves separately and carries no reference to the
+ * rubric above it.
+ *
+ * Publishing is one-way. By the time someone has it on a CV, retracting it is
+ * not ours to do - but the wording stays editable.
+ */
+function TestimonialBox({
+  programmeId,
+  participantId,
+}: {
+  programmeId: string;
+  participantId: string;
+}) {
+  const [existing, setExisting] = useState<TestimonialOut | null>(null);
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+
+  useEffect(() => {
+    getTestimonial(programmeId, participantId)
+      .then((found) => {
+        setExisting(found);
+        setBody(found?.body ?? "");
+      })
+      .catch(() => setExisting(null));
+  }, [programmeId, participantId]);
+
+  async function save(publish: boolean) {
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const saved = await writeTestimonial(programmeId, participantId, {
+        body: body.trim(),
+        publish,
+      });
+      setExisting(saved);
+      setFlash(saved.published_at ? "Published." : "Saved as a draft.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save that.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const published = existing?.published_at != null;
+
+  return (
+    <>
+      <h2>Testimonial (optional)</h2>
+      <p className="small muted">
+        Only if you mean it. One you chose to write is worth more than one everyone
+        was made to, and this is the part they will actually carry with them.
+        {published
+          ? " Published — they can see it. You can still edit the wording."
+          : " A draft stays private until you publish it."}
+      </p>
+      <div className="field">
+        <textarea
+          id="testimonial"
+          rows={4}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="What they did well, in a sentence or two someone hiring would find useful."
+        />
+      </div>
+      {error && <div className="notice bad">{error}</div>}
+      {flash && <div className="notice good">{flash}</div>}
+      <div className="row" style={{ gap: "0.75rem" }}>
+        <button className="secondary" disabled={busy || !body.trim()} onClick={() => save(false)}>
+          Save draft
+        </button>
+        {!published && (
+          <button disabled={busy || !body.trim()} onClick={() => save(true)}>
+            Publish to their profile
+          </button>
+        )}
+      </div>
+    </>
   );
 }

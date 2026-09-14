@@ -4,6 +4,7 @@ import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import {
+  closeProgramme,
   getProgramme,
   listSubmissionCards,
   type ProgrammeDetail,
@@ -28,6 +29,8 @@ export default function JudgingPage({
   const [programme, setProgramme] = useState<ProgrammeDetail | null>(null);
   const [cards, setCards] = useState<SubmissionCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [closed, setClosed] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (gate.status !== "ready") return;
@@ -47,8 +50,31 @@ export default function JudgingPage({
     load();
   }, [load]);
 
+  async function close() {
+    setClosing(true);
+    setError(null);
+    try {
+      const result = await closeProgramme(id);
+      setClosed(
+        `${result.credentials_issued} credential${
+          result.credentials_issued === 1 ? "" : "s"
+        } issued, ${result.skills_promoted} skill${
+          result.skills_promoted === 1 ? "" : "s"
+        } on profiles.` +
+          (result.unscored > 0
+            ? ` ${result.unscored} not scored, so nothing was issued for them — finish those cards and close again.`
+            : ""),
+      );
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not close the programme.");
+    } finally {
+      setClosing(false);
+    }
+  }
+
   if (gate.status !== "ready") return <ActorGateNotice gate={gate} />;
-  if (error) return <main><div className="notice bad">{error}</div></main>;
+  if (error && !cards) return <main><div className="notice bad">{error}</div></main>;
   if (!cards) return <main><p className="muted">Loading…</p></main>;
 
   const scored = cards.filter((card) => card.your_total !== null).length;
@@ -74,6 +100,8 @@ export default function JudgingPage({
             {scored} of {cards.length} scored. Open a card to watch the pitch against
             the rubric; it saves as you go.
           </p>
+          {error && <div className="notice bad">{error}</div>}
+          {closed && <div className="notice good">{closed}</div>}
           {cards.map((card) => (
             <Link
               key={card.participant_id}
@@ -102,6 +130,23 @@ export default function JudgingPage({
               </div>
             </Link>
           ))}
+          <div className="panel" style={{ marginTop: "1.5rem" }}>
+            <strong>Close the programme</strong>
+            <p className="small muted">
+              Turns tonight into what they keep: the skills you tagged become
+              attested skills on their profile, and everyone a judge scored gets a
+              credential someone else can verify. Nothing is issued for turning up.
+              You can close again after a late card.
+            </p>
+            <button disabled={closing || scored === 0} onClick={close}>
+              {closing ? "Closing…" : "Close and issue"}
+            </button>
+            {scored === 0 && (
+              <p className="small muted" style={{ marginBottom: 0 }}>
+                Score at least one pitch first.
+              </p>
+            )}
+          </div>
         </>
       )}
     </main>
