@@ -78,6 +78,8 @@ class Programme(Base):
         enum_column(ProgrammeStatus), default=ProgrammeStatus.DRAFT
     )
 
+    kickoff_event_id: Mapped[str | None] = mapped_column(String(300))
+
     # Set by the deadline sweep so due work is claimed exactly once (FR-1500).
     deadline_processed_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     winners_count: Mapped[int] = mapped_column(Integer, default=1)

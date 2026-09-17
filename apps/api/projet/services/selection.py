@@ -193,7 +193,11 @@ def accept_offer(session: Session, token: str) -> Participant:
     team = ensure_team_for_participant(session, participant)
     ensure_submission(session, team)
     assign_judging_session(session, participant)
-    enqueue_provisioning_chain(session, participant)
+    enqueue_provisioning_chain(
+        session,
+        participant,
+        kickoff_event_id=programme.kickoff_event_id,
+    )
     session.flush()
     return participant
 

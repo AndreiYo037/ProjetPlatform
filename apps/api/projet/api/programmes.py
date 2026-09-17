@@ -483,6 +483,14 @@ def publish_programme(
         publish(db, programme)
     except RubricError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+
+    from projet.services.calendar import ensure_kickoff_event
+
+    try:
+        ensure_kickoff_event(db, programme)
+    except Exception:
+        pass
+
     db.commit()
     return _detail(db, programme)
 
