@@ -103,9 +103,15 @@ def offer_email(ctx: EffectContext) -> dict:
             f"<p>You have been selected for <strong>{title}</strong> with {company_name}.</p>"
             f"{kickoff_line}"
             f"{pitch_line}"
-            f"<p>The kickoff is already in your calendar. Accept to confirm your place:</p>"
             f'<p><a href="{url}"><strong>Accept your place</strong></a> — '
             f"this expires {expires}.</p>"
+            # The calendar invite arrives before acceptance so the dates can be
+            # checked against their own diary. That makes it look like the seat
+            # is already theirs, so the email has to say plainly that it is not:
+            # RSVPing to Google is not accepting, and the seat can still go.
+            "<p>You will also have a calendar invite for the kickoff. Replying "
+            "<em>Yes</em> to it does not take the place — only the link above "
+            "does. Until then the seat can go to someone else.</p>"
         ),
         thread_id=_thread_id(ctx, application),
     )

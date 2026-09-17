@@ -37,7 +37,14 @@ def ensure_kickoff_event(session: Session, programme: Programme) -> str | None:
             description=(
                 f"Kickoff call for {programme.title}.\n\n"
                 f"Company: {company_name}\n"
-                f"You'll get the brief, meet the team, and ask questions."
+                "You'll get the brief, meet the team, and ask questions.\n\n"
+                # The invite reaches people who have been offered a place but
+                # not yet taken it, and Yes here is an RSVP to Google, nothing
+                # more. Said on the invite itself because this is the screen
+                # where the mistake gets made.
+                "If you have been offered a place and not yet accepted it, "
+                "replying Yes here does not confirm it. Use the Accept link in "
+                "your offer email."
             ),
             with_meet=True,
         )
