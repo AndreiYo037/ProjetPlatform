@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from projet.api.deps import get_programme_or_404, require_actor
+from projet.api.deps import can_see_programme, get_programme_or_404, require_actor
 from projet.db import get_session
 from projet.models import (
     Attachment,
@@ -127,8 +127,6 @@ def _may_see_programme_channel(db: Session, actor: Actor, programme: Programme) 
     users and admin through programme scoping (FR-015)."""
     if actor.is_participant:
         return _participant_for(db, actor, programme.id) is not None
-    from projet.api.deps import can_see_programme
-
     return can_see_programme(db, actor, programme)
 
 
@@ -149,6 +147,15 @@ def _may_see_thread(db: Session, actor: Actor, thread: Thread) -> bool:
     if actor.is_platform:
         # FR-606 — admin can see all direct threads, stated in participant terms.
         return True
+    if actor.is_company_user:
+        # FR-605 — a participant writes to "the company", not to one named
+        # person, and only the author is recorded as a member when they open
+        # the thread. Keying the company side off membership would mean nobody
+        # there ever sees it. Programme scoping is the rule that already
+        # decides which company users this programme belongs to, so it decides
+        # this too, and a rep assigned next week still picks up the thread.
+        programme = db.get(Programme, thread.programme_id)
+        return programme is not None and can_see_programme(db, actor, programme)
     member = db.get(ThreadMember, (thread.id, actor.id))
     return member is not None
 

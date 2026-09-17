@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
+import Channel from "@/components/Channel";
 import Countdown from "@/components/Countdown";
 import {
   getDashboard,
@@ -121,6 +122,11 @@ export default function DashboardPage() {
         timezone={data.programme.timezone}
       />
 
+      {/* The channel is the programme page: the week runs on the conversation
+          with the company, and everything below is reference you consult. */}
+      <h2>Messages</h2>
+      <Channel programmeId={data.programme.id} onChange={load} />
+
       <SubmissionPanel submission={data.submission} onChange={load} />
 
       {data.judging && (
@@ -203,30 +209,6 @@ export default function DashboardPage() {
       <Link className="btn secondary" href="/portfolio">
         Open your profile
       </Link>
-
-      <h2>Channel</h2>
-      {data.threads.length === 0 ? (
-        <p className="muted small">Nothing posted yet.</p>
-      ) : (
-        data.threads.map((thread) => (
-          <div className="card" key={thread.id}>
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <div>
-                <strong>{thread.title}</strong>
-                <div className="small muted">
-                  {thread.type.replace(/_/g, " ")} · {thread.reply_count} repl
-                  {thread.reply_count === 1 ? "y" : "ies"}
-                  {thread.unread > 0 && ` · ${thread.unread} unread`}
-                </div>
-              </div>
-              <div className="row">
-                {thread.pinned && <span className="tag">pinned</span>}
-                {thread.status === "answered" && <span className="tag open">answered</span>}
-              </div>
-            </div>
-          </div>
-        ))
-      )}
 
       <h2>How you are judged</h2>
       {data.criteria.map((criterion) => (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
+import Channel from "@/components/Channel";
 import DataPackPanel from "@/components/DataPackPanel";
 import {
   disposition,
@@ -128,6 +129,11 @@ export default function ChallengeDetailPage({
           />
         </>
       )}
+
+      {/* Participants ask here and expect an answer here. Without this the
+          cohort posts into a channel nobody on the company side can read. */}
+      <h2>Messages</h2>
+      <Channel programmeId={programme.id} variant="company" />
 
       <BriefSection programme={programme} onSaved={load} />
 
