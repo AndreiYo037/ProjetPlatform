@@ -25,6 +25,32 @@ import {
 } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
 
+/**
+ * The company's programme page.
+ *
+ * Sectioned rather than one long scroll, and for the same reason as the
+ * participant's: once a cohort exists the rep's daily job is the
+ * conversation, and the brief and rubric are reference they consult after
+ * setting them once. A draft has nobody to talk to yet, so it opens on the
+ * setup that is still holding publication up.
+ */
+
+type SectionKey = "messages" | "applicants" | "brief" | "rubric" | "schedule";
+
+function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
+  const setup: { key: SectionKey; label: string }[] = [
+    { key: "brief", label: "Brief & data pack" },
+    { key: "rubric", label: "Rubric" },
+    { key: "schedule", label: "Schedule" },
+  ];
+  if (isDraft) return setup;
+  return [
+    { key: "messages", label: "Messages" },
+    { key: "applicants", label: "Applicants" },
+    ...setup,
+  ];
+}
+
 export default function ChallengeDetailPage({
   params,
 }: {
@@ -38,6 +64,9 @@ export default function ChallengeDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Null until they pick one: the default depends on the programme, which is
+  // not loaded yet when this state is declared.
+  const [section, setSection] = useState<SectionKey | null>(null);
 
   const load = useCallback(async () => {
     if (gate.status !== "ready") return;
@@ -82,9 +111,11 @@ export default function ChallengeDetailPage({
 
   const isDraft = programme.status === "draft";
   const isOpen = programme.status === "open";
+  const sections = sectionsFor(isDraft);
+  const active: SectionKey = section ?? (isDraft ? "schedule" : "messages");
 
   return (
-    <main>
+    <main className={active === "messages" ? "wide" : undefined}>
       <Link href="/company" className="small muted" style={{ textDecoration: "none" }}>
         &larr; Back to company
       </Link>
@@ -101,77 +132,15 @@ export default function ChallengeDetailPage({
       {flash && <div className="notice good">{flash}</div>}
       {error && <div className="notice bad">{error}</div>}
 
-      {isDraft && (
-        <div className="notice warn">
-          This challenge is still a draft. It will not appear in listings until you publish it.
-        </div>
-      )}
-
-      <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
-
-      {/* Once the programme is live this is the rep's daily job: announce to the
-          cohort, and answer what they ask. A draft has nobody to talk to yet, so
-          it stays below with the rest of the setup. */}
-      {!isDraft && (
-        <>
-          <h2>Messages</h2>
-          <Channel programmeId={programme.id} variant="company" />
-        </>
-      )}
-
-      {!isDraft && (
-        <>
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ margin: 0 }}>Judging</h2>
-            <Link className="btn" href={`/company/challenges/${programme.id}/judging`}>
-              Open the cards
-            </Link>
-          </div>
-          <p className="small muted">
-            One submission card per participant, in pitch order, each opening onto
-            that person's scoring card.
-          </p>
-
-          <ApplicantsPanel
-            programmeId={programme.id}
-            applications={applications}
-            onChanged={load}
-          />
-        </>
-      )}
-
-      <BriefSection programme={programme} onSaved={load} />
-
-      <DataPackPanel programmeId={programme.id} />
-
-      <h2>Rubric</h2>
-      <p className="small muted">
-        The four criteria judges will score each pitch against.
-      </p>
-      {programme.criteria.map((criterion) => (
-        <div className="rubric" key={criterion.id}>
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <strong>
-              {criterion.slot}. {criterion.name}
-            </strong>
-            {criterion.is_universal && <span className="tag">universal</span>}
-          </div>
-          <div className="anchors">
-            <div>
-              <b>5</b> <span>{criterion.anchor_5}</span>
-            </div>
-            <div>
-              <b>3</b> <span>{criterion.anchor_3}</span>
-            </div>
-            <div>
-              <b>1</b> <span>{criterion.anchor_1}</span>
-            </div>
-          </div>
-        </div>
-      ))}
-
+      {/* Publishing is the whole point of a draft, so what is holding it up
+          stays above the section nav rather than inside one of them. */}
       {isDraft && (
         <>
+          <div className="notice warn">
+            This challenge is still a draft. It will not appear in listings until you
+            publish it.
+          </div>
+
           {pubCheck && pubCheck.problems.length > 0 && (
             <div className="notice warn">
               <strong>{pubCheck.ready ? "Before you go live:" : "Not ready to publish:"}</strong>
@@ -183,7 +152,7 @@ export default function ChallengeDetailPage({
             </div>
           )}
 
-          <div className="row" style={{ marginTop: "1rem" }}>
+          <div className="row">
             <button
               disabled={busy || (pubCheck !== null && !pubCheck.ready)}
               onClick={handlePublish}
@@ -192,6 +161,82 @@ export default function ChallengeDetailPage({
             </button>
           </div>
         </>
+      )}
+
+      <nav className="row" style={{ margin: "1.25rem 0" }}>
+        {sections.map((s) => (
+          <button
+            key={s.key}
+            className={active === s.key ? "" : "secondary"}
+            aria-current={active === s.key ? "page" : undefined}
+            onClick={() => setSection(s.key)}
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
+
+      {active === "messages" && <Channel programmeId={programme.id} variant="company" />}
+
+      {active === "applicants" && (
+        <>
+          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>Judging</h2>
+            <Link className="btn" href={`/company/challenges/${programme.id}/judging`}>
+              Open the cards
+            </Link>
+          </div>
+          <p className="small muted">
+            One submission card per participant, in pitch order, each opening onto
+            that person&apos;s scoring card.
+          </p>
+
+          <ApplicantsPanel
+            programmeId={programme.id}
+            applications={applications}
+            onChanged={load}
+          />
+        </>
+      )}
+
+      {active === "brief" && (
+        <>
+          <BriefSection programme={programme} onSaved={load} />
+          <DataPackPanel programmeId={programme.id} />
+        </>
+      )}
+
+      {active === "rubric" && (
+        <>
+          <p className="small muted">
+            The four criteria judges will score each pitch against.
+          </p>
+          {programme.criteria.map((criterion) => (
+            <div className="rubric" key={criterion.id}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <strong>
+                  {criterion.slot}. {criterion.name}
+                </strong>
+                {criterion.is_universal && <span className="tag">universal</span>}
+              </div>
+              <div className="anchors">
+                <div>
+                  <b>5</b> <span>{criterion.anchor_5}</span>
+                </div>
+                <div>
+                  <b>3</b> <span>{criterion.anchor_3}</span>
+                </div>
+                <div>
+                  <b>1</b> <span>{criterion.anchor_1}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+      {active === "schedule" && (
+        <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
       )}
     </main>
   );
