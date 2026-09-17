@@ -79,12 +79,15 @@ def offer_email(ctx: EffectContext) -> dict:
     kickoff_line = ""
     if programme and programme.start_at:
         kickoff_date = programme.start_at.strftime("%A %d %B, %H:%M")
-        kickoff_line = f"<p><strong>Kickoff:</strong> {kickoff_date}"
+        kickoff_line = f"<p><strong>Kickoff:</strong> {kickoff_date}</p>"
         if programme.kickoff_meet_link:
+            # The URL is its own visible text: someone joining from a phone, a
+            # plain-text client, or a forwarded copy needs the address itself,
+            # not link text that survives only as "Join on Google Meet".
+            meet = programme.kickoff_meet_link
             kickoff_line += (
-                f' — <a href="{programme.kickoff_meet_link}">Join on Google Meet</a>'
+                f'<p><strong>Google Meet:</strong> <a href="{meet}">{meet}</a></p>'
             )
-        kickoff_line += "</p>"
 
     pitch_line = ""
     if programme and programme.pitch_at:
