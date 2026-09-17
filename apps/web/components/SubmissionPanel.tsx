@@ -37,6 +37,8 @@ export default function SubmissionPanel({
   const [busy, setBusy] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [justSubmitted, setJustSubmitted] = useState(false);
 
   if (!submission) {
     return (
@@ -51,6 +53,7 @@ export default function SubmissionPanel({
     if (!url) return;
     setBusy(slot);
     setError(null);
+    setJustSubmitted(false);
     try {
       await putSubmissionLink(slot, url);
       onChange();
@@ -64,6 +67,7 @@ export default function SubmissionPanel({
   async function upload(slot: string, file: File) {
     setBusy(slot);
     setError(null);
+    setJustSubmitted(false);
     try {
       await uploadSubmissionFile(slot, file);
       onChange();
@@ -77,11 +81,35 @@ export default function SubmissionPanel({
   async function remove(slot: string) {
     setBusy(slot);
     setError(null);
+    setJustSubmitted(false);
     try {
       await deleteSubmissionSlot(slot);
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not remove that file.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function submit() {
+    setBusy("submit");
+    setSubmitError(null);
+    setJustSubmitted(false);
+    try {
+      // Re-checking on submit rather than trusting the last-known status
+      // catches a link that was revoked minutes ago — the one failure this
+      // whole area exists to prevent, and worth one more look at the moment
+      // the participant is declaring themselves done.
+      const result = await recheckSubmission();
+      if (result.status === "complete") {
+        setJustSubmitted(true);
+      } else {
+        setSubmitError("Something needs fixing before this can be submitted — see above.");
+      }
+      onChange();
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Could not submit right now.");
     } finally {
       setBusy(null);
     }
@@ -208,12 +236,36 @@ export default function SubmissionPanel({
           </div>
         );
       })}
-      {!complete && !submission.locked && (
-        <p className="small muted">
-          Your submission counts as complete once every slot is filled — a link we can
-          open, or a file you have uploaded.
-        </p>
+      {!submission.locked && (
+        <div className="panel" style={{ marginTop: "1rem" }}>
+          {!complete && (
+            <p className="small muted" style={{ marginTop: 0 }}>
+              Fill every slot — a link we can open, or a file you have uploaded — to
+              submit.
+            </p>
+          )}
+          {submitError && <div className="notice bad">{submitError}</div>}
+          {justSubmitted && submission.submitted_at && (
+            <div className="notice good">
+              Submitted {formatSubmittedAt(submission.submitted_at)}. You can keep
+              making changes and submit again any time before the deadline.
+            </div>
+          )}
+          <button onClick={submit} disabled={!complete || busy !== null}>
+            {busy === "submit" ? "Submitting…" : "Submit"}
+          </button>
+        </div>
       )}
     </>
   );
+}
+
+function formatSubmittedAt(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
