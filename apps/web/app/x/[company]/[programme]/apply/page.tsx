@@ -137,11 +137,8 @@ export default function ApplyPage({
             autoComplete="new-password"
           />
           <div className="hint">
-            At least 8 characters. Why we ask: without one, checking your status later
-            would mean emailing you a fresh sign-in link every time — no account to come
-            back to, especially awkward if you apply to another challenge down the line.
-            A password now means one account you can just log back into, here or on your
-            next application.
+            At least 8 characters. This is your account for checking your status and
+            signing back in, instead of a fresh emailed link every time.
           </div>
         </div>
 
