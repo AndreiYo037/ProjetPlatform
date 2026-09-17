@@ -34,7 +34,6 @@ from projet.models import (
     Programme,
     ScoreMember,
     ScoreSkillTag,
-    Skill,
     SubmissionLink,
     Testimonial,
 )
@@ -54,6 +53,7 @@ from projet.services.scoring import (
     submission_for,
     team_for_participant,
 )
+from projet.services.skills import options_for_role
 from projet.storage import sign_key
 
 router = APIRouter(tags=["judging"])
@@ -121,6 +121,9 @@ class SkillOption(BaseModel):
     id: uuid.UUID
     name: str
     type: str
+    # True for the skills this role's template ranks. The picker groups on it
+    # so a judge sees the handful that matter here before the other 340.
+    suggested: bool = False
 
 
 class ScoringCard(BaseModel):
@@ -275,11 +278,16 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
             )
         )
 
-    # The role's own ranked skills, so the list is a shortlist rather than an
-    # alphabetical scroll through hundreds (FR-903b).
+    # The role's own ranked skills first, so the list opens as a shortlist
+    # rather than an alphabetical scroll through hundreds (FR-903b).
     options = [
-        SkillOption(id=skill.id, name=skill.name, type=skill.type.value)
-        for skill in db.scalars(select(Skill).order_by(Skill.name))
+        SkillOption(
+            id=ranked.skill.id,
+            name=ranked.skill.name,
+            type=ranked.skill.type.value,
+            suggested=ranked.suggested,
+        )
+        for ranked in options_for_role(db, programme.role_id)
     ]
 
     return ScoringCard(

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
+import SkillPicker from "@/components/SkillPicker";
 import {
   assetUrl,
   getScoringCard,
@@ -173,24 +174,18 @@ export default function ScoringCardPage({
         Tag what they actually demonstrated. This is what shows on their profile,
         so a tag is a claim you are making about them.
       </p>
-      <div className="row" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
-        {card.skill_options.map((skill) => (
-          <button
-            key={skill.id}
-            className={tagged.has(skill.id) ? "" : "secondary"}
-            disabled={saving}
-            onClick={() =>
-              save({
-                skill_ids: tagged.has(skill.id)
-                  ? card.skill_ids.filter((existing) => existing !== skill.id)
-                  : [...card.skill_ids, skill.id],
-              })
-            }
-          >
-            {skill.name}
-          </button>
-        ))}
-      </div>
+      <SkillPicker
+        options={card.skill_options}
+        selectedIds={card.skill_ids}
+        disabled={saving}
+        onToggle={(id) =>
+          save({
+            skill_ids: tagged.has(id)
+              ? card.skill_ids.filter((existing) => existing !== id)
+              : [...card.skill_ids, id],
+          })
+        }
+      />
 
       <TestimonialBox programmeId={id} participantId={participantId} />
 

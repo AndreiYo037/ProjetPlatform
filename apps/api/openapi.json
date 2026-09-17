@@ -8904,6 +8904,11 @@
           "type": {
             "type": "string",
             "title": "Type"
+          },
+          "suggested": {
+            "type": "boolean",
+            "title": "Suggested",
+            "default": false
           }
         },
         "type": "object",
