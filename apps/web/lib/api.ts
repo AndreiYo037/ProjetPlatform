@@ -448,6 +448,39 @@ export const findSimilarThreads = (programmeId: string, title: string) =>
     `/programmes/${programmeId}/threads/similar?title=${encodeURIComponent(title)}`,
   );
 
+/** Multipart, so it goes round the JSON helper. A file can ride along with the
+ *  message or be the message — "here is the dataset" needs no words. */
+export async function postAnnouncement(
+  programmeId: string,
+  input: { body?: string; file?: File | null; requiresAck?: boolean },
+): Promise<ThreadOut> {
+  const form = new FormData();
+  form.set("body", input.body ?? "");
+  form.set("requires_ack", String(Boolean(input.requiresAck)));
+  if (input.file) form.set("file", input.file);
+  const response = await fetch(apiUrl(`/programmes/${programmeId}/announcements`), {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+  const body = await response.json();
+  if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not post that.");
+  return body as ThreadOut;
+}
+
+export async function attachToThread(threadId: string, file: File): Promise<ThreadOut> {
+  const form = new FormData();
+  form.set("file", file);
+  const response = await fetch(apiUrl(`/threads/${threadId}/attachments`), {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+  const body = await response.json();
+  if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not attach that.");
+  return body as ThreadOut;
+}
+
 export const acceptOffer = (token: string) =>
   api.post<{ participant_id: string; programme_title: string; message: string }>("/accept", {
     token,

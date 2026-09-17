@@ -230,6 +230,89 @@ def reply(
     return post
 
 
+def standing_announcement_thread(
+    session: Session,
+    programme: Programme,
+    *,
+    author_id: uuid.UUID | None,
+    author_role: AuthorRole,
+) -> Thread:
+    """The announcements channel's one continuous thread.
+
+    Marked by having no subject, which is also what it means: a company
+    sharing a link, then a correction, then a reminder is having one
+    conversation, and asking it to name each turn is asking it to name things
+    that do not need names.
+    """
+    thread = session.scalar(
+        select(Thread)
+        .where(Thread.programme_id == programme.id)
+        .where(Thread.type == ThreadType.ANNOUNCEMENT)
+        .where(Thread.title.is_(None))
+        .where(Thread.merged_into_id.is_(None))
+        .order_by(Thread.created_at)
+    )
+    if thread is None:
+        thread = Thread(
+            programme_id=programme.id,
+            type=ThreadType.ANNOUNCEMENT,
+            title=None,
+            author_id=author_id,
+            author_role=author_role,
+        )
+        session.add(thread)
+        session.flush()
+    return thread
+
+
+def post_announcement(
+    session: Session,
+    programme: Programme,
+    *,
+    body: str,
+    author_id: uuid.UUID | None,
+    author_role: AuthorRole,
+    requires_ack: bool = False,
+) -> tuple[Thread, Post]:
+    """Share something with the whole cohort.
+
+    One that must be acknowledged is the exception to the continuous thread:
+    FR-703 blocks every dashboard until each participant confirms, and that is
+    per-message, so it gets a thread of its own. Its title is taken from the
+    message rather than asked for — the participant sees it on the blocking
+    banner, which is the only place a subject was ever needed.
+    """
+    if author_role == AuthorRole.PARTICIPANT:
+        raise MessagingError("Only the company or admin can post announcements.")
+
+    if requires_ack:
+        thread = Thread(
+            programme_id=programme.id,
+            type=ThreadType.ANNOUNCEMENT,
+            title=_first_line(body),
+            author_id=author_id,
+            author_role=author_role,
+            requires_ack=True,
+        )
+        session.add(thread)
+        session.flush()
+    else:
+        thread = standing_announcement_thread(
+            session, programme, author_id=author_id, author_role=author_role
+        )
+
+    post = Post(thread_id=thread.id, author_id=author_id, author_role=author_role, body=body)
+    session.add(post)
+    session.flush()
+    return thread, post
+
+
+def _first_line(body: str, limit: int = 120) -> str:
+    """A label for the blocking banner, not a subject the company typed."""
+    line = next((part.strip() for part in body.splitlines() if part.strip()), "Announcement")
+    return line if len(line) <= limit else f"{line[: limit - 1].rstrip()}…"
+
+
 def share_to_channel(
     session: Session,
     thread: Thread,

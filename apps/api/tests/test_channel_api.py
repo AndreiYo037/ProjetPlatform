@@ -192,3 +192,113 @@ def test_an_announcement_can_require_acknowledgement(
 
     assert client.post(f"/me/threads/{thread_id}/read?acknowledge=true").status_code == 204
     assert client.get("/me/dashboard").json()["blocking_acknowledgements"] == []
+
+
+def test_announcements_are_one_continuous_thread(
+    client, session, programme, participant_factory, assigned_rep
+):
+    """No subject to invent: successive posts land in the same thread rather
+    than spawning one apiece."""
+    participant = participant_factory()
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+
+    first = client.post(
+        f"/programmes/{programme.id}/announcements", data={"body": "Data pack is live."}
+    )
+    assert first.status_code == 201, first.text
+    second = client.post(
+        f"/programmes/{programme.id}/announcements",
+        data={"body": "Correction: paid accounts only."},
+    )
+    assert second.status_code == 201
+    assert second.json()["id"] == first.json()["id"]
+    assert second.json()["title"] is None
+    assert [p["body"] for p in second.json()["posts"]] == [
+        "Data pack is live.",
+        "Correction: paid accounts only.",
+    ]
+
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    listed = client.get(f"/programmes/{programme.id}/threads").json()
+    announcements = [t for t in listed if t["type"] == "announcement"]
+    assert len(announcements) == 1
+    assert len(announcements[0]["posts"]) == 2
+
+
+def test_an_announcement_needing_acknowledgement_gets_its_own_thread(
+    client, session, programme, participant_factory, assigned_rep
+):
+    """FR-703 is per-message, so it cannot ride the continuous thread — and
+    its title comes from the message, never from a subject field."""
+    participant = participant_factory()
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+
+    client.post(f"/programmes/{programme.id}/announcements", data={"body": "Routine notice."})
+    acked = client.post(
+        f"/programmes/{programme.id}/announcements",
+        data={"body": "Deadline moved to Wednesday.\nPitch day unchanged.", "requires_ack": "true"},
+    )
+    assert acked.status_code == 201
+    assert acked.json()["requires_ack"] is True
+    assert acked.json()["title"] == "Deadline moved to Wednesday."
+
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    blocking = client.get("/me/dashboard").json()["blocking_acknowledgements"]
+    assert [t["title"] for t in blocking] == ["Deadline moved to Wednesday."]
+
+
+def test_a_file_can_be_the_whole_announcement(
+    client, session, programme, participant_factory, assigned_rep
+):
+    import io
+
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+    posted = client.post(
+        f"/programmes/{programme.id}/announcements",
+        data={"body": ""},
+        files={"file": ("churn.csv", io.BytesIO(b"a,b\n1,2\n"), "text/csv")},
+    )
+    assert posted.status_code == 201, posted.text
+    post = posted.json()["posts"][-1]
+    assert post["body"] == "Attached churn.csv"
+    assert [a["filename"] for a in post["attachments"]] == ["churn.csv"]
+
+
+def test_an_empty_announcement_is_refused(client, session, programme, assigned_rep):
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+    refused = client.post(f"/programmes/{programme.id}/announcements", data={"body": "   "})
+    assert refused.status_code == 422
+    assert "attach" in refused.json()["detail"].lower()
+
+
+def test_a_participant_cannot_post_to_announcements(
+    client, session, programme, participant_factory
+):
+    participant = participant_factory()
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    refused = client.post(
+        f"/programmes/{programme.id}/announcements", data={"body": "Listen up."}
+    )
+    assert refused.status_code == 403
+
+
+def test_a_participant_can_attach_a_file_to_their_own_question(
+    client, session, programme, participant_factory
+):
+    """Attachments are not a company privilege — a participant showing the
+    error they hit needs to be able to show it."""
+    import io
+
+    participant = participant_factory()
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    thread_id = client.post(
+        f"/programmes/{programme.id}/threads",
+        json={"type": "question_challenge", "title": "Is this expected?", "body": "See attached."},
+    ).json()["thread"]["id"]
+
+    attached = client.post(
+        f"/threads/{thread_id}/attachments",
+        files={"file": ("error.png", io.BytesIO(b"\x89PNG\r\n\x1a\n"), "image/png")},
+    )
+    assert attached.status_code == 201, attached.text
+    assert [a["filename"] for a in attached.json()["posts"][-1]["attachments"]] == ["error.png"]

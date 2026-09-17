@@ -637,6 +637,22 @@ main.wide {
   margin: 0;
 }
 
+.chat-compose > button {
+  flex: none;
+}
+
+.chat-attachment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.5rem 0.6rem 0;
+  padding: 0.35rem 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
 .chat-empty {
   display: grid;
   place-items: center;

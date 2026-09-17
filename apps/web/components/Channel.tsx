@@ -2,27 +2,35 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  assetUrl,
+  attachToThread,
   createThread,
   findSimilarThreads,
   getThread,
   listThreads,
   markThreadRead,
+  postAnnouncement,
   postReply,
   type ThreadOut,
 } from "@/lib/api";
 
 /**
- * The programme channel, as a chat rather than a forum.
+ * The programme channel.
  *
- * Questions are public to the cohort by default because the answer to one
- * person's question is usually the answer to everyone's, and a rep answering
- * the same thing eight times privately is how a channel dies. The private
- * option is there for the cases that genuinely are one person's business.
+ * Announcements is one continuous thread the company posts into, not a thread
+ * per post: a link, then a correction, then a reminder is one conversation,
+ * and asking for a subject each time asks it to name things that need no name.
+ *
+ * Questions stay one thread each, because a question has an answer and a
+ * resolved state. They are public to the cohort by default — the answer to one
+ * person's question is usually the answer to everyone's — with a private
+ * option for what genuinely is one person's business.
  */
 
 type Variant = "participant" | "company";
+type Post = ThreadOut["posts"][number];
 
-const PARTICIPANT_TYPES = [
+const ASK_TYPES = [
   {
     value: "question_challenge",
     label: "About the brief",
@@ -40,28 +48,17 @@ const PARTICIPANT_TYPES = [
   },
 ];
 
-const COMPANY_TYPES = [
-  {
-    value: "announcement",
-    label: "Announcement",
-    hint: "Goes to everyone on the programme at once.",
-  },
-  {
-    value: "resource",
-    label: "Resource",
-    hint: "Something you are handing the cohort — a file, a link, a clarification.",
-  },
-];
+/** Not a thread id: the standing channel that holds every broadcast. */
+const ANNOUNCEMENTS = "announcements";
 
-function typesFor(variant: Variant) {
-  return variant === "company" ? COMPANY_TYPES : PARTICIPANT_TYPES;
+const BROADCAST_TYPES = ["announcement", "resource"];
+
+function isBroadcast(thread: ThreadOut) {
+  return BROADCAST_TYPES.includes(thread.type);
 }
 
 function clockTime(value: string) {
-  return new Date(value).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Today shows a time, this week a weekday, older a date — as a chat list does. */
@@ -94,15 +91,6 @@ function avatarClass(role: string) {
 
 function lastPost(thread: ThreadOut) {
   return thread.posts[thread.posts.length - 1];
-}
-
-/** Not a thread id: the standing channel that holds every broadcast. */
-const ANNOUNCEMENTS = "announcements";
-
-const BROADCAST_TYPES = ["announcement", "resource"];
-
-function isBroadcast(thread: ThreadOut) {
-  return BROADCAST_TYPES.includes(thread.type);
 }
 
 export default function Channel({
@@ -182,15 +170,19 @@ export default function Channel({
       <aside className="chat-aside">
         <div className="chat-aside-head">
           <strong>Channels</strong>
-          <button
-            className="small"
-            onClick={() => {
-              setComposing(true);
-              setPane("conversation");
-            }}
-          >
-            New
-          </button>
+          {/* The company's only compose surface is the announcements channel
+              itself; there is nothing else for them to start. */}
+          {variant === "participant" && (
+            <button
+              className="small"
+              onClick={() => {
+                setComposing(true);
+                setPane("conversation");
+              }}
+            >
+              Ask
+            </button>
+          )}
         </div>
         <div className="chat-list">
           <button
@@ -206,7 +198,7 @@ export default function Channel({
             </span>
             <span className="chat-item-preview">
               {latestBroadcast
-                ? (lastPost(latestBroadcast)?.body ?? latestBroadcast.title)
+                ? (lastPost(latestBroadcast)?.body ?? "")
                 : "From the company"}
             </span>
           </button>
@@ -238,13 +230,10 @@ export default function Channel({
         {composing ? (
           <NewThread
             programmeId={programmeId}
-            variant={variant}
             onCancel={() => setComposing(false)}
             onPosted={async (thread) => {
               setComposing(false);
-              // A new announcement belongs to its channel, so land back there
-              // rather than on the one post in isolation.
-              setOpenId(isBroadcast(thread) ? ANNOUNCEMENTS : thread.id);
+              setOpenId(thread.id);
               await load();
               onChange?.();
             }}
@@ -253,13 +242,13 @@ export default function Channel({
           />
         ) : openId === ANNOUNCEMENTS ? (
           <Announcements
+            programmeId={programmeId}
             broadcasts={broadcasts}
             variant={variant}
-            onOpen={(id) => select(id)}
             onBack={() => setPane("list")}
-            onCompose={() => {
-              setComposing(true);
-              setPane("conversation");
+            onPosted={async () => {
+              await load();
+              onChange?.();
             }}
           />
         ) : open ? (
@@ -267,7 +256,7 @@ export default function Channel({
             thread={open}
             onBack={() => (isBroadcast(open) ? select(ANNOUNCEMENTS) : setPane("list"))}
             backLabel={isBroadcast(open) ? "← Announcements" : "←"}
-            onReplied={async (thread) => {
+            onPosted={async (thread) => {
               setOpen(thread);
               await load();
               onChange?.();
@@ -275,7 +264,7 @@ export default function Channel({
           />
         ) : (
           <div className="chat-empty">
-            <p className="small">Pick a conversation, or start a new one.</p>
+            <p className="small">Pick a conversation, or ask a question.</p>
           </div>
         )}
       </div>
@@ -284,29 +273,213 @@ export default function Channel({
 }
 
 /**
+ * A run of messages, grouped the way a chat groups them: consecutive posts
+ * from one person carry the name once, and a change of day gets a divider.
+ */
+function MessageList({
+  items,
+  emptyState,
+}: {
+  items: { post: Post; badge?: React.ReactNode }[];
+  emptyState?: React.ReactNode;
+}) {
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // A chat shows the newest message, so it opens at the bottom and stays there.
+  useEffect(() => {
+    const node = scroller.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [items.length]);
+
+  return (
+    <div className="chat-scroll" ref={scroller}>
+      {items.length === 0 && emptyState}
+      {items.map(({ post, badge }, index) => {
+        const previous = items[index - 1]?.post;
+        const sameDay =
+          previous && dayStamp(previous.created_at) === dayStamp(post.created_at);
+        const grouped = Boolean(
+          previous && sameDay && previous.author_label === post.author_label && !badge,
+        );
+        return (
+          <div key={post.id}>
+            {!sameDay && (
+              <p
+                className="small muted"
+                style={{ textAlign: "center", margin: "1rem 0 0.2rem" }}
+              >
+                {dayStamp(post.created_at)}
+              </p>
+            )}
+            <div className={grouped ? "chat-msg same" : "chat-msg"}>
+              {grouped ? (
+                <span className="avatar spacer" aria-hidden="true" />
+              ) : (
+                <span className={avatarClass(post.author_role)} aria-hidden="true">
+                  {initials(post.author_label)}
+                </span>
+              )}
+              <div className="chat-msg-body">
+                {!grouped && (
+                  <div className="chat-msg-meta">
+                    <span className="chat-msg-author">{post.author_label}</span>
+                    <span className="chat-msg-when">{clockTime(post.created_at)}</span>
+                    {badge}
+                  </div>
+                )}
+                {post.removed ? (
+                  <p className="chat-msg-text small muted">This message was removed.</p>
+                ) : (
+                  <p className="chat-msg-text">{post.body}</p>
+                )}
+                {post.attachments.length > 0 && (
+                  <ul className="small" style={{ margin: "0.3rem 0 0" }}>
+                    {post.attachments.map((a) => (
+                      <li key={a.url}>
+                        <a href={assetUrl(a.url)}>{a.filename}</a>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Write a message, attach a file, or both. */
+function Composer({
+  placeholder,
+  onSend,
+  children,
+}: {
+  placeholder: string;
+  onSend: (text: string, file: File | null) => Promise<void>;
+  children?: React.ReactNode;
+}) {
+  const [text, setText] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+
+  const ready = Boolean(text.trim() || file);
+
+  async function send() {
+    if (!ready || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSend(text.trim(), file);
+      setText("");
+      setFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send that.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      {error && (
+        <div className="notice bad" style={{ margin: "0.5rem 0.6rem 0" }}>
+          {error}
+        </div>
+      )}
+      {file && (
+        <div className="chat-attachment">
+          <span className="small">📎 {file.name}</span>
+          <button className="secondary small" onClick={() => setFile(null)} disabled={busy}>
+            Remove
+          </button>
+        </div>
+      )}
+      {children}
+      <form
+        className="chat-compose"
+        onSubmit={(e) => {
+          e.preventDefault();
+          send();
+        }}
+      >
+        <input
+          ref={picker}
+          type="file"
+          hidden
+          onChange={(e) => {
+            setFile(e.target.files?.[0] ?? null);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => picker.current?.click()}
+          disabled={busy}
+          aria-label="Attach a file"
+          title="Attach a file"
+        >
+          📎
+        </button>
+        <textarea
+          aria-label="Message"
+          rows={1}
+          placeholder={placeholder}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter sends, Shift+Enter breaks the line — the chat convention.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send();
+            }
+          }}
+        />
+        <button type="submit" disabled={busy || !ready}>
+          {busy ? "Sending…" : "Send"}
+        </button>
+      </form>
+    </>
+  );
+}
+
+/**
  * The standing announcements channel.
  *
  * It exists from the first day of the programme rather than appearing once
  * somebody posts, because a participant looking for "what has the company
- * told us" needs somewhere to look before there is anything in it. Each
- * announcement keeps its own thread, so a question about one stays attached
- * to it instead of landing in the general channel.
+ * told us" needs somewhere to look before there is anything in it.
  */
 function Announcements({
+  programmeId,
   broadcasts,
   variant,
-  onOpen,
   onBack,
-  onCompose,
+  onPosted,
 }: {
+  programmeId: string;
   broadcasts: ThreadOut[];
   variant: Variant;
-  onOpen: (id: string) => void;
   onBack: () => void;
-  onCompose: () => void;
+  onPosted: () => Promise<void>;
 }) {
-  // Newest last, as a chat reads.
-  const ordered = [...broadcasts].reverse();
+  const [requiresAck, setRequiresAck] = useState(false);
+
+  // One feed, not one card per thread: the continuous thread holds most of it,
+  // and anything that needed acknowledging sits in the same timeline.
+  const items = broadcasts
+    .flatMap((thread) =>
+      thread.posts.map((post) => ({
+        post,
+        badge: thread.requires_ack ? <span className="tag">acknowledge</span> : undefined,
+        at: post.created_at,
+      })),
+    )
+    .sort((a, b) => a.at.localeCompare(b.at));
 
   return (
     <>
@@ -315,15 +488,11 @@ function Announcements({
           ←
         </button>
         <span className="chat-head-title">📣 Announcements</span>
-        {variant === "company" && (
-          <button className="small" style={{ marginLeft: "auto" }} onClick={onCompose}>
-            Post
-          </button>
-        )}
       </div>
 
-      <div className="chat-scroll">
-        {ordered.length === 0 ? (
+      <MessageList
+        items={items}
+        emptyState={
           <div className="chat-empty">
             <p className="small">
               {variant === "company"
@@ -331,43 +500,36 @@ function Announcements({
                 : "Nothing announced yet. Anything the company tells the whole cohort appears here."}
             </p>
           </div>
-        ) : (
-          ordered.map((thread) => {
-            const first = thread.posts[0];
-            const replies = Math.max(0, thread.posts.length - 1);
-            return (
-              <div className="chat-msg" key={thread.id}>
-                <span className={avatarClass(first?.author_role ?? "rep")} aria-hidden="true">
-                  {initials(first?.author_label ?? "The company")}
-                </span>
-                <div className="chat-msg-body">
-                  <div className="chat-msg-meta">
-                    <span className="chat-msg-author">
-                      {first?.author_label ?? "The company"}
-                    </span>
-                    <span className="chat-msg-when">
-                      {first ? clockTime(first.created_at) : ""}
-                    </span>
-                    {thread.requires_ack && <span className="tag">acknowledge</span>}
-                    {thread.type === "resource" && <span className="tag">resource</span>}
-                  </div>
-                  <strong>{thread.title ?? "(untitled)"}</strong>
-                  {first && <p className="chat-msg-text">{first.body}</p>}
-                  <button
-                    className="secondary small"
-                    style={{ marginTop: "0.4rem" }}
-                    onClick={() => onOpen(thread.id)}
-                  >
-                    {replies === 0
-                      ? "Reply"
-                      : `${replies} repl${replies === 1 ? "y" : "ies"}`}
-                  </button>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+        }
+      />
+
+      {variant === "company" ? (
+        <Composer
+          placeholder="Share something with the cohort"
+          onSend={async (text, file) => {
+            await postAnnouncement(programmeId, { body: text, file, requiresAck });
+            setRequiresAck(false);
+            await onPosted();
+          }}
+        >
+          <div className="check" style={{ padding: "0 0.6rem" }}>
+            <input
+              id="requires_ack"
+              type="checkbox"
+              checked={requiresAck}
+              onChange={(e) => setRequiresAck(e.target.checked)}
+            />
+            <label htmlFor="requires_ack" className="small">
+              Require everyone to acknowledge this — it blocks their dashboard until they
+              confirm.
+            </label>
+          </div>
+        </Composer>
+      ) : (
+        <p className="small muted" style={{ padding: "0.6rem 0.9rem", margin: 0 }}>
+          Only the company posts here. Use Ask to put a question to them.
+        </p>
+      )}
     </>
   );
 }
@@ -376,41 +538,13 @@ function Conversation({
   thread,
   onBack,
   backLabel = "←",
-  onReplied,
+  onPosted,
 }: {
   thread: ThreadOut;
   onBack: () => void;
   backLabel?: string;
-  onReplied: (thread: ThreadOut) => void;
+  onPosted: (thread: ThreadOut) => Promise<void>;
 }) {
-  const [body, setBody] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const scroller = useRef<HTMLDivElement>(null);
-
-  // A chat shows the newest message, so it opens at the bottom and stays there
-  // as replies land.
-  useEffect(() => {
-    const node = scroller.current;
-    if (node) node.scrollTop = node.scrollHeight;
-  }, [thread.id, thread.posts.length]);
-
-  async function send(event: React.FormEvent) {
-    event.preventDefault();
-    const text = body.trim();
-    if (!text) return;
-    setBusy(true);
-    setError(null);
-    try {
-      onReplied(await postReply(thread.id, text));
-      setBody("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send that.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <>
       <div className="chat-head">
@@ -428,109 +562,37 @@ function Conversation({
         {thread.status === "answered" && <span className="tag open">answered</span>}
       </div>
 
-      <div className="chat-scroll" ref={scroller}>
-        {thread.posts.map((post, index) => {
-          const previous = thread.posts[index - 1];
-          const sameDay =
-            previous && dayStamp(previous.created_at) === dayStamp(post.created_at);
-          const grouped = Boolean(
-            previous && sameDay && previous.author_label === post.author_label,
-          );
-          return (
-            <div key={post.id}>
-              {!sameDay && (
-                <p
-                  className="small muted"
-                  style={{ textAlign: "center", margin: "1rem 0 0.2rem" }}
-                >
-                  {dayStamp(post.created_at)}
-                </p>
-              )}
-              <div className={grouped ? "chat-msg same" : "chat-msg"}>
-                {grouped ? (
-                  <span className="avatar spacer" aria-hidden="true" />
-                ) : (
-                  <span className={avatarClass(post.author_role)} aria-hidden="true">
-                    {initials(post.author_label)}
-                  </span>
-                )}
-                <div className="chat-msg-body">
-                  {!grouped && (
-                    <div className="chat-msg-meta">
-                      <span className="chat-msg-author">{post.author_label}</span>
-                      <span className="chat-msg-when">{clockTime(post.created_at)}</span>
-                    </div>
-                  )}
-                  {post.removed ? (
-                    <p className="chat-msg-text small muted">This message was removed.</p>
-                  ) : (
-                    <p className="chat-msg-text">{post.body}</p>
-                  )}
-                  {post.attachments.length > 0 && (
-                    <ul className="small" style={{ margin: "0.3rem 0 0" }}>
-                      {post.attachments.map((a) => (
-                        <li key={a.url}>
-                          <a href={a.url}>{a.filename}</a>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <MessageList items={thread.posts.map((post) => ({ post }))} />
 
-      {error && (
-        <div className="notice bad" style={{ margin: "0.5rem 0.6rem 0" }}>
-          {error}
-        </div>
-      )}
-
-      <form className="chat-compose" onSubmit={send}>
-        <textarea
-          aria-label="Message"
-          rows={1}
-          placeholder="Write a message"
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => {
-            // Enter sends, Shift+Enter breaks the line — the chat convention.
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send(e);
-            }
-          }}
-        />
-        <button type="submit" disabled={busy || !body.trim()}>
-          {busy ? "Sending…" : "Send"}
-        </button>
-      </form>
+      <Composer
+        placeholder="Write a message"
+        onSend={async (text, file) => {
+          let latest = thread;
+          if (text) latest = await postReply(thread.id, text);
+          if (file) latest = await attachToThread(thread.id, file);
+          await onPosted(latest);
+        }}
+      />
     </>
   );
 }
 
 function NewThread({
   programmeId,
-  variant,
   onCancel,
   onPosted,
   onOpenExisting,
   onBack,
 }: {
   programmeId: string;
-  variant: Variant;
   onCancel: () => void;
   onPosted: (thread: ThreadOut) => void;
   onOpenExisting: (id: string) => void;
   onBack: () => void;
 }) {
-  const options = typesFor(variant);
-  const [type, setType] = useState(options[0].value);
+  const [type, setType] = useState(ASK_TYPES[0].value);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [requiresAck, setRequiresAck] = useState(false);
   const [similar, setSimilar] = useState<{ id: string; title: string; status: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -539,7 +601,7 @@ function NewThread({
   // type, so the channel does not fill with eight copies of one question.
   useEffect(() => {
     const term = title.trim();
-    if (variant === "company" || type === "direct" || term.length < 4) {
+    if (type === "direct" || term.length < 4) {
       setSimilar([]);
       return;
     }
@@ -549,7 +611,7 @@ function NewThread({
         .catch(() => setSimilar([]));
     }, 300);
     return () => clearTimeout(timer);
-  }, [title, type, programmeId, variant]);
+  }, [title, type, programmeId]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -560,7 +622,6 @@ function NewThread({
         type,
         title: title.trim(),
         body: body.trim(),
-        requires_ack: variant === "company" && requiresAck,
       });
       onPosted(result.thread);
     } catch (err) {
@@ -570,7 +631,7 @@ function NewThread({
     }
   }
 
-  const chosen = options.find((t) => t.value === type);
+  const chosen = ASK_TYPES.find((t) => t.value === type);
 
   return (
     <>
@@ -578,16 +639,14 @@ function NewThread({
         <button className="secondary small chat-back" onClick={onBack}>
           ←
         </button>
-        <span className="chat-head-title">
-          {variant === "company" ? "Post to the cohort" : "New conversation"}
-        </span>
+        <span className="chat-head-title">Ask a question</span>
       </div>
 
       <form className="chat-form" onSubmit={submit}>
         <div className="field">
           <label htmlFor="thread_type">Who should see this</label>
           <select id="thread_type" value={type} onChange={(e) => setType(e.target.value)}>
-            {options.map((t) => (
+            {ASK_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
@@ -643,21 +702,6 @@ function NewThread({
           />
         </div>
 
-        {variant === "company" && (
-          <div className="check">
-            <input
-              id="requires_ack"
-              type="checkbox"
-              checked={requiresAck}
-              onChange={(e) => setRequiresAck(e.target.checked)}
-            />
-            <label htmlFor="requires_ack">
-              Require everyone to acknowledge this. Use it when the week changes — it
-              blocks their dashboard until they confirm they have read it.
-            </label>
-          </div>
-        )}
-
         {error && <div className="notice bad">{error}</div>}
         <div className="row">
           <button type="submit" disabled={busy || !title.trim() || !body.trim()}>
@@ -667,6 +711,9 @@ function NewThread({
             Cancel
           </button>
         </div>
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          You can attach files once the question is posted.
+        </p>
       </form>
     </>
   );

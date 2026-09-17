@@ -4263,6 +4263,75 @@
         }
       }
     },
+    "/programmes/{programme_id}/announcements": {
+      "post": {
+        "tags": [
+          "threads"
+        ],
+        "summary": "Post To Announcements",
+        "description": "Share something with the whole cohort, with no subject to invent.\n\nMultipart rather than JSON because a file can ride along with the message,\nor be the message: \"here is the dataset\" needs no words.",
+        "operationId": "post_to_announcements_programmes__programme_id__announcements_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_post_to_announcements_programmes__programme_id__announcements_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/threads/{thread_id}": {
       "get": {
         "tags": [
@@ -5559,6 +5628,34 @@
           "cv"
         ],
         "title": "Body_apply_public_x__company_slug___programme_slug__apply_post"
+      },
+      "Body_post_to_announcements_programmes__programme_id__announcements_post": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "default": ""
+          },
+          "requires_ack": {
+            "type": "boolean",
+            "title": "Requires Ack",
+            "default": false
+          },
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "title": "Body_post_to_announcements_programmes__programme_id__announcements_post"
       },
       "Body_upload_company_logo_companies__company_id__logo_post": {
         "properties": {

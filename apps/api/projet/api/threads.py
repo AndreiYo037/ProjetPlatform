@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -30,6 +30,7 @@ from projet.services.auth import Actor
 from projet.services.messaging import (
     MessagingError,
     open_thread,
+    post_announcement,
     reply,
     share_to_channel,
     similar_threads,
@@ -275,6 +276,54 @@ def create_thread(
     )
 
 
+@router.post(
+    "/programmes/{programme_id}/announcements", response_model=ThreadOut, status_code=201
+)
+async def post_to_announcements(
+    body: str = Form(default=""),
+    requires_ack: bool = Form(default=False),
+    file: UploadFile | None = File(default=None),
+    programme: Programme = Depends(_programme_for_actor),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_actor),
+) -> ThreadOut:
+    """Share something with the whole cohort, with no subject to invent.
+
+    Multipart rather than JSON because a file can ride along with the message,
+    or be the message: "here is the dataset" needs no words.
+    """
+    text = body.strip()
+    content = await file.read() if file is not None else None
+    if content is not None and file is not None:
+        _check_attachment(file, content)
+    if not text and content is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Write something or attach a file."
+        )
+
+    # A file on its own still needs a line of text to show in the feed.
+    message = text
+    if not message and file is not None:
+        message = f"Attached {file.filename}"
+
+    try:
+        thread, post = post_announcement(
+            db,
+            programme,
+            body=message,
+            author_id=actor.id,
+            author_role=_actor_role(actor),
+            requires_ack=requires_ack,
+        )
+    except MessagingError as error:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(error)) from error
+
+    if file is not None and content is not None:
+        _store_attachment(db, thread, post, file, content)
+    db.commit()
+    return _thread_out(db, thread)
+
+
 def _thread_or_404(db: Session, actor: Actor, thread_id: uuid.UUID) -> Thread:
     thread = db.get(Thread, thread_id)
     if thread is None:
@@ -319,6 +368,22 @@ async def add_attachment(
     """FR-608/609 — served from platform storage, scoped to the programme."""
     thread = _thread_or_404(db, actor, thread_id)
     content = await file.read()
+    _check_attachment(file, content)
+
+    post = Post(
+        thread_id=thread.id,
+        author_id=actor.id,
+        author_role=_actor_role(actor),
+        body=f"Attached {file.filename}",
+    )
+    db.add(post)
+    db.flush()
+    _store_attachment(db, thread, post, file, content)
+    db.commit()
+    return _thread_out(db, thread)
+
+
+def _check_attachment(file: UploadFile, content: bytes) -> None:
     if len(content) > MAX_ATTACHMENT_BYTES:
         raise HTTPException(
             status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -330,15 +395,10 @@ async def add_attachment(
             f"{file.content_type} is not an accepted file type.",
         )
 
-    post = Post(
-        thread_id=thread.id,
-        author_id=actor.id,
-        author_role=_actor_role(actor),
-        body=f"Attached {file.filename}",
-    )
-    db.add(post)
-    db.flush()
 
+def _store_attachment(
+    db: Session, thread: Thread, post: Post, file: UploadFile, content: bytes
+) -> None:
     key = f"attachments/{thread.programme_id}/{post.id}/{file.filename}"
     get_storage().put(key, content, file.content_type)
     db.add(
@@ -350,8 +410,6 @@ async def add_attachment(
             size_bytes=len(content),
         )
     )
-    db.commit()
-    return _thread_out(db, thread)
 
 
 @router.post("/threads/{thread_id}/share", response_model=ThreadOut, status_code=201)
