@@ -96,7 +96,7 @@ export default function ProgrammePage() {
   }
 
   return (
-    <main>
+    <main className={section === "messages" ? "wide" : undefined}>
       <Link className="small muted" href="/home">
         ← Your home
       </Link>

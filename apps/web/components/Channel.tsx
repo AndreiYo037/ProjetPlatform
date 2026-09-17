@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createThread,
   findSimilarThreads,
@@ -12,13 +12,12 @@ import {
 } from "@/lib/api";
 
 /**
- * The programme channel: everyone's questions and the company's answers in one
- * place, plus a private line to the rep.
+ * The programme channel, as a chat rather than a forum.
  *
  * Questions are public to the cohort by default because the answer to one
  * person's question is usually the answer to everyone's, and a rep answering
- * the same thing eight times in DMs is how a channel dies. The private option
- * is there for the cases that genuinely are one person's business.
+ * the same thing eight times privately is how a channel dies. The private
+ * option is there for the cases that genuinely are one person's business.
  */
 
 type Variant = "participant" | "company";
@@ -58,18 +57,43 @@ function typesFor(variant: Variant) {
   return variant === "company" ? COMPANY_TYPES : PARTICIPANT_TYPES;
 }
 
-function when(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
+function clockTime(value: string) {
+  return new Date(value).toLocaleTimeString(undefined, {
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-function typeLabel(type: string) {
-  if (type === "direct") return "private";
-  return type.replace(/^question_/, "").replace(/_/g, " ");
+/** Today shows a time, this week a weekday, older a date — as a chat list does. */
+function listStamp(value: string) {
+  const at = new Date(value);
+  const days = (Date.now() - at.getTime()) / 86_400_000;
+  if (days < 1) return clockTime(value);
+  if (days < 7) return at.toLocaleDateString(undefined, { weekday: "short" });
+  return at.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function dayStamp(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function initials(label: string) {
+  const words = label.replace(/^(the|a)\s+/i, "").split(/\s+/).filter(Boolean);
+  return (words[0]?.[0] ?? "?").toUpperCase() + (words[1]?.[0]?.toUpperCase() ?? "");
+}
+
+function avatarClass(role: string) {
+  if (role === "rep") return "avatar company";
+  if (role === "admin") return "avatar admin";
+  return "avatar";
+}
+
+function lastPost(thread: ThreadOut) {
+  return thread.posts[thread.posts.length - 1];
 }
 
 export default function Channel({
@@ -82,13 +106,18 @@ export default function Channel({
   onChange?: () => void;
 }) {
   const [threads, setThreads] = useState<ThreadOut[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [open, setOpen] = useState<ThreadOut | null>(null);
   const [composing, setComposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pane, setPane] = useState<"list" | "conversation">("list");
 
   const load = useCallback(async () => {
     try {
-      setThreads(await listThreads(programmeId));
+      const rows = await listThreads(programmeId);
+      setThreads(rows);
+      // A chat opens on a conversation, not on an empty frame.
+      setOpenId((current) => current ?? rows[0]?.id ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the channel.");
     }
@@ -98,118 +127,124 @@ export default function Channel({
     load();
   }, [load]);
 
-  async function openThread(id: string) {
-    setError(null);
-    try {
-      const thread = await getThread(id);
-      setOpen(thread);
-      // Opening is reading, so the unread badge should clear without a
-      // separate "mark as read" the participant has to remember. The endpoint
-      // is participant-scoped (/me), so it is not called for the company side.
-      if (variant === "participant") await markThreadRead(id).catch(() => {});
-      onChange?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not open that thread.");
+  useEffect(() => {
+    if (!openId) {
+      setOpen(null);
+      return;
     }
+    let cancelled = false;
+    getThread(openId)
+      .then((thread) => {
+        if (cancelled) return;
+        setOpen(thread);
+        // Opening is reading. The endpoint is participant-scoped (/me), so the
+        // company side does not call it.
+        if (variant === "participant") {
+          markThreadRead(thread.id)
+            .then(() => onChange?.())
+            .catch(() => {});
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOpen(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [openId, variant, onChange]);
+
+  function select(id: string) {
+    setComposing(false);
+    setOpenId(id);
+    setPane("conversation");
   }
 
   if (error) return <div className="notice bad">{error}</div>;
   if (!threads) return <p className="muted small">Loading the channel…</p>;
 
-  if (composing) {
-    return (
-      <NewThread
-        programmeId={programmeId}
-        variant={variant}
-        onCancel={() => setComposing(false)}
-        onPosted={async (thread) => {
-          setComposing(false);
-          setOpen(thread);
-          await load();
-          onChange?.();
-        }}
-        onOpenExisting={async (id) => {
-          setComposing(false);
-          await openThread(id);
-        }}
-      />
-    );
-  }
-
-  if (open) {
-    return (
-      <ThreadView
-        thread={open}
-        onBack={async () => {
-          setOpen(null);
-          await load();
-          onChange?.();
-        }}
-        onReplied={setOpen}
-      />
-    );
-  }
-
   return (
-    <>
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-        <p className="small muted" style={{ margin: 0 }}>
-          {variant === "company"
-            ? "Questions from the cohort, and anything you post to them."
-            : "Questions, answers and anything the company posts."}
-        </p>
-        <button onClick={() => setComposing(true)}>
-          {variant === "company" ? "Post to the cohort" : "Ask a question"}
-        </button>
-      </div>
-
-      {threads.length === 0 ? (
-        <div className="panel">
-          <strong>Nothing posted yet.</strong>
-          <p className="small muted" style={{ margin: "0.4rem 0 0" }}>
-            {variant === "company"
-              ? "When participants ask something it lands here. You can also post an announcement to everyone."
-              : "Be the first — if something in the brief is unclear, it is probably unclear to everyone."}
-          </p>
-        </div>
-      ) : (
-        threads.map((thread) => (
-          <div
-            className="card"
-            key={thread.id}
-            role="button"
-            tabIndex={0}
-            style={{ cursor: "pointer" }}
-            onClick={() => openThread(thread.id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                openThread(thread.id);
-              }
+    <div className="chat" data-pane={pane}>
+      <aside className="chat-aside">
+        <div className="chat-aside-head">
+          <strong>Conversations</strong>
+          <button
+            className="small"
+            onClick={() => {
+              setComposing(true);
+              setPane("conversation");
             }}
           >
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <div>
-                <strong>{thread.title ?? "(untitled)"}</strong>
-                <div className="small muted">
-                  {typeLabel(thread.type)} · {Math.max(0, thread.posts.length - 1)} repl
-                  {thread.posts.length - 1 === 1 ? "y" : "ies"} · {when(thread.created_at)}
-                </div>
-              </div>
-              <div className="row">
-                {thread.pinned && <span className="tag">pinned</span>}
-                {thread.type === "direct" && <span className="tag">private</span>}
-                {thread.status === "answered" && <span className="tag open">answered</span>}
-              </div>
-            </div>
+            New
+          </button>
+        </div>
+        <div className="chat-list">
+          {threads.length === 0 ? (
+            <p className="small muted" style={{ padding: "0.9rem" }}>
+              {variant === "company"
+                ? "When participants ask something it lands here."
+                : "Nothing yet. If something in the brief is unclear, it is probably unclear to everyone."}
+            </p>
+          ) : (
+            threads.map((thread) => {
+              const last = lastPost(thread);
+              return (
+                <button
+                  key={thread.id}
+                  className="chat-item"
+                  aria-selected={!composing && thread.id === openId}
+                  onClick={() => select(thread.id)}
+                >
+                  <span className="chat-item-top">
+                    <span className="chat-item-title">{thread.title ?? "(untitled)"}</span>
+                    <span className="chat-item-when">{listStamp(thread.created_at)}</span>
+                  </span>
+                  <span className="chat-item-preview">
+                    {thread.type === "direct" && "🔒 "}
+                    {last ? `${last.author_label}: ${last.body}` : "No messages"}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </aside>
+
+      <div className="chat-main">
+        {composing ? (
+          <NewThread
+            programmeId={programmeId}
+            variant={variant}
+            onCancel={() => setComposing(false)}
+            onPosted={async (thread) => {
+              setComposing(false);
+              setOpenId(thread.id);
+              await load();
+              onChange?.();
+            }}
+            onOpenExisting={(id) => select(id)}
+            onBack={() => setPane("list")}
+          />
+        ) : open ? (
+          <Conversation
+            thread={open}
+            onBack={() => setPane("list")}
+            onReplied={async (thread) => {
+              setOpen(thread);
+              await load();
+              onChange?.();
+            }}
+          />
+        ) : (
+          <div className="chat-empty">
+            <p className="small">Pick a conversation, or start a new one.</p>
           </div>
-        ))
-      )}
-    </>
+        )}
+      </div>
+    </div>
   );
 }
 
-function ThreadView({
+function Conversation({
   thread,
   onBack,
   onReplied,
@@ -221,14 +256,23 @@ function ThreadView({
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+
+  // A chat shows the newest message, so it opens at the bottom and stays there
+  // as replies land.
+  useEffect(() => {
+    const node = scroller.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [thread.id, thread.posts.length]);
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
-    if (!body.trim()) return;
+    const text = body.trim();
+    if (!text) return;
     setBusy(true);
     setError(null);
     try {
-      onReplied(await postReply(thread.id, body.trim()));
+      onReplied(await postReply(thread.id, text));
       setBody("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send that.");
@@ -239,54 +283,91 @@ function ThreadView({
 
   return (
     <>
-      <button className="secondary" onClick={onBack}>
-        ← All messages
-      </button>
-
-      <h3 style={{ marginBottom: "0.2rem" }}>{thread.title ?? "(untitled)"}</h3>
-      <div className="row small muted" style={{ marginBottom: "1rem" }}>
-        {thread.type !== "direct" && <span>{typeLabel(thread.type)}</span>}
+      <div className="chat-head">
+        <button className="secondary small chat-back" onClick={onBack}>
+          ←
+        </button>
+        <span className="chat-head-title">{thread.title ?? "(untitled)"}</span>
         {thread.type === "direct" && <span className="tag">private</span>}
+        {thread.pinned && <span className="tag">pinned</span>}
         {thread.status === "answered" && <span className="tag open">answered</span>}
       </div>
 
-      {thread.posts.map((post) => (
-        <div className="card" key={post.id}>
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <strong>{post.author_label}</strong>
-            <span className="small muted">{when(post.created_at)}</span>
-          </div>
-          {post.removed ? (
-            <p className="small muted" style={{ margin: "0.4rem 0 0" }}>
-              This message was removed.
-            </p>
-          ) : (
-            <p style={{ whiteSpace: "pre-wrap", margin: "0.4rem 0 0" }}>{post.body}</p>
-          )}
-          {post.attachments.length > 0 && (
-            <ul className="small" style={{ marginBottom: 0 }}>
-              {post.attachments.map((a) => (
-                <li key={a.url}>
-                  <a href={a.url}>{a.filename}</a>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ))}
+      <div className="chat-scroll" ref={scroller}>
+        {thread.posts.map((post, index) => {
+          const previous = thread.posts[index - 1];
+          const sameDay =
+            previous && dayStamp(previous.created_at) === dayStamp(post.created_at);
+          const grouped = Boolean(
+            previous && sameDay && previous.author_label === post.author_label,
+          );
+          return (
+            <div key={post.id}>
+              {!sameDay && (
+                <p
+                  className="small muted"
+                  style={{ textAlign: "center", margin: "1rem 0 0.2rem" }}
+                >
+                  {dayStamp(post.created_at)}
+                </p>
+              )}
+              <div className={grouped ? "chat-msg same" : "chat-msg"}>
+                {grouped ? (
+                  <span className="avatar spacer" aria-hidden="true" />
+                ) : (
+                  <span className={avatarClass(post.author_role)} aria-hidden="true">
+                    {initials(post.author_label)}
+                  </span>
+                )}
+                <div className="chat-msg-body">
+                  {!grouped && (
+                    <div className="chat-msg-meta">
+                      <span className="chat-msg-author">{post.author_label}</span>
+                      <span className="chat-msg-when">{clockTime(post.created_at)}</span>
+                    </div>
+                  )}
+                  {post.removed ? (
+                    <p className="chat-msg-text small muted">This message was removed.</p>
+                  ) : (
+                    <p className="chat-msg-text">{post.body}</p>
+                  )}
+                  {post.attachments.length > 0 && (
+                    <ul className="small" style={{ margin: "0.3rem 0 0" }}>
+                      {post.attachments.map((a) => (
+                        <li key={a.url}>
+                          <a href={a.url}>{a.filename}</a>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
-      <form onSubmit={send}>
-        <div className="field">
-          <label htmlFor="reply">Reply</label>
-          <textarea
-            id="reply"
-            rows={3}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            required
-          />
+      {error && (
+        <div className="notice bad" style={{ margin: "0.5rem 0.6rem 0" }}>
+          {error}
         </div>
-        {error && <div className="notice bad">{error}</div>}
+      )}
+
+      <form className="chat-compose" onSubmit={send}>
+        <textarea
+          aria-label="Message"
+          rows={1}
+          placeholder="Write a message"
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter sends, Shift+Enter breaks the line — the chat convention.
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              send(e);
+            }
+          }}
+        />
         <button type="submit" disabled={busy || !body.trim()}>
           {busy ? "Sending…" : "Send"}
         </button>
@@ -301,12 +382,14 @@ function NewThread({
   onCancel,
   onPosted,
   onOpenExisting,
+  onBack,
 }: {
   programmeId: string;
   variant: Variant;
   onCancel: () => void;
   onPosted: (thread: ThreadOut) => void;
   onOpenExisting: (id: string) => void;
+  onBack: () => void;
 }) {
   const options = typesFor(variant);
   const [type, setType] = useState(options[0].value);
@@ -355,89 +438,101 @@ function NewThread({
   const chosen = options.find((t) => t.value === type);
 
   return (
-    <form onSubmit={submit}>
-      <button type="button" className="secondary" onClick={onCancel}>
-        ← All messages
-      </button>
-
-      <div className="field">
-        <label htmlFor="thread_type">Who should see this</label>
-        <select id="thread_type" value={type} onChange={(e) => setType(e.target.value)}>
-          {options.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-        {chosen && <div className="hint">{chosen.hint}</div>}
+    <>
+      <div className="chat-head">
+        <button className="secondary small chat-back" onClick={onBack}>
+          ←
+        </button>
+        <span className="chat-head-title">
+          {variant === "company" ? "Post to the cohort" : "New conversation"}
+        </span>
       </div>
 
-      <div className="field">
-        <label htmlFor="thread_title">Subject</label>
-        <input
-          id="thread_title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          required
-          maxLength={400}
-        />
-      </div>
-
-      {similar.length > 0 && (
-        <div className="notice">
-          <strong>Already asked</strong>
-          <p className="small" style={{ margin: "0.4rem 0" }}>
-            This may already have an answer:
-          </p>
-          <ul className="small" style={{ marginBottom: 0 }}>
-            {similar.map((s) => (
-              <li key={s.id}>
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onOpenExisting(s.id);
-                  }}
-                >
-                  {s.title}
-                </a>
-                {s.status === "answered" && <span className="tag open">answered</span>}
-              </li>
+      <form className="chat-form" onSubmit={submit}>
+        <div className="field">
+          <label htmlFor="thread_type">Who should see this</label>
+          <select id="thread_type" value={type} onChange={(e) => setType(e.target.value)}>
+            {options.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
             ))}
-          </ul>
+          </select>
+          {chosen && <div className="hint">{chosen.hint}</div>}
         </div>
-      )}
 
-      <div className="field">
-        <label htmlFor="thread_body">Your message</label>
-        <textarea
-          id="thread_body"
-          rows={5}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          required
-        />
-      </div>
-
-      {variant === "company" && (
-        <div className="check">
+        <div className="field">
+          <label htmlFor="thread_title">Subject</label>
           <input
-            id="requires_ack"
-            type="checkbox"
-            checked={requiresAck}
-            onChange={(e) => setRequiresAck(e.target.checked)}
+            id="thread_title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            maxLength={400}
           />
-          <label htmlFor="requires_ack">
-            Require everyone to acknowledge this. Use it when the week changes —
-            it blocks their dashboard until they confirm they have read it.
-          </label>
         </div>
-      )}
 
-      {error && <div className="notice bad">{error}</div>}
-      <button type="submit" disabled={busy || !title.trim() || !body.trim()}>
-        {busy ? "Posting…" : "Post"}
-      </button>
-    </form>
+        {similar.length > 0 && (
+          <div className="notice">
+            <strong>Already asked</strong>
+            <p className="small" style={{ margin: "0.4rem 0" }}>
+              This may already have an answer:
+            </p>
+            <ul className="small" style={{ marginBottom: 0 }}>
+              {similar.map((s) => (
+                <li key={s.id}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onOpenExisting(s.id);
+                    }}
+                  >
+                    {s.title}
+                  </a>
+                  {s.status === "answered" && <span className="tag open">answered</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="field">
+          <label htmlFor="thread_body">Your message</label>
+          <textarea
+            id="thread_body"
+            rows={4}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            required
+          />
+        </div>
+
+        {variant === "company" && (
+          <div className="check">
+            <input
+              id="requires_ack"
+              type="checkbox"
+              checked={requiresAck}
+              onChange={(e) => setRequiresAck(e.target.checked)}
+            />
+            <label htmlFor="requires_ack">
+              Require everyone to acknowledge this. Use it when the week changes — it
+              blocks their dashboard until they confirm they have read it.
+            </label>
+          </div>
+        )}
+
+        {error && <div className="notice bad">{error}</div>}
+        <div className="row">
+          <button type="submit" disabled={busy || !title.trim() || !body.trim()}>
+            {busy ? "Posting…" : "Post"}
+          </button>
+          <button type="button" className="secondary" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </form>
+    </>
   );
 }
