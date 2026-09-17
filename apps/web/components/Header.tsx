@@ -70,9 +70,14 @@ export default function Header() {
               </Link>
             )}
             {actor.actor_type === "participant" && (
-              <Link className="btn secondary small" href="/dashboard">
-                My programme
-              </Link>
+              <>
+                <Link className="btn secondary small" href="/home">
+                  Home
+                </Link>
+                <Link className="btn secondary small" href="/dashboard">
+                  My programme
+                </Link>
+              </>
             )}
             <button className="secondary" onClick={signOut}>
               Sign out

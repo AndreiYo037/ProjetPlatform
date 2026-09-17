@@ -7,7 +7,7 @@ export default function ParticipantSignUpPage() {
       portalLabel="Participant"
       badge="Applicants & participants"
       lede="Email and password. You can fill in your details after you are in."
-      defaultHome="/dashboard"
+      defaultHome="/home"
       signInHref="/signin"
     />
   );

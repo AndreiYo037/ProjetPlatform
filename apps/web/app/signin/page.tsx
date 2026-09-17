@@ -7,7 +7,7 @@ export default function ParticipantSignInPage() {
       portalLabel="Participant"
       badge="Applicants & participants"
       lede="For students and applicants — your dashboard, submission and channel."
-      defaultHome="/dashboard"
+      defaultHome="/home"
       forgotHref="/forgot-password"
       crossLinks={[
         { label: "Signing in from the company that's running your challenge? Company sign in →", href: "/company/signin" },

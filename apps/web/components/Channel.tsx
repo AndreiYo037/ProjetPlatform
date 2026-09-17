@@ -245,7 +245,7 @@ function ThreadView({
 
       <h3 style={{ marginBottom: "0.2rem" }}>{thread.title ?? "(untitled)"}</h3>
       <div className="row small muted" style={{ marginBottom: "1rem" }}>
-        <span>{typeLabel(thread.type)}</span>
+        {thread.type !== "direct" && <span>{typeLabel(thread.type)}</span>}
         {thread.type === "direct" && <span className="tag">private</span>}
         {thread.status === "answered" && <span className="tag open">answered</span>}
       </div>
