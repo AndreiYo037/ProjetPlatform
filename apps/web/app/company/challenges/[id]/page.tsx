@@ -35,7 +35,7 @@ import { useActor } from "@/lib/useActor";
  * setup that is still holding publication up.
  */
 
-type SectionKey = "messages" | "applicants" | "brief" | "rubric" | "schedule";
+type SectionKey = "messages" | "applicants" | "judging" | "brief" | "rubric" | "schedule";
 
 function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
   const setup: { key: SectionKey; label: string }[] = [
@@ -47,6 +47,7 @@ function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
   return [
     { key: "messages", label: "Messages" },
     { key: "applicants", label: "Applicants" },
+    { key: "judging", label: "Judging" },
     ...setup,
   ];
 }
@@ -179,6 +180,14 @@ export default function ChallengeDetailPage({
       {active === "messages" && <Channel programmeId={programme.id} variant="company" />}
 
       {active === "applicants" && (
+        <ApplicantsPanel
+          programmeId={programme.id}
+          applications={applications}
+          onChanged={load}
+        />
+      )}
+
+      {active === "judging" && (
         <>
           <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ margin: 0 }}>Judging</h2>
@@ -190,12 +199,6 @@ export default function ChallengeDetailPage({
             One submission card per participant, in pitch order, each opening onto
             that person&apos;s scoring card.
           </p>
-
-          <ApplicantsPanel
-            programmeId={programme.id}
-            applications={applications}
-            onChanged={load}
-          />
         </>
       )}
 

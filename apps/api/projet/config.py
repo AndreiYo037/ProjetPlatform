@@ -44,8 +44,8 @@ class Settings(BaseSettings):
     google_service_account_json: str | None = None
     google_delegated_subject: str = "programs@projet.sg"
 
-    # Problem-statement drafting (FR-061). Absent, the endpoint reports that
-    # drafting is unavailable rather than failing obscurely.
+    # Problem-statement drafting (FR-061) and testimonial drafting. Absent, those
+    # endpoints report themselves unavailable rather than failing obscurely.
     anthropic_api_key: str | None = None
 
     # Admin access code — a shared secret that signs in as platform admin with

@@ -15,6 +15,7 @@ and there is nothing left for the deadline sweep to do with it.
 
 from __future__ import annotations
 
+import re
 import secrets
 from dataclasses import dataclass
 
@@ -37,6 +38,25 @@ from projet.storage import get_storage
 
 class SubmissionError(RuntimeError):
     pass
+
+
+_HAS_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:", re.I)
+
+
+def normalise_pasted_url(url: str) -> str:
+    """Make a pasted address open off-site, not as a path on this app.
+
+    `www.tiktok.com` has no scheme, so an href treats it as relative and a
+    judge lands on /judging/www.tiktok.com. Prefix https when none is given.
+    """
+    url = url.strip()
+    if not url:
+        return url
+    if _HAS_SCHEME.match(url):
+        return url
+    if url.startswith("//"):
+        return f"https:{url}"
+    return f"https://{url}"
 
 
 @dataclass
@@ -95,7 +115,7 @@ def set_link(
     if is_locked(session, submission):
         raise SubmissionError("The deadline has passed; submissions are locked.")
 
-    url = drive_url.strip()
+    url = normalise_pasted_url(drive_url)
     if not url:
         raise SubmissionError("Paste a link.")
 

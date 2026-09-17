@@ -201,15 +201,28 @@ def test_a_late_judge_still_reaches_the_profile(
     assert again["skills_promoted"] == 1
 
 
-def test_a_programme_still_taking_applications_cannot_close(
-    client, session, programme, manager, sat
+def test_an_open_programme_can_close_when_the_company_is_ready(
+    client, session, programme, manager, sat, skill
 ):
+    """Closing is the company's call, including before pitches."""
     programme.status = ProgrammeStatus.OPEN
+    session.flush()
+    sign_in_company(client, session, manager)
+    score_fully(client, programme, sat["sam"], skill)
+
+    closed = client.post(f"/programmes/{programme.id}/close")
+    assert closed.status_code == 200, closed.text
+    assert closed.json()["status"] == "complete"
+    assert closed.json()["credentials_issued"] == 1
+
+
+def test_a_draft_cannot_close(client, session, programme, manager, sat):
+    programme.status = ProgrammeStatus.DRAFT
     session.flush()
     sign_in_company(client, session, manager)
     refused = client.post(f"/programmes/{programme.id}/close")
     assert refused.status_code == 409
-    assert "after its pitches" in refused.json()["detail"]
+    assert "Publish" in refused.json()["detail"]
 
 
 def test_the_portfolio_shows_attested_skills_with_the_attester(

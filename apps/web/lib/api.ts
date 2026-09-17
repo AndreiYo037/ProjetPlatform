@@ -36,6 +36,22 @@ export function assetUrl(path: string | null | undefined): string | undefined {
   return `/backend${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/**
+ * A pasted URL the browser should open off-site.
+ *
+ * `www.tiktok.com` with no scheme is a relative path to the current page, so
+ * on a scoring card it becomes `/judging/www.tiktok.com` and the API treats
+ * that as a participant id. Prefix https when nothing else is there.
+ */
+export function externalHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  const trimmed = url.trim();
+  if (!trimmed) return undefined;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith("//")) return `https:${trimmed}`;
+  return `https://${trimmed}`;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -387,6 +403,7 @@ export const updateScoringCard = (
 
 export type Portfolio = Schemas["Portfolio"];
 export type TestimonialOut = Schemas["TestimonialOut"];
+export type TestimonialDraftOut = Schemas["TestimonialDraftOut"];
 export type CloseoutOut = Schemas["CloseoutOut"];
 
 /** What the participant keeps: attested skills, credentials, testimonials. */
@@ -404,6 +421,11 @@ export const writeTestimonial = (
   api.put<TestimonialOut>(
     `/programmes/${programmeId}/participants/${participantId}/testimonial`,
     body,
+  );
+/** Fills the box from endorsed skills and the brief. Does not save or publish. */
+export const draftTestimonial = (programmeId: string, participantId: string) =>
+  api.post<TestimonialDraftOut>(
+    `/programmes/${programmeId}/participants/${participantId}/testimonial/draft`,
   );
 /** Turns the evening's scores into what participants keep. Safe to repeat. */
 export const closeProgramme = (programmeId: string) =>

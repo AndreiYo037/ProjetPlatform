@@ -30,6 +30,7 @@ export default function JudgingPage({
   const [cards, setCards] = useState<SubmissionCard[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [closed, setClosed] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -51,6 +52,11 @@ export default function JudgingPage({
   }, [load]);
 
   async function close() {
+    if (!confirming) {
+      setConfirming(true);
+      setError(null);
+      return;
+    }
     setClosing(true);
     setError(null);
     try {
@@ -65,6 +71,7 @@ export default function JudgingPage({
             ? ` ${result.unscored} not scored, so nothing was issued for them — finish those cards and close again.`
             : ""),
       );
+      setConfirming(false);
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not close the programme.");
@@ -133,15 +140,36 @@ export default function JudgingPage({
           <div className="panel" style={{ marginTop: "1.5rem" }}>
             <strong>Close the programme</strong>
             <p className="small muted">
-              Turns tonight into what they keep: the skills you tagged become
+              Turns the scores into what they keep: the skills you tagged become
               attested skills on their profile, and everyone a judge scored gets a
               credential someone else can verify. Nothing is issued for turning up.
-              You can close again after a late card.
+              You can close whenever you are ready, and close again after a late card.
             </p>
-            <button disabled={closing || scored === 0} onClick={close}>
-              {closing ? "Closing…" : "Close and issue"}
-            </button>
-            {scored === 0 && (
+            {confirming ? (
+              <>
+                <p className="small" style={{ marginTop: 0 }}>
+                  This will issue credentials for everyone you have scored and mark
+                  the programme complete. Continue?
+                </p>
+                <div className="row" style={{ gap: "0.75rem" }}>
+                  <button
+                    className="secondary"
+                    disabled={closing}
+                    onClick={() => setConfirming(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button disabled={closing} onClick={close}>
+                    {closing ? "Closing…" : "Yes, close and issue"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button disabled={closing || scored === 0} onClick={close}>
+                Close and issue
+              </button>
+            )}
+            {scored === 0 && !confirming && (
               <p className="small muted" style={{ marginBottom: 0 }}>
                 Score at least one pitch first.
               </p>

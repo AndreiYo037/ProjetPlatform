@@ -3185,6 +3185,76 @@
         }
       }
     },
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/draft": {
+      "post": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Draft Testimonial Endpoint",
+        "description": "Draft from endorsed skills and the brief. Does not save or publish.\n\nThe model only rearranges facts already on the card. A generated paragraph\nis still the company's word, so it lands in the textarea rather than on\nthe profile.",
+        "operationId": "draft_testimonial_endpoint_programmes__programme_id__participants__participant_id__testimonial_draft_post",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestimonialDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programmes/{programme_id}/close": {
       "post": {
         "tags": [
@@ -9243,6 +9313,19 @@
           "published_at"
         ],
         "title": "TestimonialCard"
+      },
+      "TestimonialDraftOut": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "TestimonialDraftOut"
       },
       "TestimonialOut": {
         "properties": {

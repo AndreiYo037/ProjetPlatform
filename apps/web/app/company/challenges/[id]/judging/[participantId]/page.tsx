@@ -6,6 +6,8 @@ import ActorGateNotice from "@/components/ActorGateNotice";
 import SkillPicker from "@/components/SkillPicker";
 import {
   assetUrl,
+  draftTestimonial,
+  externalHref,
   getScoringCard,
   getTestimonial,
   updateScoringCard,
@@ -98,30 +100,35 @@ export default function ScoringCardPage({
         <div className="panel">
           {card.submission.links.map((link) => (
             <div className="row" key={link.slot} style={{ justifyContent: "space-between" }}>
-              <div>
+              <div style={{ minWidth: 0, paddingRight: "0.75rem" }}>
                 <strong style={{ textTransform: "capitalize" }}>{link.slot}</strong>
-                <div className="small muted">{link.filename ?? "No file"}</div>
+                <div
+                  className="small muted"
+                  style={{ overflowWrap: "anywhere" }}
+                >
+                  {link.filename ?? link.url ?? "Nothing submitted"}
+                </div>
               </div>
-              <div className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
+              <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexShrink: 0 }}>
                 {link.access_status !== "ok" && (
                   <span className="tag">{link.access_status}</span>
                 )}
                 {link.snapshot_url && (
                   <a href={assetUrl(link.snapshot_url)} target="_blank" rel="noreferrer">
-                    Snapshot
+                    Submission
                   </a>
                 )}
                 {link.url && (
-                  <a href={link.url} target="_blank" rel="noreferrer" className="small muted">
-                    Live
+                  <a href={externalHref(link.url)} target="_blank" rel="noreferrer">
+                    Link
                   </a>
                 )}
               </div>
             </div>
           ))}
           <p className="small muted" style={{ marginBottom: 0 }}>
-            The snapshot is the copy taken at the deadline. The live document can
-            have changed since, so judge the snapshot.
+            The submission is the copy taken at the deadline. A link can have
+            changed since, so judge the submission when there is one.
           </p>
         </div>
       )}
@@ -187,7 +194,12 @@ export default function ScoringCardPage({
         }
       />
 
-      <TestimonialBox programmeId={id} participantId={participantId} />
+      <TestimonialBox
+        programmeId={id}
+        participantId={participantId}
+        skillsTagged={card.skill_ids.length > 0}
+        skillsSaving={saving}
+      />
 
       <h2>Would you refer them</h2>
       <p className="small muted">
@@ -224,13 +236,18 @@ export default function ScoringCardPage({
 function TestimonialBox({
   programmeId,
   participantId,
+  skillsTagged,
+  skillsSaving,
 }: {
   programmeId: string;
   participantId: string;
+  skillsTagged: boolean;
+  skillsSaving: boolean;
 }) {
   const [existing, setExisting] = useState<TestimonialOut | null>(null);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -242,6 +259,21 @@ function TestimonialBox({
       })
       .catch(() => setExisting(null));
   }, [programmeId, participantId]);
+
+  async function draft() {
+    setDrafting(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const drafted = await draftTestimonial(programmeId, participantId);
+      setBody(drafted.body);
+      setFlash("Drafted from the skills you tagged and this challenge's brief. Edit it before you publish — this is still your word.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not draft that.");
+    } finally {
+      setDrafting(false);
+    }
+  }
 
   async function save(publish: boolean) {
     setBusy(true);
@@ -262,6 +294,7 @@ function TestimonialBox({
   }
 
   const published = existing?.published_at != null;
+  const locked = busy || drafting || skillsSaving;
 
   return (
     <>
@@ -272,24 +305,34 @@ function TestimonialBox({
         {published
           ? " Published — they can see it. You can still edit the wording."
           : " A draft stays private until you publish it."}
+        {" "}
+        Drafting uses the skills you tagged above and this challenge's brief. It will
+        not invent anything you did not tag.
       </p>
       <div className="field">
         <textarea
           id="testimonial"
-          rows={4}
+          rows={12}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="What they did well, in a sentence or two someone hiring would find useful."
+          placeholder="I am pleased to recommend…"
         />
       </div>
       {error && <div className="notice bad">{error}</div>}
       {flash && <div className="notice good">{flash}</div>}
-      <div className="row" style={{ gap: "0.75rem" }}>
-        <button className="secondary" disabled={busy || !body.trim()} onClick={() => save(false)}>
+      <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
+        <button
+          className="secondary"
+          disabled={locked || !skillsTagged}
+          onClick={draft}
+        >
+          {drafting ? "Drafting…" : "Draft from skills"}
+        </button>
+        <button className="secondary" disabled={locked || !body.trim()} onClick={() => save(false)}>
           Save draft
         </button>
         {!published && (
-          <button disabled={busy || !body.trim()} onClick={() => save(true)}>
+          <button disabled={locked || !body.trim()} onClick={() => save(true)}>
             Publish to their profile
           </button>
         )}

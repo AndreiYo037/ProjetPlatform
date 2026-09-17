@@ -27,13 +27,16 @@ from projet.access import company_visible_participants
 from projet.api.deps import can_score_programme, get_programme_or_404, require_actor
 from projet.db import get_session
 from projet.models import (
+    Company,
     CompanyUser,
     CriterionScore,
     Participant,
     Person,
     Programme,
+    Role,
     ScoreMember,
     ScoreSkillTag,
+    Skill,
     SubmissionLink,
     Testimonial,
 )
@@ -71,9 +74,7 @@ def require_judge(
     resolving to the same check rather than two.
     """
     if not can_score_programme(db, actor, programme):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "You are not judging this programme."
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You are not judging this programme.")
     return actor
 
 
@@ -205,9 +206,7 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         # with something we can actually open. A card that says complete while a
         # memo slot is empty would send a judge into a pitch with half the work.
         complete=bool(links)
-        and all(
-            link.url and link.access_status == AccessStatus.OK.value for link in links
-        ),
+        and all(link.url and link.access_status == AccessStatus.OK.value for link in links),
         links=links,
         scored=score is not None,
         your_total=score.total if score else None,
@@ -242,9 +241,7 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
     if score is not None:
         values = {
             row.criterion_id: row.value
-            for row in db.scalars(
-                select(CriterionScore).where(CriterionScore.score_id == score.id)
-            )
+            for row in db.scalars(select(CriterionScore).where(CriterionScore.score_id == score.id))
         }
 
     criteria = [
@@ -480,6 +477,95 @@ def write_testimonial(
         row.published_at = utcnow()
     db.commit()
     return _testimonial_out(db, row)
+
+
+class TestimonialDraftOut(BaseModel):
+    body: str
+
+
+def _endorsed_skill_names(db: Session, participant: Participant, scorer_id: uuid.UUID) -> list[str]:
+    """This judge's tags on this person, not a colleague's and not the profile."""
+    team = team_for_participant(db, participant)
+    if team is None:
+        return []
+    score = score_for(db, team, scorer_id)
+    if score is None:
+        return []
+    return list(
+        db.scalars(
+            select(Skill.name)
+            .join(ScoreSkillTag, ScoreSkillTag.skill_id == Skill.id)
+            .where(ScoreSkillTag.score_id == score.id)
+            .where(ScoreSkillTag.participant_id == participant.id)
+            .order_by(Skill.name)
+        )
+    )
+
+
+@router.post(
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/draft",
+    response_model=TestimonialDraftOut,
+)
+def draft_testimonial_endpoint(
+    participant_id: uuid.UUID,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> TestimonialDraftOut:
+    """Draft from endorsed skills and the brief. Does not save or publish.
+
+    The model only rearranges facts already on the card. A generated paragraph
+    is still the company's word, so it lands in the textarea rather than on
+    the profile.
+    """
+    from projet.integrations.claude import DraftingUnavailable, draft_testimonial
+
+    if actor.is_platform:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A testimonial is the company's word. Sign in as the company user.",
+        )
+    participant = _participant_or_404(db, programme, actor, participant_id)
+    skills = _endorsed_skill_names(db, participant, actor.id)
+    if not skills:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Tag the skills you actually saw before drafting a testimonial.",
+        )
+    brief = (programme.problem_statement or "").strip()
+    deliverable = (programme.deliverable_spec or "").strip()
+    if not brief and not deliverable:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "This challenge has no problem statement yet, so there is nothing "
+            "to ground a testimonial in.",
+        )
+
+    person = db.get(Person, participant.person_id)
+    author = db.get(CompanyUser, actor.id)
+    company = db.get(Company, programme.company_id)
+    role = db.get(Role, programme.role_id)
+    if person is None or author is None or company is None or role is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Programme is not fully configured.")
+
+    try:
+        body = draft_testimonial(
+            student_name=person.name,
+            student_organisation=person.organisation,
+            student_year_course=person.year_course,
+            student_job_title=person.job_title,
+            author_name=author.name,
+            author_title=author.title,
+            company_name=company.name,
+            programme_title=programme.title,
+            role_name=role.name,
+            problem_statement=brief or None,
+            deliverable_spec=deliverable or None,
+            skill_names=skills,
+        )
+    except DraftingUnavailable as error:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(error)) from error
+    return TestimonialDraftOut(body=body)
 
 
 # -- closing the programme ----------------------------------------------------

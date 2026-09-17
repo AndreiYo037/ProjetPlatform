@@ -27,9 +27,8 @@ from projet.models import Credential, Participant, Programme, Score, Team, TeamM
 from projet.models.enums import CredentialType, ProgrammeStatus
 from projet.services.profile import promote_score_skill_tags
 
-# Programmes can only close from the far end of the week. Closing a programme
-# still taking applications would credential people who have not done anything.
-CLOSEABLE_FROM = (ProgrammeStatus.JUDGING, ProgrammeStatus.SUBMITTED, ProgrammeStatus.COMPLETE)
+# The company closes when they are ready. Draft is the exception: nothing has
+# been published yet, so there is no programme to close.
 
 
 class CloseoutError(RuntimeError):
@@ -98,11 +97,8 @@ class CloseoutResult:
 
 def close_programme(db: Session, programme: Programme) -> CloseoutResult:
     """Promote every judge tag, issue every earned credential, then mark it done."""
-    if programme.status not in CLOSEABLE_FROM:
-        raise CloseoutError(
-            "A programme closes after its pitches, not before. "
-            f"This one is {programme.status.value}."
-        )
+    if programme.status == ProgrammeStatus.DRAFT:
+        raise CloseoutError("Publish the challenge first.")
 
     result = CloseoutResult()
     participants = db.scalars(

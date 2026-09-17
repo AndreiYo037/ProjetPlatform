@@ -141,7 +141,9 @@ def test_a_recheck_after_fixing_sharing_restores_complete(session, submission, g
 def test_any_url_is_accepted(session, submission, google):
     """Artifact and extra slots take any link, not only Drive."""
     _, sub = submission
-    result = set_link(session, sub, SubmissionSlot.ARTIFACT, "https://github.com/org/repo", google=google)
+    result = set_link(
+        session, sub, SubmissionSlot.ARTIFACT, "https://github.com/org/repo", google=google
+    )
 
     assert result.ok
     assert result.access_status == "ok"
@@ -150,12 +152,24 @@ def test_any_url_is_accepted(session, submission, google):
     assert link.drive_file_id is None
 
 
+def test_a_url_without_a_scheme_is_stored_as_https(session, submission, google):
+    """Otherwise a judge's Link click is a relative path on the scoring card."""
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, "www.tiktok.com/@someone", google=google)
+    link = next(link for link in sub.links if link.slot == SubmissionSlot.ARTIFACT)
+    assert link.drive_url == "https://www.tiktok.com/@someone"
+
+
 def test_an_uploaded_file_is_stored_and_marked_ok(session, submission):
     """A memo is one static document, so upload skips the Drive round-trip
     entirely and is complete the moment the bytes land."""
     _, sub = submission
     result = set_upload(
-        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4 memo", filename="memo.pdf",
+        session,
+        sub,
+        SubmissionSlot.MEMO,
+        content=b"%PDF-1.4 memo",
+        filename="memo.pdf",
         mime_type="application/pdf",
     )
 
@@ -174,7 +188,11 @@ def test_an_upload_completes_the_submission_alongside_a_link(session, submission
     _, sub = submission
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
     set_upload(
-        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        session,
+        sub,
+        SubmissionSlot.MEMO,
+        content=b"%PDF-1.4",
+        filename="memo.pdf",
         mime_type="application/pdf",
     )
 
@@ -185,7 +203,11 @@ def test_an_upload_completes_the_submission_alongside_a_link(session, submission
 def test_clearing_an_upload_deletes_the_stored_file(session, submission):
     _, sub = submission
     set_upload(
-        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        session,
+        sub,
+        SubmissionSlot.MEMO,
+        content=b"%PDF-1.4",
+        filename="memo.pdf",
         mime_type="application/pdf",
     )
     link = next(link for link in sub.links if link.slot == SubmissionSlot.MEMO)
@@ -203,11 +225,19 @@ def test_clearing_an_upload_deletes_the_stored_file(session, submission):
 def test_an_upload_can_be_replaced(session, submission):
     _, sub = submission
     set_upload(
-        session, sub, SubmissionSlot.MEMO, content=b"first", filename="a.pdf",
+        session,
+        sub,
+        SubmissionSlot.MEMO,
+        content=b"first",
+        filename="a.pdf",
         mime_type="application/pdf",
     )
     set_upload(
-        session, sub, SubmissionSlot.MEMO, content=b"second", filename="b.pdf",
+        session,
+        sub,
+        SubmissionSlot.MEMO,
+        content=b"second",
+        filename="b.pdf",
         mime_type="application/pdf",
     )
 
@@ -221,7 +251,11 @@ def test_an_upload_can_be_replaced(session, submission):
 def test_the_deadline_locks_an_uploaded_slot_too(session, programme, submission):
     _, sub = submission
     set_upload(
-        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        session,
+        sub,
+        SubmissionSlot.MEMO,
+        content=b"%PDF-1.4",
+        filename="memo.pdf",
         mime_type="application/pdf",
     )
     programme.submit_deadline_at = utcnow() - timedelta(minutes=1)
@@ -230,6 +264,10 @@ def test_the_deadline_locks_an_uploaded_slot_too(session, programme, submission)
     assert is_locked(session, sub)
     with pytest.raises(SubmissionError, match="locked"):
         set_upload(
-            session, sub, SubmissionSlot.MEMO, content=b"new", filename="c.pdf",
+            session,
+            sub,
+            SubmissionSlot.MEMO,
+            content=b"new",
+            filename="c.pdf",
             mime_type="application/pdf",
         )
