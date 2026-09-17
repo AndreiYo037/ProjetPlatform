@@ -17,9 +17,12 @@ import {
 /**
  * The programme channel.
  *
- * Announcements is one continuous thread the company posts into, not a thread
- * per post: a link, then a correction, then a reminder is one conversation,
- * and asking for a subject each time asks it to name things that need no name.
+ * Announcements is one continuous thread, not a thread per post: a link, then
+ * a correction, then a reminder is one conversation, and asking for a subject
+ * each time asks it to name things that need no name. The company originates
+ * it; a participant can reply once there is something to reply to, the same
+ * way anyone can reply in a Slack channel without being the one who can
+ * start a new one.
  *
  * Questions stay one thread each, because a question has an answer and a
  * resolved state. They are public to the cohort by default — the answer to one
@@ -280,7 +283,7 @@ function MessageList({
   items,
   emptyState,
 }: {
-  items: { post: Post; badge?: React.ReactNode }[];
+  items: { post: Post }[];
   emptyState?: React.ReactNode;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -294,12 +297,12 @@ function MessageList({
   return (
     <div className="chat-scroll" ref={scroller}>
       {items.length === 0 && emptyState}
-      {items.map(({ post, badge }, index) => {
+      {items.map(({ post }, index) => {
         const previous = items[index - 1]?.post;
         const sameDay =
           previous && dayStamp(previous.created_at) === dayStamp(post.created_at);
         const grouped = Boolean(
-          previous && sameDay && previous.author_label === post.author_label && !badge,
+          previous && sameDay && previous.author_label === post.author_label,
         );
         return (
           <div key={post.id}>
@@ -324,7 +327,6 @@ function MessageList({
                   <div className="chat-msg-meta">
                     <span className="chat-msg-author">{post.author_label}</span>
                     <span className="chat-msg-when">{clockTime(post.created_at)}</span>
-                    {badge}
                   </div>
                 )}
                 {post.removed ? (
@@ -454,6 +456,11 @@ function Composer({
  * somebody posts, because a participant looking for "what has the company
  * told us" needs somewhere to look before there is anything in it.
  */
+/** The one thread the continuous feed lives in — no subject, ever. */
+function standingThread(broadcasts: ThreadOut[]): ThreadOut | undefined {
+  return broadcasts.find((t) => t.type === "announcement" && t.title === null);
+}
+
 function Announcements({
   programmeId,
   broadcasts,
@@ -467,19 +474,13 @@ function Announcements({
   onBack: () => void;
   onPosted: () => Promise<void>;
 }) {
-  const [requiresAck, setRequiresAck] = useState(false);
-
-  // One feed, not one card per thread: the continuous thread holds most of it,
-  // and anything that needed acknowledging sits in the same timeline.
+  // One feed, not one card per thread: every broadcast's posts in one
+  // timeline, oldest first, as a chat reads.
   const items = broadcasts
-    .flatMap((thread) =>
-      thread.posts.map((post) => ({
-        post,
-        badge: thread.requires_ack ? <span className="tag">acknowledge</span> : undefined,
-        at: post.created_at,
-      })),
-    )
+    .flatMap((thread) => thread.posts.map((post) => ({ post, at: post.created_at })))
     .sort((a, b) => a.at.localeCompare(b.at));
+
+  const standing = standingThread(broadcasts);
 
   return (
     <>
@@ -507,28 +508,23 @@ function Announcements({
         <Composer
           placeholder="Share something with the cohort"
           onSend={async (text, file) => {
-            await postAnnouncement(programmeId, { body: text, file, requiresAck });
-            setRequiresAck(false);
+            await postAnnouncement(programmeId, { body: text, file });
             await onPosted();
           }}
-        >
-          <div className="check" style={{ padding: "0 0.6rem" }}>
-            <input
-              id="requires_ack"
-              type="checkbox"
-              checked={requiresAck}
-              onChange={(e) => setRequiresAck(e.target.checked)}
-            />
-            <label htmlFor="requires_ack" className="small">
-              Require everyone to acknowledge this — it blocks their dashboard until they
-              confirm.
-            </label>
-          </div>
-        </Composer>
+        />
       ) : (
-        <p className="small muted" style={{ padding: "0.6rem 0.9rem", margin: 0 }}>
-          Only the company posts here. Use Ask to put a question to them.
-        </p>
+        // The company originates the channel; a participant can only speak
+        // into it once there is a thread to speak into.
+        standing && (
+          <Composer
+            placeholder="Reply"
+            onSend={async (text, file) => {
+              if (text) await postReply(standing.id, text);
+              if (file) await attachToThread(standing.id, file);
+              await onPosted();
+            }}
+          />
+        )
       )}
     </>
   );

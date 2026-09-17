@@ -302,3 +302,28 @@ def test_a_participant_can_attach_a_file_to_their_own_question(
     )
     assert attached.status_code == 201, attached.text
     assert [a["filename"] for a in attached.json()["posts"][-1]["attachments"]] == ["error.png"]
+
+
+def test_a_participant_can_reply_in_the_announcements_thread(
+    client, session, programme, participant_factory, assigned_rep
+):
+    """The company originates the channel; a participant can still speak into
+    it once there is something there, the way anyone can reply in a Slack
+    channel without being the one who can start a new one."""
+    participant = participant_factory()
+
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+    posted = client.post(
+        f"/programmes/{programme.id}/announcements", data={"body": "Data pack is live."}
+    )
+    thread_id = posted.json()["id"]
+
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    replied = client.post(f"/threads/{thread_id}/posts", json={"body": "Thanks, got it."})
+    assert replied.status_code == 201, replied.text
+    assert replied.json()["posts"][-1]["body"] == "Thanks, got it."
+    assert replied.json()["posts"][-1]["author_label"] == "A participant"
+
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+    seen = client.get(f"/threads/{thread_id}").json()
+    assert seen["posts"][-1]["body"] == "Thanks, got it."
