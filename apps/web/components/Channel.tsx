@@ -96,6 +96,15 @@ function lastPost(thread: ThreadOut) {
   return thread.posts[thread.posts.length - 1];
 }
 
+/** Not a thread id: the standing channel that holds every broadcast. */
+const ANNOUNCEMENTS = "announcements";
+
+const BROADCAST_TYPES = ["announcement", "resource"];
+
+function isBroadcast(thread: ThreadOut) {
+  return BROADCAST_TYPES.includes(thread.type);
+}
+
 export default function Channel({
   programmeId,
   variant = "participant",
@@ -106,7 +115,9 @@ export default function Channel({
   onChange?: () => void;
 }) {
   const [threads, setThreads] = useState<ThreadOut[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  // ANNOUNCEMENTS is a standing channel rather than a thread, so it is open
+  // from the first day of the programme with nothing in it yet.
+  const [openId, setOpenId] = useState<string>(ANNOUNCEMENTS);
   const [open, setOpen] = useState<ThreadOut | null>(null);
   const [composing, setComposing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,10 +125,7 @@ export default function Channel({
 
   const load = useCallback(async () => {
     try {
-      const rows = await listThreads(programmeId);
-      setThreads(rows);
-      // A chat opens on a conversation, not on an empty frame.
-      setOpenId((current) => current ?? rows[0]?.id ?? null);
+      setThreads(await listThreads(programmeId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load the channel.");
     }
@@ -128,7 +136,7 @@ export default function Channel({
   }, [load]);
 
   useEffect(() => {
-    if (!openId) {
+    if (openId === ANNOUNCEMENTS) {
       setOpen(null);
       return;
     }
@@ -162,11 +170,18 @@ export default function Channel({
   if (error) return <div className="notice bad">{error}</div>;
   if (!threads) return <p className="muted small">Loading the channel…</p>;
 
+  const broadcasts = threads.filter(isBroadcast);
+  const conversations = threads.filter((t) => !isBroadcast(t));
+  const latestBroadcast = broadcasts[0];
+  // Reading one announcement still means you are in the announcements channel.
+  const inAnnouncements =
+    !composing && (openId === ANNOUNCEMENTS || Boolean(open && isBroadcast(open)));
+
   return (
     <div className="chat" data-pane={pane}>
       <aside className="chat-aside">
         <div className="chat-aside-head">
-          <strong>Conversations</strong>
+          <strong>Channels</strong>
           <button
             className="small"
             onClick={() => {
@@ -178,34 +193,44 @@ export default function Channel({
           </button>
         </div>
         <div className="chat-list">
-          {threads.length === 0 ? (
-            <p className="small muted" style={{ padding: "0.9rem" }}>
-              {variant === "company"
-                ? "When participants ask something it lands here."
-                : "Nothing yet. If something in the brief is unclear, it is probably unclear to everyone."}
-            </p>
-          ) : (
-            threads.map((thread) => {
-              const last = lastPost(thread);
-              return (
-                <button
-                  key={thread.id}
-                  className="chat-item"
-                  aria-selected={!composing && thread.id === openId}
-                  onClick={() => select(thread.id)}
-                >
-                  <span className="chat-item-top">
-                    <span className="chat-item-title">{thread.title ?? "(untitled)"}</span>
-                    <span className="chat-item-when">{listStamp(thread.created_at)}</span>
-                  </span>
-                  <span className="chat-item-preview">
-                    {thread.type === "direct" && "🔒 "}
-                    {last ? `${last.author_label}: ${last.body}` : "No messages"}
-                  </span>
-                </button>
-              );
-            })
-          )}
+          <button
+            className="chat-item"
+            aria-selected={inAnnouncements}
+            onClick={() => select(ANNOUNCEMENTS)}
+          >
+            <span className="chat-item-top">
+              <span className="chat-item-title">📣 Announcements</span>
+              {latestBroadcast && (
+                <span className="chat-item-when">{listStamp(latestBroadcast.created_at)}</span>
+              )}
+            </span>
+            <span className="chat-item-preview">
+              {latestBroadcast
+                ? (lastPost(latestBroadcast)?.body ?? latestBroadcast.title)
+                : "From the company"}
+            </span>
+          </button>
+
+          {conversations.map((thread) => {
+            const last = lastPost(thread);
+            return (
+              <button
+                key={thread.id}
+                className="chat-item"
+                aria-selected={!composing && thread.id === openId}
+                onClick={() => select(thread.id)}
+              >
+                <span className="chat-item-top">
+                  <span className="chat-item-title">{thread.title ?? "(untitled)"}</span>
+                  <span className="chat-item-when">{listStamp(thread.created_at)}</span>
+                </span>
+                <span className="chat-item-preview">
+                  {thread.type === "direct" && "🔒 "}
+                  {last ? `${last.author_label}: ${last.body}` : "No messages"}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </aside>
 
@@ -217,17 +242,31 @@ export default function Channel({
             onCancel={() => setComposing(false)}
             onPosted={async (thread) => {
               setComposing(false);
-              setOpenId(thread.id);
+              // A new announcement belongs to its channel, so land back there
+              // rather than on the one post in isolation.
+              setOpenId(isBroadcast(thread) ? ANNOUNCEMENTS : thread.id);
               await load();
               onChange?.();
             }}
             onOpenExisting={(id) => select(id)}
             onBack={() => setPane("list")}
           />
+        ) : openId === ANNOUNCEMENTS ? (
+          <Announcements
+            broadcasts={broadcasts}
+            variant={variant}
+            onOpen={(id) => select(id)}
+            onBack={() => setPane("list")}
+            onCompose={() => {
+              setComposing(true);
+              setPane("conversation");
+            }}
+          />
         ) : open ? (
           <Conversation
             thread={open}
-            onBack={() => setPane("list")}
+            onBack={() => (isBroadcast(open) ? select(ANNOUNCEMENTS) : setPane("list"))}
+            backLabel={isBroadcast(open) ? "← Announcements" : "←"}
             onReplied={async (thread) => {
               setOpen(thread);
               await load();
@@ -244,13 +283,104 @@ export default function Channel({
   );
 }
 
+/**
+ * The standing announcements channel.
+ *
+ * It exists from the first day of the programme rather than appearing once
+ * somebody posts, because a participant looking for "what has the company
+ * told us" needs somewhere to look before there is anything in it. Each
+ * announcement keeps its own thread, so a question about one stays attached
+ * to it instead of landing in the general channel.
+ */
+function Announcements({
+  broadcasts,
+  variant,
+  onOpen,
+  onBack,
+  onCompose,
+}: {
+  broadcasts: ThreadOut[];
+  variant: Variant;
+  onOpen: (id: string) => void;
+  onBack: () => void;
+  onCompose: () => void;
+}) {
+  // Newest last, as a chat reads.
+  const ordered = [...broadcasts].reverse();
+
+  return (
+    <>
+      <div className="chat-head">
+        <button className="secondary small chat-back" onClick={onBack}>
+          ←
+        </button>
+        <span className="chat-head-title">📣 Announcements</span>
+        {variant === "company" && (
+          <button className="small" style={{ marginLeft: "auto" }} onClick={onCompose}>
+            Post
+          </button>
+        )}
+      </div>
+
+      <div className="chat-scroll">
+        {ordered.length === 0 ? (
+          <div className="chat-empty">
+            <p className="small">
+              {variant === "company"
+                ? "Nothing announced yet. Anything you post here reaches everyone on the programme at once."
+                : "Nothing announced yet. Anything the company tells the whole cohort appears here."}
+            </p>
+          </div>
+        ) : (
+          ordered.map((thread) => {
+            const first = thread.posts[0];
+            const replies = Math.max(0, thread.posts.length - 1);
+            return (
+              <div className="chat-msg" key={thread.id}>
+                <span className={avatarClass(first?.author_role ?? "rep")} aria-hidden="true">
+                  {initials(first?.author_label ?? "The company")}
+                </span>
+                <div className="chat-msg-body">
+                  <div className="chat-msg-meta">
+                    <span className="chat-msg-author">
+                      {first?.author_label ?? "The company"}
+                    </span>
+                    <span className="chat-msg-when">
+                      {first ? clockTime(first.created_at) : ""}
+                    </span>
+                    {thread.requires_ack && <span className="tag">acknowledge</span>}
+                    {thread.type === "resource" && <span className="tag">resource</span>}
+                  </div>
+                  <strong>{thread.title ?? "(untitled)"}</strong>
+                  {first && <p className="chat-msg-text">{first.body}</p>}
+                  <button
+                    className="secondary small"
+                    style={{ marginTop: "0.4rem" }}
+                    onClick={() => onOpen(thread.id)}
+                  >
+                    {replies === 0
+                      ? "Reply"
+                      : `${replies} repl${replies === 1 ? "y" : "ies"}`}
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </>
+  );
+}
+
 function Conversation({
   thread,
   onBack,
+  backLabel = "←",
   onReplied,
 }: {
   thread: ThreadOut;
   onBack: () => void;
+  backLabel?: string;
   onReplied: (thread: ThreadOut) => void;
 }) {
   const [body, setBody] = useState("");
@@ -284,8 +414,13 @@ function Conversation({
   return (
     <>
       <div className="chat-head">
-        <button className="secondary small chat-back" onClick={onBack}>
-          ←
+        {/* Going back to the announcements channel matters at every width; the
+            bare arrow only exists because narrow screens hide the list. */}
+        <button
+          className={backLabel === "←" ? "secondary small chat-back" : "secondary small"}
+          onClick={onBack}
+        >
+          {backLabel}
         </button>
         <span className="chat-head-title">{thread.title ?? "(untitled)"}</span>
         {thread.type === "direct" && <span className="tag">private</span>}
