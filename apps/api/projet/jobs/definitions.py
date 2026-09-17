@@ -159,7 +159,10 @@ def process_deadline(
             # FR-811: everyone who submitted pitches. No review step.
             participant.status = ParticipantStatus.SUBMITTED
             for link in submission.links:
-                if link.access_status == AccessStatus.OK:
+                # An uploaded file's snapshot is set the moment it lands, not
+                # here — only a Drive link (which has a file id to fetch) has
+                # anything left for this sweep to do.
+                if link.access_status == AccessStatus.OK and link.drive_file_id:
                     enqueue(
                         session,
                         subject_type=OutboxSubjectType.SUBMISSION_LINK,

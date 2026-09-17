@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -50,10 +50,15 @@ from projet.services.submission import (
     is_locked,
     recheck,
     set_link,
+    set_upload,
     submission_for_participant,
 )
+from projet.storage import sign_key
 
 router = APIRouter(prefix="/me", tags=["participant"])
+
+MAX_SUBMISSION_UPLOAD_BYTES = 20 * 1024 * 1024
+ALLOWED_SUBMISSION_UPLOAD_TYPES = {"application/pdf"}
 
 
 class ProfileOut(BaseModel):
@@ -268,6 +273,7 @@ class SlotOut(BaseModel):
     drive_url: str | None
     access_status: str
     filename: str | None
+    file_url: str | None = None
     message: str | None = None
 
 
@@ -406,6 +412,11 @@ def _submission_out(db: Session, participant: Participant) -> SubmissionOut | No
                 drive_url=link.drive_url,
                 access_status=link.access_status.value,
                 filename=link.detected_filename,
+                file_url=(
+                    f"/files/{link.snapshot_key}?sig={sign_key(link.snapshot_key)}"
+                    if link.snapshot_key
+                    else None
+                ),
             )
             for link in links
         ],
@@ -536,6 +547,41 @@ def put_link(
         raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
     try:
         set_link(db, submission, SubmissionSlot(payload.slot), payload.drive_url)
+    except SubmissionError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    db.commit()
+    return _require_submission_out(db, participant)
+
+
+@router.put("/submission/upload", response_model=SubmissionOut)
+async def upload_slot(
+    slot: str = Form(pattern="^(artifact|memo|extra)$"),
+    file: UploadFile = File(),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> SubmissionOut:
+    """A slot filled by upload rather than a Drive link — a memo is one static
+    document, not something worth keeping live and editable."""
+    participant = _participant(db, actor)
+    submission = submission_for_participant(db, participant)
+    if submission is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
+
+    content = await file.read()
+    if len(content) > MAX_SUBMISSION_UPLOAD_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File must be under 20MB.")
+    if file.content_type not in ALLOWED_SUBMISSION_UPLOAD_TYPES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File must be a PDF.")
+
+    try:
+        set_upload(
+            db,
+            submission,
+            SubmissionSlot(slot),
+            content=content,
+            filename=file.filename or f"{slot}.pdf",
+            mime_type=file.content_type,
+        )
     except SubmissionError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     db.commit()

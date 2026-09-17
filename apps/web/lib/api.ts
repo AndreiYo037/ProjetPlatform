@@ -412,7 +412,25 @@ export const closeProgramme = (programmeId: string) =>
 export const getDashboard = () => api.get<Dashboard>("/me/dashboard");
 export const putSubmissionLink = (slot: string, driveUrl: string) =>
   api.put<SubmissionOut>("/me/submission/link", { slot, drive_url: driveUrl });
+export const deleteSubmissionSlot = (slot: string) =>
+  api.del<SubmissionOut>(`/me/submission/link/${slot}`);
 export const recheckSubmission = () => api.post<SubmissionOut>("/me/submission/recheck");
+
+/** Multipart, so it goes round the JSON helper. A slot filled this way is
+ *  already the frozen copy — there is no accessibility check to run. */
+export async function uploadSubmissionFile(slot: string, file: File): Promise<SubmissionOut> {
+  const form = new FormData();
+  form.set("slot", slot);
+  form.set("file", file);
+  const response = await fetch(apiUrl("/me/submission/upload"), {
+    method: "PUT",
+    body: form,
+    credentials: "include",
+  });
+  const body = await response.json();
+  if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not upload that file.");
+  return body as SubmissionOut;
+}
 export const markThreadRead = (threadId: string, acknowledge = false) =>
   api.post<void>(`/me/threads/${threadId}/read?acknowledge=${acknowledge}`);
 

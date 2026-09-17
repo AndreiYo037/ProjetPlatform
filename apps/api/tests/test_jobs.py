@@ -89,6 +89,36 @@ def test_deadline_sweep_locks_submissions_and_queues_snapshots(
     assert SNAPSHOT_EFFECT in queued
 
 
+def test_an_uploaded_slot_is_locked_but_not_requeued_for_snapshotting(
+    session, programme, judging_session, participant_factory
+):
+    """An upload's frozen copy is set the moment it lands, not at the
+    deadline, so the sweep has nothing left to do for that slot — only the
+    Drive-linked one alongside it needs fetching."""
+    from projet.models.enums import SubmissionSlot
+    from projet.services.submission import set_upload
+
+    participant = participant_factory()
+    participant.judging_session_id = judging_session.id
+    submission = _submit(session, participant)
+    set_upload(
+        session, submission, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        mime_type="application/pdf",
+    )
+    programme.submit_deadline_at = datetime.now(UTC) - timedelta(minutes=1)
+    session.flush()
+
+    result = deadline_sweep(session)
+
+    assert submission.status == SubmissionStatus.LOCKED
+    assert result.snapshots_queued == 1
+    queued = list(session.scalars(select(Outbox).where(Outbox.effect_type == SNAPSHOT_EFFECT)))
+    assert len(queued) == 1
+    assert queued[0].subject_id == next(
+        link.id for link in submission.links if link.slot == SubmissionSlot.ARTIFACT
+    )
+
+
 def test_non_submitters_are_flagged_and_taken_off_their_session(
     session, programme, judging_session, participant_factory
 ):

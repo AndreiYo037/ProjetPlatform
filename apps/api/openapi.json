@@ -3827,6 +3827,66 @@
         }
       }
     },
+    "/me/submission/upload": {
+      "put": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Upload Slot",
+        "description": "A slot filled by upload rather than a Drive link \u2014 a memo is one static\ndocument, not something worth keeping live and editable.",
+        "operationId": "upload_slot_me_submission_upload_put",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_slot_me_submission_upload_put"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/submission/link/{slot}": {
       "delete": {
         "tags": [
@@ -5556,6 +5616,26 @@
           "file"
         ],
         "title": "Body_upload_data_pack_resource_programmes__programme_id__data_pack_upload_post"
+      },
+      "Body_upload_slot_me_submission_upload_put": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "pattern": "^(artifact|memo|extra)$",
+            "title": "Slot"
+          },
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "file"
+        ],
+        "title": "Body_upload_slot_me_submission_upload_put"
       },
       "CandidateOut": {
         "properties": {
@@ -8768,6 +8848,17 @@
               }
             ],
             "title": "Filename"
+          },
+          "file_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Url"
           },
           "message": {
             "anyOf": [

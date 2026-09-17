@@ -10,13 +10,14 @@ from datetime import timedelta
 import pytest
 
 from projet.models.base import utcnow
-from projet.models.enums import ProgrammeStatus, SubmissionSlot, SubmissionStatus
+from projet.models.enums import ProgrammeStatus, SnapshotStatus, SubmissionSlot, SubmissionStatus
 from projet.services.submission import (
     SubmissionError,
     clear_link,
     is_locked,
     recheck,
     set_link,
+    set_upload,
 )
 from projet.services.teams import ensure_submission, ensure_team_for_participant
 
@@ -144,3 +145,88 @@ def test_a_malformed_url_is_reported_not_accepted(session, submission, google):
     assert not result.ok
     assert result.access_status == "not_found"
     assert sub.status == SubmissionStatus.DRAFT
+
+
+def test_an_uploaded_file_is_stored_and_marked_ok(session, submission):
+    """A memo is one static document, so upload skips the Drive round-trip
+    entirely and is complete the moment the bytes land."""
+    _, sub = submission
+    result = set_upload(
+        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4 memo", filename="memo.pdf",
+        mime_type="application/pdf",
+    )
+
+    link = next(link for link in sub.links if link.slot == SubmissionSlot.MEMO)
+    assert result.ok
+    assert link.access_status.value == "ok"
+    assert link.drive_url is None
+    assert link.snapshot_status == SnapshotStatus.OK
+    assert link.snapshot_key
+    from projet.storage import get_storage
+
+    assert get_storage().get(link.snapshot_key) == b"%PDF-1.4 memo"
+
+
+def test_an_upload_completes_the_submission_alongside_a_link(session, submission, google):
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_upload(
+        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        mime_type="application/pdf",
+    )
+
+    assert sub.status == SubmissionStatus.COMPLETE
+    assert sub.submitted_at is not None
+
+
+def test_clearing_an_upload_deletes_the_stored_file(session, submission):
+    _, sub = submission
+    set_upload(
+        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        mime_type="application/pdf",
+    )
+    link = next(link for link in sub.links if link.slot == SubmissionSlot.MEMO)
+    key = link.snapshot_key
+
+    from projet.storage import StorageError, get_storage
+
+    clear_link(session, sub, SubmissionSlot.MEMO)
+    assert link.snapshot_key is None
+    assert link.access_status.value == "unchecked"
+    with pytest.raises(StorageError):
+        get_storage().get(key)
+
+
+def test_an_upload_can_be_replaced(session, submission):
+    _, sub = submission
+    set_upload(
+        session, sub, SubmissionSlot.MEMO, content=b"first", filename="a.pdf",
+        mime_type="application/pdf",
+    )
+    set_upload(
+        session, sub, SubmissionSlot.MEMO, content=b"second", filename="b.pdf",
+        mime_type="application/pdf",
+    )
+
+    link = next(link for link in sub.links if link.slot == SubmissionSlot.MEMO)
+    from projet.storage import get_storage
+
+    assert get_storage().get(link.snapshot_key) == b"second"
+    assert link.detected_filename == "b.pdf"
+
+
+def test_the_deadline_locks_an_uploaded_slot_too(session, programme, submission):
+    _, sub = submission
+    set_upload(
+        session, sub, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        mime_type="application/pdf",
+    )
+    programme.submit_deadline_at = utcnow() - timedelta(minutes=1)
+    session.flush()
+
+    assert is_locked(session, sub)
+    with pytest.raises(SubmissionError, match="locked"):
+        set_upload(
+            session, sub, SubmissionSlot.MEMO, content=b"new", filename="c.pdf",
+            mime_type="application/pdf",
+        )
