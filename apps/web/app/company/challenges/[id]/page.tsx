@@ -109,6 +109,16 @@ export default function ChallengeDetailPage({
 
       <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
 
+      {/* Once the programme is live this is the rep's daily job: announce to the
+          cohort, and answer what they ask. A draft has nobody to talk to yet, so
+          it stays below with the rest of the setup. */}
+      {!isDraft && (
+        <>
+          <h2>Messages</h2>
+          <Channel programmeId={programme.id} variant="company" />
+        </>
+      )}
+
       {!isDraft && (
         <>
           <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -129,11 +139,6 @@ export default function ChallengeDetailPage({
           />
         </>
       )}
-
-      {/* Participants ask here and expect an answer here. Without this the
-          cohort posts into a channel nobody on the company side can read. */}
-      <h2>Messages</h2>
-      <Channel programmeId={programme.id} variant="company" />
 
       <BriefSection programme={programme} onSaved={load} />
 

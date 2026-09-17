@@ -138,3 +138,57 @@ def test_a_participant_cannot_post_an_announcement(
     )
     assert refused.status_code == 403
     assert "announcement" in refused.json()["detail"].lower()
+
+
+def test_the_company_announces_to_every_participant(
+    client, session, programme, participant_factory, assigned_rep
+):
+    """FR-601 — one post, the whole cohort, at the same moment."""
+    one = participant_factory()
+    two = participant_factory()
+
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+    posted = client.post(
+        f"/programmes/{programme.id}/threads",
+        json={
+            "type": "announcement",
+            "title": "Pitch order is up",
+            "body": "Running order is on your dashboard. Be online ten minutes early.",
+        },
+    )
+    assert posted.status_code == 201, posted.text
+    thread_id = posted.json()["thread"]["id"]
+
+    for participant in (one, two):
+        sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+        listed = client.get(f"/programmes/{programme.id}/threads").json()
+        assert any(t["id"] == thread_id for t in listed)
+        thread = client.get(f"/threads/{thread_id}").json()
+        assert thread["posts"][0]["author_label"] == "The company"
+        assert "Running order" in thread["posts"][0]["body"]
+
+
+def test_an_announcement_can_require_acknowledgement(
+    client, session, programme, participant_factory, assigned_rep
+):
+    """FR-703 — when the week changes, the company needs to know it landed, so
+    the dashboard blocks on it until each participant confirms."""
+    participant = participant_factory()
+
+    sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
+    thread_id = client.post(
+        f"/programmes/{programme.id}/threads",
+        json={
+            "type": "announcement",
+            "title": "Deadline moved",
+            "body": "The deadline is now Wednesday.",
+            "requires_ack": True,
+        },
+    ).json()["thread"]["id"]
+
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    blocking = client.get("/me/dashboard").json()["blocking_acknowledgements"]
+    assert [t["id"] for t in blocking] == [thread_id]
+
+    assert client.post(f"/me/threads/{thread_id}/read?acknowledge=true").status_code == 204
+    assert client.get("/me/dashboard").json()["blocking_acknowledgements"] == []
