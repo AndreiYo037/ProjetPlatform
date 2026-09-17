@@ -18,7 +18,10 @@ from projet.api.deps import can_see_programme, get_programme_or_404, require_act
 from projet.db import get_session
 from projet.models import (
     Attachment,
+    CompanyUser,
     Participant,
+    Person,
+    PlatformUser,
     Post,
     Programme,
     Thread,
@@ -161,14 +164,31 @@ def _may_see_thread(db: Session, actor: Actor, thread: Thread) -> bool:
     return member is not None
 
 
-def _author_label(thread: Thread, post: Post) -> str:
-    if post.author_role == AuthorRole.PARTICIPANT and thread.is_anonymous:
-        return "A participant"
+def _author_label(db: Session, post: Post) -> str:
+    """The person's name, not a role mask. The channel is a conversation."""
+    if post.author_id is None:
+        return _role_fallback(post.author_role)
+    if post.author_role == AuthorRole.PARTICIPANT:
+        person = db.get(Person, post.author_id)
+        return _named(person.name if person else None, "A participant")
+    if post.author_role == AuthorRole.REP:
+        user = db.get(CompanyUser, post.author_id)
+        return _named(user.name if user else None, "The company")
+    staff = db.get(PlatformUser, post.author_id)
+    return _named(staff.name if staff else None, "Projet")
+
+
+def _named(value: str | None, fallback: str) -> str:
+    name = (value or "").strip()
+    return name if name else fallback
+
+
+def _role_fallback(role: AuthorRole) -> str:
     return {
         AuthorRole.ADMIN: "Projet",
         AuthorRole.REP: "The company",
         AuthorRole.PARTICIPANT: "A participant",
-    }[post.author_role]
+    }[role]
 
 
 def _thread_out(db: Session, thread: Thread) -> ThreadOut:
@@ -184,7 +204,7 @@ def _thread_out(db: Session, thread: Thread) -> ThreadOut:
                 # FR-613 — a removal leaves a visible tombstone, not a gap.
                 body="[removed]" if post.removed_at else post.body,
                 author_role=post.author_role.value,
-                author_label=_author_label(thread, post),
+                author_label=_author_label(db, post),
                 created_at=post.created_at,
                 edited_at=post.edited_at,
                 removed=post.removed_at is not None,
@@ -263,7 +283,7 @@ def create_thread(
             body=payload.body,
             author_id=actor.id,
             author_role=role,
-            is_anonymous=payload.is_anonymous and role == AuthorRole.PARTICIPANT,
+            is_anonymous=False,
             requires_ack=payload.requires_ack and role != AuthorRole.PARTICIPANT,
             member_ids=members,
         )

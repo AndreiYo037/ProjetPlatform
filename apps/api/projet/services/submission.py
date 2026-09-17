@@ -1,11 +1,11 @@
 """Participant submissions (FR-800).
 
-Most slots are Drive links, carried by two requirements:
-
-  * FR-802 — the accessibility check at paste time. This prevents the most
-    predictable failure of the whole programme: five dead links on judging day.
-  * FR-804 — the deadline snapshot. Locking the link field does not lock the
-    document, so the snapshot is what gets judged.
+Link slots accept any URL. Google Drive links still get the accessibility
+check at paste time (FR-802), because a Drive file with the wrong sharing
+setting is the failure judging day cannot recover from. Everything else
+(GitHub, Figma, a personal site, a Notion page) is stored as given: we
+cannot open those the way we open Drive, and refusing them is worse than
+taking the participant at their word.
 
 A slot can instead be a direct upload. A static document has no "live" version
 to protect against last-minute edits, so an upload skips both: it is stored
@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.integrations.google.client import GoogleClient, get_google_client
+from projet.integrations.google.urls import extract_file_id
 from projet.models import Participant, Programme, Submission, SubmissionLink, Team, TeamMember
 from projet.models.base import utcnow
 from projet.models.enums import (
@@ -94,6 +95,10 @@ def set_link(
     if is_locked(session, submission):
         raise SubmissionError("The deadline has passed; submissions are locked.")
 
+    url = drive_url.strip()
+    if not url:
+        raise SubmissionError("Paste a link.")
+
     link = session.scalar(
         select(SubmissionLink)
         .where(SubmissionLink.submission_id == submission.id)
@@ -103,27 +108,39 @@ def set_link(
         link = SubmissionLink(submission_id=submission.id, slot=slot)
         session.add(link)
 
-    client = google or get_google_client()
-    probe = client.probe_drive_file(drive_url)
-
-    link.drive_url = drive_url.strip()
-    link.drive_file_id = probe.file_id
-    link.detected_filename = probe.filename
-    link.detected_mime = probe.mime_type
-    link.access_status = probe.access_status
-    link.last_checked_at = utcnow()
+    if extract_file_id(url):
+        client = google or get_google_client()
+        probe = client.probe_drive_file(url)
+        link.drive_url = url
+        link.drive_file_id = probe.file_id
+        link.detected_filename = probe.filename
+        link.detected_mime = probe.mime_type
+        link.access_status = probe.access_status
+        link.last_checked_at = utcnow()
+        result = LinkResult(
+            slot=slot.value,
+            access_status=probe.access_status.value,
+            ok=probe.ok,
+            filename=probe.filename,
+            mime_type=probe.mime_type,
+            message=probe.message,
+        )
+    else:
+        link.drive_url = url
+        link.drive_file_id = None
+        link.detected_filename = None
+        link.detected_mime = None
+        link.access_status = AccessStatus.OK
+        link.last_checked_at = utcnow()
+        result = LinkResult(
+            slot=slot.value,
+            access_status=AccessStatus.OK.value,
+            ok=True,
+        )
 
     _refresh_status(session, submission)
     session.flush()
-
-    return LinkResult(
-        slot=slot.value,
-        access_status=probe.access_status.value,
-        ok=probe.ok,
-        filename=probe.filename,
-        mime_type=probe.mime_type,
-        message=probe.message,
-    )
+    return result
 
 
 def set_upload(
@@ -244,6 +261,17 @@ def recheck(
         select(SubmissionLink).where(SubmissionLink.submission_id == submission.id)
     ):
         if not link.drive_url:
+            continue
+        if not extract_file_id(link.drive_url):
+            link.access_status = AccessStatus.OK
+            link.last_checked_at = utcnow()
+            results.append(
+                LinkResult(
+                    slot=link.slot.value,
+                    access_status=AccessStatus.OK.value,
+                    ok=True,
+                )
+            )
             continue
         probe = client.probe_drive_file(link.drive_url)
         link.access_status = probe.access_status

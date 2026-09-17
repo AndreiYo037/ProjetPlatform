@@ -11,6 +11,7 @@ __pycache__/
 *.db
 .storage/
 .env
+.google-sa.json
 
 # Node
 node_modules/

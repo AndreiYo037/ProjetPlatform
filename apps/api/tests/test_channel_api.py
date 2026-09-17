@@ -88,7 +88,7 @@ def test_the_participant_sees_the_companys_answer(
     sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
     thread = client.get(f"/threads/{thread_id}").json()
     assert thread["posts"][-1]["body"] == "Here is the answer."
-    assert thread["posts"][-1]["author_label"] == "The company"
+    assert thread["posts"][-1]["author_label"] == "Dana Rep"
 
 
 def test_a_direct_message_stays_out_of_another_participants_channel(
@@ -164,7 +164,7 @@ def test_the_company_announces_to_every_participant(
         listed = client.get(f"/programmes/{programme.id}/threads").json()
         assert any(t["id"] == thread_id for t in listed)
         thread = client.get(f"/threads/{thread_id}").json()
-        assert thread["posts"][0]["author_label"] == "The company"
+        assert thread["posts"][0]["author_label"] == "Dana Rep"
         assert "Running order" in thread["posts"][0]["body"]
 
 
@@ -322,8 +322,21 @@ def test_a_participant_can_reply_in_the_announcements_thread(
     replied = client.post(f"/threads/{thread_id}/posts", json={"body": "Thanks, got it."})
     assert replied.status_code == 201, replied.text
     assert replied.json()["posts"][-1]["body"] == "Thanks, got it."
-    assert replied.json()["posts"][-1]["author_label"] == "A participant"
+    assert replied.json()["posts"][-1]["author_label"] == participant.person.name
 
     sign_in(client, session, ActorType.COMPANY_USER, assigned_rep.id)
     seen = client.get(f"/threads/{thread_id}").json()
     assert seen["posts"][-1]["body"] == "Thanks, got it."
+
+
+def test_a_question_shows_the_participants_name(
+    client, session, programme, participant_factory
+):
+    participant = participant_factory(name="Andrei Loh")
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    opened = client.post(
+        f"/programmes/{programme.id}/threads",
+        json={"type": "question_challenge", "title": "Scope?", "body": "Is 2023 in?"},
+    )
+    assert opened.status_code == 201, opened.text
+    assert opened.json()["thread"]["posts"][0]["author_label"] == "Andrei Loh"

@@ -138,13 +138,16 @@ def test_a_recheck_after_fixing_sharing_restores_complete(session, submission, g
     assert sub.status == SubmissionStatus.COMPLETE
 
 
-def test_a_malformed_url_is_reported_not_accepted(session, submission, google):
+def test_any_url_is_accepted(session, submission, google):
+    """Artifact and extra slots take any link, not only Drive."""
     _, sub = submission
-    result = set_link(session, sub, SubmissionSlot.ARTIFACT, "https://example.com/x", google=google)
+    result = set_link(session, sub, SubmissionSlot.ARTIFACT, "https://github.com/org/repo", google=google)
 
-    assert not result.ok
-    assert result.access_status == "not_found"
-    assert sub.status == SubmissionStatus.DRAFT
+    assert result.ok
+    assert result.access_status == "ok"
+    link = next(link for link in sub.links if link.slot == SubmissionSlot.ARTIFACT)
+    assert link.drive_url == "https://github.com/org/repo"
+    assert link.drive_file_id is None
 
 
 def test_an_uploaded_file_is_stored_and_marked_ok(session, submission):

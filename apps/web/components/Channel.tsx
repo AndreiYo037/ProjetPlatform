@@ -25,8 +25,7 @@ import {
  * start a new one.
  *
  * Questions stay one thread each, because a question has an answer and a
- * resolved state. They are public to the cohort by default — the answer to one
- * person's question is usually the answer to everyone's — with a private
+ * resolved state. They are public to the cohort by default, with a private
  * option for what genuinely is one person's business.
  */
 
@@ -36,18 +35,13 @@ type Post = ThreadOut["posts"][number];
 const ASK_TYPES = [
   {
     value: "question_challenge",
-    label: "About the brief",
-    hint: "Scope, data, what counts as done. Everyone on the programme sees this.",
-  },
-  {
-    value: "question_logistics",
-    label: "Logistics",
-    hint: "Timing, submission, the pitch. Everyone on the programme sees this.",
+    label: "Everyone",
+    hint: "Everyone on the programme sees this.",
   },
   {
     value: "direct",
     label: "Private message",
-    hint: "Goes to the company rep and admin only. Nobody else on the programme sees it.",
+    hint: "Goes to the company and admin only. Nobody else on the programme sees it.",
   },
 ];
 

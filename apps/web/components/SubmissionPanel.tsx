@@ -129,20 +129,6 @@ export default function SubmissionPanel({
                 ? "In progress"
                 : "Not started"}
         </span>
-        {!submission.locked && (
-          <button
-            className="secondary small"
-            onClick={async () => {
-              setBusy("recheck");
-              await recheckSubmission().catch(() => undefined);
-              setBusy(null);
-              onChange();
-            }}
-            disabled={busy !== null}
-          >
-            {busy === "recheck" ? "Checking…" : "Check my links again"}
-          </button>
-        )}
       </div>
 
       {submission.locked && (
@@ -207,7 +193,7 @@ export default function SubmissionPanel({
                   <input
                     id={`slot-${slot.slot}`}
                     type="url"
-                    placeholder="Paste your Google Drive link"
+                    placeholder="Paste a link"
                     defaultValue={slot.drive_url ?? ""}
                     disabled={submission.locked}
                     onChange={(e) => setDrafts((d) => ({ ...d, [slot.slot]: e.target.value }))}
@@ -215,13 +201,13 @@ export default function SubmissionPanel({
                   />
                   {!submission.locked && (
                     <button onClick={() => save(slot.slot)} disabled={busy === slot.slot}>
-                      {busy === slot.slot ? "Checking…" : "Save"}
+                      {busy === slot.slot ? "Saving…" : "Save"}
                     </button>
                   )}
                 </div>
-                {slot.access_status === "ok" && slot.filename && (
+                {slot.access_status === "ok" && slot.drive_url && (
                   <div className="small" style={{ color: "var(--ok)", marginTop: "0.4rem" }}>
-                    We can open this — {slot.filename}
+                    {slot.filename ? `We can open this — ${slot.filename}` : "Saved."}
                   </div>
                 )}
                 {failed && (
@@ -240,7 +226,7 @@ export default function SubmissionPanel({
         <div className="panel" style={{ marginTop: "1rem" }}>
           {!complete && (
             <p className="small muted" style={{ marginTop: 0 }}>
-              Fill every slot — a link we can open, or a file you have uploaded — to
+              Fill every slot — a link, or a file you have uploaded — to
               submit.
             </p>
           )}

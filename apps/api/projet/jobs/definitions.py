@@ -87,6 +87,7 @@ def recheck_submission_links(session: Session, google=None) -> list[SubmissionLi
     """02:00 during running. A link shareable on day 2 can be un-shared by day 5,
     and nobody finds out unless we look (FR-1500)."""
     from projet.integrations.google.client import get_google_client
+    from projet.integrations.google.urls import extract_file_id
 
     client = google or get_google_client()
     links = list(
@@ -101,6 +102,10 @@ def recheck_submission_links(session: Session, google=None) -> list[SubmissionLi
     )
     broken: list[SubmissionLink] = []
     for link in links:
+        if not extract_file_id(link.drive_url or ""):
+            link.access_status = AccessStatus.OK
+            link.last_checked_at = utcnow()
+            continue
         probe = client.probe_drive_file(link.drive_url or "")
         link.access_status = probe.access_status
         link.last_checked_at = utcnow()
