@@ -109,14 +109,20 @@ export default function ApplyPage({
             required
             autoComplete="email"
           />
+          <div className="hint">
+            Where we email you — your application confirmation, the decision, and
+            anything else about this application. Any address you actually read is fine.
+          </div>
         </div>
 
         <div className="field">
           <label htmlFor="google_email">Google account email</label>
           <input id="google_email" name="google_email" type="email" required />
           <div className="hint">
-            We send Calendar invites and Meet links here, so it needs to be the Google
-            account you will actually use. A school or work address running on Google is fine.
+            Only used for Calendar invites and Meet links if you're accepted, so it needs
+            to be a real Google account, not just any inbox. A school or work address
+            running on Google is fine — it can be the same as your contact email above, or
+            different.
           </div>
         </div>
 
