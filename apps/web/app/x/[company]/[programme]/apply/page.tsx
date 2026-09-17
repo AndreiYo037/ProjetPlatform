@@ -1,14 +1,7 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { apiUrl, getListing, type PublicListing } from "@/lib/api";
-
-const MIN_WORDS = 200;
-const MAX_WORDS = 300;
-
-function countWords(text: string) {
-  return text.split(/\s+/).filter(Boolean).length;
-}
 
 /**
  * The day and the time, both. A date alone is not a commitment: the pitch is a
@@ -43,9 +36,6 @@ export default function ApplyPage({
       .then(setListing)
       .catch(() => setListing(null));
   }, [company, programme]);
-
-  const words = useMemo(() => countWords(writeup), [writeup]);
-  const wordsOk = words >= MIN_WORDS && words <= MAX_WORDS;
 
   const kickoff = formatMoment(listing?.start_at);
   const pitch = formatMoment(listing?.pitch_at);
@@ -202,9 +192,6 @@ export default function ApplyPage({
             onChange={(e) => setWriteup(e.target.value)}
             required
           />
-          <div className="hint" style={{ color: wordsOk ? undefined : "var(--warn)" }}>
-            {words} words · {MIN_WORDS}–{MAX_WORDS} required
-          </div>
         </div>
 
         <h2>The week</h2>
@@ -273,7 +260,7 @@ export default function ApplyPage({
 
         {error && <div className="notice bad">{error}</div>}
 
-        <button type="submit" disabled={busy || !wordsOk}>
+        <button type="submit" disabled={busy}>
           {busy ? "Submitting…" : "Submit application"}
         </button>
       </form>

@@ -180,7 +180,6 @@ def test_the_prompt_asks_in_the_words_of_the_rubric(session, role, content_dir):
     prompt = derive_writeup_prompt(role, template)
     assert template.rubric_slot2_name.lower() in prompt
     assert template.rubric_slot3_name.lower() in prompt
-    assert "200 to 300 words" in prompt
 
 
 def test_a_template_can_say_it_in_its_own_words(session, role):

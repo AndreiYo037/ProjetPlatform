@@ -38,8 +38,6 @@ from projet.storage import get_storage
 router = APIRouter(prefix="/public", tags=["public"])
 
 MAX_CV_BYTES = 5 * 1024 * 1024
-WRITEUP_MIN_WORDS = 200
-WRITEUP_MAX_WORDS = 300
 ALLOWED_CV_TYPES = {"application/pdf"}
 
 
@@ -322,10 +320,6 @@ def _readable(value: datetime | None) -> str | None:
     return value.strftime("%a %-d %b, %H:%M UTC")
 
 
-def count_words(text: str) -> int:
-    return len([word for word in text.split() if word.strip()])
-
-
 class ApplicationAccepted(BaseModel):
     application_id: uuid.UUID
     decision_by: datetime | None
@@ -389,13 +383,6 @@ async def apply(
     password_error = validate_password(password)
     if password_error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, password_error)
-
-    words = count_words(writeup)
-    if not WRITEUP_MIN_WORDS <= words <= WRITEUP_MAX_WORDS:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            f"The writeup must be {WRITEUP_MIN_WORDS}-{WRITEUP_MAX_WORDS} words; yours is {words}.",
-        )
 
     if not availability_confirmed:
         raise HTTPException(

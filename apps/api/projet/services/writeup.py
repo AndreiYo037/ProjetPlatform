@@ -20,9 +20,6 @@ from __future__ import annotations
 
 from projet.models import Role, RoleTemplate
 
-MIN_WORDS = 200
-MAX_WORDS = 300
-
 
 def _first_sentence(text: str) -> str:
     """Deliverables are written as a sentence or two; the prompt wants one."""
@@ -39,8 +36,7 @@ def derive_writeup_prompt(role: Role | None, template: RoleTemplate | None) -> s
     """Four asks, one per scoring dimension, phrased for this role."""
     role_name = role.name if role else "this role"
     lines = [
-        f"This is a {role_name} challenge. Answer these four in "
-        f"{MIN_WORDS} to {MAX_WORDS} words, in order.",
+        f"This is a {role_name} challenge. Answer these four, in order.",
         "",
         "1. Why this problem, and what you already know about it. Be specific "
         "about the company and the brief, not about the industry.",

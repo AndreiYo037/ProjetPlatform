@@ -289,8 +289,9 @@ def test_a_universal_criterion_cannot_be_renamed_over_http(client, session, admi
     assert "cannot be renamed" in response.json()["detail"]
 
 
-def test_the_writeup_word_range_is_enforced(client, session, admin, seeded):
-    """FR-205 — 200-300 words."""
+def test_the_writeup_has_no_word_range(client, session, admin, seeded):
+    """FR-205's 200-300 word range was removed: any non-empty writeup is
+    accepted, short or long."""
     sign_in(client, session, ActorType.PLATFORM, admin.id)
     company = client.post(
         "/companies",
@@ -327,13 +328,13 @@ def test_the_writeup_word_range_is_enforced(client, session, admin, seeded):
             "contact_email": "brief@school.edu.sg",
             "google_email": "brief@gmail.com",
             "writeup": "Too short.",
+            "availability_confirmed": "true",
             "consent_share_company": "true",
             "password": "hunter22",
         },
         files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
     )
-    assert response.status_code == 422
-    assert "200-300 words" in response.json()["detail"]
+    assert response.status_code == 201, response.text
 
 
 def test_an_application_can_decline_both_consents(client, session, admin, seeded):
