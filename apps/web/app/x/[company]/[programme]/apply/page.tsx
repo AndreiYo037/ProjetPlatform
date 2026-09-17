@@ -127,7 +127,7 @@ export default function ApplyPage({
         </div>
 
         <div className="field">
-          <label htmlFor="password">Choose a password</label>
+          <label htmlFor="password">Choose a keycode</label>
           <input
             id="password"
             name="password"
