@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 
@@ -63,6 +64,7 @@ from projet.services.schedule import (
 from projet.storage import get_storage
 
 router = APIRouter(tags=["programmes"])
+log = logging.getLogger(__name__)
 
 
 class ProgrammeCreate(BaseModel):
@@ -486,10 +488,14 @@ def publish_programme(
 
     from projet.services.calendar import ensure_kickoff_event
 
+    # Publication is not held hostage to Calendar being up: the listing goes
+    # live either way, and a programme without an event yet picks one up on the
+    # next publish. Logged rather than swallowed, because the Meet link is what
+    # the offer email carries.
     try:
         ensure_kickoff_event(db, programme)
     except Exception:
-        pass
+        log.exception("kickoff event not created for programme %s", programme.id)
 
     db.commit()
     return _detail(db, programme)

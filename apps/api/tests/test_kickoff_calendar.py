@@ -172,6 +172,80 @@ def test_accept_adds_participant_to_kickoff_event(
     )
 
 
+def test_the_offer_carries_the_meet_link_and_a_calendar_invite(
+    client, session, google, admin, seeded
+):
+    """The Meet link and the Calendar invite both land with the offer.
+
+    Someone deciding whether to take a place checks the kickoff against their
+    own calendar, which means the invite has to arrive before they accept.
+    """
+    sign_in(client, session, ActorType.PLATFORM, admin.id)
+    company = client.post(
+        "/companies",
+        json={
+            "name": "Acme",
+            "slug": "acme-cal4",
+            "owner_name": "Owner",
+            "owner_email": "owner@acme-cal4.test",
+        },
+    ).json()
+    programme = client.post(
+        "/programmes",
+        json={
+            "company_id": company["id"],
+            "role_id": str(seeded.id),
+            "title": "Offer invite test",
+            "slug": "cal-offer",
+            "start_at": next_kickoff().isoformat(),
+            "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
+            "problem_statement": "Test problem",
+            "deliverable_spec": "Test deliverable",
+        },
+    ).json()
+    programme_id = programme["id"]
+
+    client.post(f"/programmes/{programme_id}/publish")
+    prog = session.get(Programme, uuid.UUID(programme_id))
+    assert prog.kickoff_meet_link, "publishing puts a Meet link on standby"
+
+    client.cookies.clear()
+    client.post(
+        "/public/x/acme-cal4/cal-offer/apply",
+        data={
+            "name": "Sam Student",
+            "contact_email": "sam-offer@school.edu.sg",
+            "google_email": "sam-offer@gmail.com",
+            "writeup": " ".join(["analysis"] * 220),
+            "availability_confirmed": "true",
+            "password": "hunter22",
+        },
+        files={"cv": ("sam.pdf", io.BytesIO(b"%PDF-1.4 cv"), "application/pdf")},
+    )
+
+    sign_in(client, session, ActorType.PLATFORM, admin.id)
+    applications = client.get(f"/programmes/{programme_id}/applications").json()
+    client.post(
+        f"/programmes/{programme_id}/applications/disposition",
+        json={"application_ids": [applications[0]["id"]], "action": "offer"},
+    )
+    run_once(session, google)
+
+    offer = next(
+        c for c in google.calls_of("send_email") if c.payload["subject"].startswith("You're in")
+    )
+    assert prog.kickoff_meet_link in offer.payload["html_body"]
+    assert "Offer invite test" in offer.payload["html_body"]
+
+    invited = [
+        c
+        for c in google.calls_of("patch_event_attendees")
+        if c.payload["event_id"] == prog.kickoff_event_id
+        and any(a.email == "sam-offer@gmail.com" for a in c.payload.get("add") or [])
+    ]
+    assert invited, "an offered applicant is on the kickoff event before accepting"
+
+
 def test_republish_does_not_create_duplicate_event(
     client, session, google, admin, seeded
 ):

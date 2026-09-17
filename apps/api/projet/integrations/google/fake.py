@@ -59,7 +59,15 @@ class FakeGoogleClient:
     ) -> SentMessage:
         self._maybe_fail()
         self.calls.append(
-            FakeCall("send_email", {"to": to, "subject": subject, "thread_id": thread_id})
+            FakeCall(
+                "send_email",
+                {
+                    "to": to,
+                    "subject": subject,
+                    "thread_id": thread_id,
+                    "html_body": html_body,
+                },
+            )
         )
         return SentMessage(
             message_id=self._next_id("msg"), thread_id=thread_id or self._next_id("thread")

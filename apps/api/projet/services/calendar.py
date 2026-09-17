@@ -43,5 +43,6 @@ def ensure_kickoff_event(session: Session, programme: Programme) -> str | None:
         )
     )
     programme.kickoff_event_id = result.event_id
+    programme.kickoff_meet_link = result.meet_link
     session.flush()
     return result.event_id

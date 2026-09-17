@@ -11,6 +11,7 @@ from projet.outbox.effects import EffectContext, PermanentEffectError, effect
 
 APPLICATION_RECEIVED_EMAIL = "application_received_email"
 OFFER_EMAIL = "offer_email"
+OFFER_KICKOFF_INVITE = "offer_kickoff_invite"
 WAITLIST_EMAIL = "waitlist_email"
 REJECTION_EMAIL = "rejection_email"
 
@@ -73,17 +74,62 @@ def offer_email(ctx: EffectContext) -> dict:
         if application.offer_expires_at
         else "48 hours"
     )
+    title = programme.title if programme else "your programme"
+
+    kickoff_line = ""
+    if programme and programme.start_at:
+        kickoff_date = programme.start_at.strftime("%A %d %B, %H:%M")
+        kickoff_line = f"<p><strong>Kickoff:</strong> {kickoff_date}"
+        if programme.kickoff_meet_link:
+            kickoff_line += (
+                f' — <a href="{programme.kickoff_meet_link}">Join on Google Meet</a>'
+            )
+        kickoff_line += "</p>"
+
+    pitch_line = ""
+    if programme and programme.pitch_at:
+        pitch_line = (
+            f"<p><strong>Pitch day:</strong> {programme.pitch_at.strftime('%A %d %B, %H:%M')}</p>"
+        )
+
     sent = ctx.google.send_email(
         to=application.person.contact_email,
-        subject=f"You're in — {programme.title if programme else 'your programme'}",
+        subject=f"You're in — {title}",
         html_body=(
             f"<p>Hi {application.person.name},</p>"
-            f"<p>{company_name} would like you on this programme.</p>"
-            f'<p><a href="{url}">Accept your place</a> — this expires {expires}.</p>'
+            f"<p>You have been selected for <strong>{title}</strong> with {company_name}.</p>"
+            f"{kickoff_line}"
+            f"{pitch_line}"
+            f"<p>The kickoff is already in your calendar. Accept to confirm your place:</p>"
+            f'<p><a href="{url}"><strong>Accept your place</strong></a> — '
+            f"this expires {expires}.</p>"
         ),
         thread_id=_thread_id(ctx, application),
     )
     return {"message_id": sent.message_id}
+
+
+@effect(OFFER_KICKOFF_INVITE)
+def offer_kickoff_invite(ctx: EffectContext) -> dict:
+    """The Calendar invite goes out with the offer, not on acceptance.
+
+    Someone deciding whether to take a place needs the kickoff already sitting
+    in their calendar to check it against. Accepting later adds nothing: they
+    are already on the event.
+    """
+    from projet.integrations.google.client import Attendee
+
+    application = _application(ctx)
+    programme, _ = _context(ctx, application)
+    if programme is None or not programme.kickoff_event_id:
+        raise PermanentEffectError("programme has no kickoff event to invite to")
+
+    person = application.person
+    ctx.google.patch_event_attendees(
+        programme.kickoff_event_id,
+        add=[Attendee(email=person.google_email or person.contact_email, display_name=person.name)],
+    )
+    return {"event_id": programme.kickoff_event_id}
 
 
 @effect(WAITLIST_EMAIL)

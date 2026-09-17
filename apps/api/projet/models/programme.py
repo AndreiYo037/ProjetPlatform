@@ -79,6 +79,7 @@ class Programme(Base):
     )
 
     kickoff_event_id: Mapped[str | None] = mapped_column(String(300))
+    kickoff_meet_link: Mapped[str | None] = mapped_column(Text)
 
     # Set by the deadline sweep so due work is claimed exactly once (FR-1500).
     deadline_processed_at: Mapped[datetime | None] = mapped_column(TimestampTZ)

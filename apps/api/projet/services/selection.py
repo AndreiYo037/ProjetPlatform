@@ -20,6 +20,7 @@ from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType
 from projet.outbox.application_effects import (
     OFFER_EMAIL,
+    OFFER_KICKOFF_INVITE,
     REJECTION_EMAIL,
     WAITLIST_EMAIL,
 )
@@ -124,6 +125,15 @@ def make_offer(
             )
         },
     )
+
+    programme = session.get(Programme, application.programme_id)
+    if programme is not None and programme.kickoff_event_id:
+        enqueue(
+            session,
+            subject_type=OutboxSubjectType.APPLICATION,
+            subject_id=application.id,
+            effect_type=OFFER_KICKOFF_INVITE,
+        )
     return application
 
 
