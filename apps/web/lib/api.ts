@@ -403,12 +403,68 @@ export const updateScoringCard = (
 
 export type Portfolio = Schemas["Portfolio"];
 export type PublicProfile = Schemas["PublicProfile"];
+export type ProjectEntry = Schemas["ProjectEntryOut"];
+export type ProjectSkillOption = Schemas["SkillOptionOut"];
 export type TestimonialOut = Schemas["TestimonialOut"];
 export type TestimonialDraftOut = Schemas["TestimonialDraftOut"];
 export type CloseoutOut = Schemas["CloseoutOut"];
 
 /** What the participant keeps: attested skills, credentials, testimonials. */
 export const getPortfolio = () => api.get<Portfolio>("/me/portfolio");
+
+/** Case-study entries: verified ones seeded from a programme, self-declared
+ * ones the participant writes from scratch. Verified always sorts first. */
+export const getProjects = () => api.get<ProjectEntry[]>("/me/projects");
+
+export const createProject = (body: {
+  kind: string;
+  title: string;
+  organisation_name?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  problem?: string | null;
+  approach?: string | null;
+  contribution?: string[];
+  outcome?: string | null;
+  artifact_visibility?: string;
+}) => api.post<ProjectEntry>("/me/projects", body);
+
+export const updateProject = (
+  id: string,
+  body: Partial<{
+    kind: string;
+    title: string;
+    organisation_name: string | null;
+    started_at: string | null;
+    ended_at: string | null;
+    problem: string | null;
+    approach: string | null;
+    contribution: string[];
+    outcome: string | null;
+    artifact_visibility: string;
+    visible: boolean;
+  }>,
+) => api.patch<ProjectEntry>(`/me/projects/${id}`, body);
+
+export const deleteProject = (id: string) => api.del<void>(`/me/projects/${id}`);
+
+export const addProjectLink = (
+  id: string,
+  body: { kind: string; url: string; label?: string | null },
+) => api.post<ProjectEntry>(`/me/projects/${id}/links`, body);
+
+export const removeProjectLink = (id: string, linkId: string) =>
+  api.del<ProjectEntry>(`/me/projects/${id}/links/${linkId}`);
+
+/** Replaces the entry's claimed skills wholesale — the list sent is the list
+ * kept. Refused on a verified entry, where skills come from attestation. */
+export const setProjectSkills = (id: string, skillIds: string[]) =>
+  api.put<ProjectEntry>(`/me/projects/${id}/skills`, { skill_ids: skillIds });
+
+/** The whole taxonomy. A self-declared project has no role to rank against,
+ * so nothing is suggested and everything is reached by typing. */
+export const getProjectSkillOptions = () =>
+  api.get<ProjectSkillOption[]>("/me/skills/options");
 
 /** The public page — FR-1201. No session; a bare fetch answers it the same
  * way the browser does. Null on a 404, since "no profile at that handle" is

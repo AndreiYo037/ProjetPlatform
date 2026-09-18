@@ -690,3 +690,63 @@ main.wide {
     display: none;
   }
 }
+
+/* The project detail sheet.
+
+   A dialog rather than a separate route: a case study is edited while looking
+   at the rest of the profile, and a round trip through a page load loses that
+   context every time. Full-screen under 40rem, because a form this tall in a
+   floating box on a phone is a scroll trap. */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 17, 21, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 2rem 1rem;
+  overflow-y: auto;
+  z-index: 50;
+}
+
+.sheet {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  width: min(42rem, 100%);
+  padding: 1.25rem;
+  margin: auto 0;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.sheet-head h2 {
+  margin: 0;
+}
+
+/* The claimed-skill drawer: a bordered well so a claim never sits on the same
+   visual plane as an attested capability panel above it. */
+.drawer {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 0.85rem;
+  margin: 0.5rem 0 1rem;
+}
+
+@media (max-width: 40rem) {
+  .sheet-backdrop {
+    padding: 0;
+  }
+
+  .sheet {
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+}

@@ -16,8 +16,15 @@ from fastapi.testclient import TestClient
 from projet.db import get_session
 from projet.integrations.google.client import set_google_client
 from projet.main import create_app
+from projet.models import ProjectEntry
 from projet.models.base import utcnow
-from projet.models.enums import ActorType, AuthorRole, ProgrammeStatus, ThreadType
+from projet.models.enums import (
+    ActorType,
+    AuthorRole,
+    ProgrammeStatus,
+    ProjectKind,
+    ThreadType,
+)
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.messaging import open_thread
 from projet.services.teams import ensure_submission, ensure_team_for_participant
@@ -222,3 +229,136 @@ def test_the_project_list_carries_no_score(client, signed_in, session, programme
 
     for forbidden in ("score", "rank", "would_refer", "referral"):
         assert forbidden not in raw
+
+
+def _skill_row(session, name="Rust"):
+    from projet.models import Skill
+    from projet.models.enums import SkillType
+
+    skill = Skill(name=name, slug=name.lower(), type=SkillType.HARD)
+    session.add(skill)
+    session.flush()
+    return skill
+
+
+def test_a_participant_can_add_a_self_declared_project(client, signed_in):
+    response = client.post(
+        "/me/projects",
+        json={
+            "kind": "hackathon",
+            "title": "Weekend build",
+            "organisation_name": "Self-organized",
+            "outcome": "Won most useful.",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["verified"] is False
+    assert body["title"] == "Weekend build"
+    assert body["artifact_visibility"] == "private"
+
+
+def test_a_self_declared_project_cannot_claim_the_programme_kind(client, signed_in):
+    response = client.post("/me/projects", json={"kind": "programme", "title": "Not really"})
+
+    assert response.status_code == 400
+    assert "reserved" in response.json()["detail"]
+
+
+def test_an_unknown_kind_is_refused(client, signed_in):
+    response = client.post("/me/projects", json={"kind": "interpretive-dance", "title": "x"})
+    assert response.status_code == 422
+
+
+def test_editing_a_verified_entry_rewrites_the_narrative_only(
+    client, signed_in, session, programme
+):
+    programme.status = ProgrammeStatus.COMPLETE
+    session.flush()
+    entry_id = client.post(f"/me/projects/from-participant/{signed_in.id}").json()["id"]
+
+    narrative = client.patch(f"/me/projects/{entry_id}", json={"problem": "Churn was guessed at."})
+    assert narrative.status_code == 200
+    assert narrative.json()["problem"] == "Churn was guessed at."
+
+    facts = client.patch(f"/me/projects/{entry_id}", json={"title": "Something grander"})
+    assert facts.status_code == 400
+    assert "Cannot change" in facts.json()["detail"]
+
+
+def test_a_verified_entry_cannot_be_deleted_but_can_be_hidden(
+    client, signed_in, session, programme
+):
+    programme.status = ProgrammeStatus.COMPLETE
+    session.flush()
+    entry_id = client.post(f"/me/projects/from-participant/{signed_in.id}").json()["id"]
+
+    assert client.delete(f"/me/projects/{entry_id}").status_code == 400
+    assert client.patch(f"/me/projects/{entry_id}", json={"visible": False}).status_code == 200
+    # Hidden entries drop out of the owner's own listing too.
+    assert client.get("/me/projects").json() == []
+
+
+def test_a_self_declared_project_can_be_deleted(client, signed_in):
+    entry_id = client.post("/me/projects", json={"kind": "freelance", "title": "A thing"}).json()[
+        "id"
+    ]
+
+    assert client.delete(f"/me/projects/{entry_id}").status_code == 204
+    assert client.get("/me/projects").json() == []
+
+
+def test_links_round_trip_through_the_api(client, signed_in):
+    entry_id = client.post("/me/projects", json={"kind": "freelance", "title": "A thing"}).json()[
+        "id"
+    ]
+
+    added = client.post(
+        f"/me/projects/{entry_id}/links",
+        json={"kind": "github", "url": "https://github.test/repo", "label": "The code"},
+    )
+    assert added.status_code == 201
+    link_id = added.json()["links"][0]["id"]
+
+    removed = client.delete(f"/me/projects/{entry_id}/links/{link_id}")
+    assert removed.status_code == 200
+    assert removed.json()["links"] == []
+
+
+def test_the_skill_drawer_offers_the_taxonomy_and_tags_a_project(client, signed_in, session):
+    skill = _skill_row(session, "Rust")
+    entry_id = client.post("/me/projects", json={"kind": "independent", "title": "Toy"}).json()[
+        "id"
+    ]
+
+    options = client.get("/me/skills/options").json()
+    assert any(option["name"] == "Rust" for option in options)
+
+    tagged = client.put(f"/me/projects/{entry_id}/skills", json={"skill_ids": [str(skill.id)]})
+    assert tagged.status_code == 200
+    assert [s["name"] for s in tagged.json()["skills"]] == ["Rust"]
+
+
+def test_a_verified_entry_refuses_a_claimed_skill_over_http(
+    client, signed_in, session, programme
+):
+    programme.status = ProgrammeStatus.COMPLETE
+    session.flush()
+    skill = _skill_row(session, "Go")
+    entry_id = client.post(f"/me/projects/from-participant/{signed_in.id}").json()["id"]
+
+    response = client.put(f"/me/projects/{entry_id}/skills", json={"skill_ids": [str(skill.id)]})
+
+    assert response.status_code == 400
+    assert "attestation" in response.json()["detail"]
+
+
+def test_someone_elses_project_is_a_404(client, signed_in, session, participant_factory):
+    stranger = participant_factory(name="Someone Else")
+    entry = ProjectEntry(person_id=stranger.person_id, kind=ProjectKind.FREELANCE, title="Theirs")
+    session.add(entry)
+    session.flush()
+
+    assert client.patch(f"/me/projects/{entry.id}", json={"title": "Mine"}).status_code == 404
+    assert client.delete(f"/me/projects/{entry.id}").status_code == 404

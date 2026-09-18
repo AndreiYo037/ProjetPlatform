@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
-import { getPortfolio, type Portfolio } from "@/lib/api";
+import ProjectSheet from "@/components/ProjectSheet";
+import { getPortfolio, getProjects, type Portfolio, type ProjectEntry } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
 
 /**
@@ -20,12 +21,17 @@ import { useActor } from "@/lib/useActor";
 export default function PortfolioPage() {
   const gate = useActor("participant");
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [projects, setProjects] = useState<ProjectEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // null = closed; "new" = create mode; an entry = editing that one.
+  const [sheet, setSheet] = useState<ProjectEntry | "new" | null>(null);
 
   const load = useCallback(async () => {
     if (gate.status !== "ready") return;
     try {
-      setPortfolio(await getPortfolio());
+      const [loaded, entries] = await Promise.all([getPortfolio(), getProjects()]);
+      setPortfolio(loaded);
+      setProjects(entries);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load your profile.");
     }
@@ -39,10 +45,14 @@ export default function PortfolioPage() {
   if (error) return <main><div className="notice bad">{error}</div></main>;
   if (!portfolio) return <main><p className="muted">Loading…</p></main>;
 
+  const verified = projects.filter((project) => project.verified);
+  const selfDeclared = projects.filter((project) => !project.verified);
+
   const empty =
     portfolio.capabilities.length === 0 &&
     portfolio.credentials.length === 0 &&
-    portfolio.testimonials.length === 0;
+    portfolio.testimonials.length === 0 &&
+    projects.length === 0;
 
   return (
     <main>
@@ -101,6 +111,31 @@ export default function PortfolioPage() {
         </>
       )}
 
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 style={{ marginBottom: 0 }}>Projects</h2>
+        <button className="secondary" onClick={() => setSheet("new")}>
+          Add a project
+        </button>
+      </div>
+      <p className="small muted">
+        {verified.length} company verified
+        {selfDeclared.length > 0 && ` · ${selfDeclared.length} self-declared`}. Two numbers, never
+        one: work nobody here watched is still yours, but it is not evidence this platform stands
+        behind.
+      </p>
+
+      {verified.map((project) => (
+        <ProjectRow key={project.id} project={project} onOpen={() => setSheet(project)} />
+      ))}
+      {selfDeclared.map((project) => (
+        <ProjectRow key={project.id} project={project} onOpen={() => setSheet(project)} />
+      ))}
+      {projects.length === 0 && (
+        <p className="small muted">
+          Nothing yet. A programme you finish seeds one of these with the facts already filled in.
+        </p>
+      )}
+
       {portfolio.credentials.length > 0 && (
         <>
           <h2>Credentials</h2>
@@ -147,6 +182,43 @@ export default function PortfolioPage() {
           ))}
         </>
       )}
+
+      {sheet !== null && (
+        <ProjectSheet
+          entry={sheet === "new" ? null : sheet}
+          onClose={() => setSheet(null)}
+          onSaved={load}
+        />
+      )}
     </main>
+  );
+}
+
+/** A case study at rest. Clicking opens the sheet; the card itself stays a
+ * summary, because the page is read far more often than it is edited. */
+function ProjectRow({ project, onOpen }: { project: ProjectEntry; onOpen: () => void }) {
+  return (
+    <div className="card">
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <strong>{project.title}</strong>
+        <span className="row" style={{ gap: "0.4rem" }}>
+          {project.verified ? (
+            <span className="tag open">company verified</span>
+          ) : (
+            <span className="tag">self-declared</span>
+          )}
+          {!project.visible && <span className="tag closed">hidden</span>}
+        </span>
+      </div>
+      <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
+        {project.organisation_name}
+        {project.organisation_name && project.ended_at && " · "}
+        {project.ended_at}
+      </p>
+      {project.outcome && <p style={{ marginTop: 0 }}>{project.outcome}</p>}
+      <button className="secondary" onClick={onOpen}>
+        {project.verified ? "Write it up" : "Edit"}
+      </button>
+    </div>
   );
 }

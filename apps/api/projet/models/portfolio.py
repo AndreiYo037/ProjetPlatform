@@ -28,6 +28,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from projet.db import Base
 from projet.models.base import JSONList, TimestampTZ, enum_column, utcnow, uuid_pk
 from projet.models.enums import ArtifactVisibility, ProjectKind, ProjectLinkKind
+from projet.models.taxonomy import Skill
 
 
 class ProjectEntry(Base):
@@ -122,3 +123,4 @@ class ProjectSkill(Base):
     skill_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("skill.id"))
 
     entry: Mapped[ProjectEntry] = relationship(back_populates="skills")
+    skill: Mapped[Skill] = relationship()

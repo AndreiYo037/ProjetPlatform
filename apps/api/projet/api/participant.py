@@ -32,7 +32,13 @@ from projet.models import (
     Thread,
 )
 from projet.models.base import utcnow
-from projet.models.enums import ProgrammeStatus, SubmissionSlot
+from projet.models.enums import (
+    ArtifactVisibility,
+    ProgrammeStatus,
+    ProjectKind,
+    ProjectLinkKind,
+    SubmissionSlot,
+)
 from projet.services.auth import Actor
 from projet.services.closeout import credentials_for
 from projet.services.data_pack import released_resources, resource_url
@@ -43,7 +49,18 @@ from projet.services.messaging import (
     visible_threads,
 )
 from projet.services.profile import capability_rollup, published_testimonials_for
-from projet.services.projects import ProjectError, entries_for, seed_from_participant
+from projet.services.projects import (
+    ProjectError,
+    add_link,
+    create_entry,
+    delete_entry,
+    entries_for,
+    remove_link,
+    seed_from_participant,
+    set_skills,
+    update_entry,
+)
+from projet.services.skills import options_for_role
 from projet.services.submission import (
     SubmissionError,
     clear_link,
@@ -233,9 +250,16 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
 
 
 class ProjectLinkOut(BaseModel):
+    id: uuid.UUID
     kind: str
     url: str
     label: str | None
+
+
+class ProjectSkillOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    type: str
 
 
 class ProjectEntryOut(BaseModel):
@@ -258,7 +282,9 @@ class ProjectEntryOut(BaseModel):
     contribution: list[str]
     outcome: str | None
     artifact_visibility: str
+    visible: bool
     links: list[ProjectLinkOut]
+    skills: list[ProjectSkillOut]
 
 
 def _project_out(entry: ProjectEntry) -> ProjectEntryOut:
@@ -275,9 +301,14 @@ def _project_out(entry: ProjectEntry) -> ProjectEntryOut:
         contribution=list(entry.contribution or []),
         outcome=entry.outcome,
         artifact_visibility=entry.artifact_visibility.value,
+        visible=entry.visible,
         links=[
-            ProjectLinkOut(kind=link.kind.value, url=link.url, label=link.label)
+            ProjectLinkOut(id=link.id, kind=link.kind.value, url=link.url, label=link.label)
             for link in entry.links
+        ],
+        skills=[
+            ProjectSkillOut(id=ps.skill_id, name=ps.skill.name, type=ps.skill.type.value)
+            for ps in entry.skills
         ],
     )
 
@@ -315,6 +346,237 @@ def seed_project(
     db.commit()
     db.refresh(entry)
     return _project_out(entry)
+
+
+def _project_http_error(exc: ProjectError) -> HTTPException:
+    """404 when the entry is not theirs, 400 when the edit is not allowed.
+
+    A missing entry and someone else's entry answer identically, so the
+    response cannot be used to learn that an entry exists.
+    """
+    missing = "No project" in str(exc) or "No link" in str(exc)
+    code = status.HTTP_404_NOT_FOUND if missing else status.HTTP_400_BAD_REQUEST
+    return HTTPException(code, str(exc))
+
+
+class ProjectEntryCreate(BaseModel):
+    kind: str
+    title: str = Field(min_length=1, max_length=300)
+    organisation_name: str | None = None
+    started_at: date | None = None
+    ended_at: date | None = None
+    problem: str | None = None
+    approach: str | None = None
+    contribution: list[str] = Field(default_factory=list)
+    outcome: str | None = None
+    artifact_visibility: str = "private"
+
+
+def _parse_kind(value: str) -> ProjectKind:
+    try:
+        return ProjectKind(value)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown project kind.") from exc
+
+
+def _parse_visibility(value: str) -> ArtifactVisibility:
+    try:
+        return ArtifactVisibility(value)
+    except ValueError as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown artifact visibility."
+        ) from exc
+
+
+@router.post("/projects", response_model=ProjectEntryOut, status_code=status.HTTP_201_CREATED)
+def add_project(
+    payload: ProjectEntryCreate,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProjectEntryOut:
+    """Start a case study for work this platform never ran.
+
+    Counted alongside the verified ones and always shown after them — the
+    scope decision this whole feature turns on.
+    """
+    person = _person(db, actor)
+    try:
+        entry = create_entry(
+            db,
+            person.id,
+            kind=_parse_kind(payload.kind),
+            title=payload.title,
+            organisation_name=payload.organisation_name,
+            started_at=payload.started_at,
+            ended_at=payload.ended_at,
+            problem=payload.problem,
+            approach=payload.approach,
+            contribution=payload.contribution,
+            outcome=payload.outcome,
+            artifact_visibility=_parse_visibility(payload.artifact_visibility),
+        )
+    except ProjectError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    db.commit()
+    db.refresh(entry)
+    return _project_out(entry)
+
+
+class ProjectEntryUpdate(BaseModel):
+    """Every field optional; only the ones sent are changed.
+
+    A verified entry accepts the narrative and consent fields and rejects the
+    rest with a named error (see `update_entry`) — never a silent no-op on a
+    field the request thought it was changing.
+    """
+
+    kind: str | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    organisation_name: str | None = None
+    started_at: date | None = None
+    ended_at: date | None = None
+    problem: str | None = None
+    approach: str | None = None
+    contribution: list[str] | None = None
+    outcome: str | None = None
+    artifact_visibility: str | None = None
+    visible: bool | None = None
+
+
+@router.patch("/projects/{entry_id}", response_model=ProjectEntryOut)
+def edit_project(
+    entry_id: uuid.UUID,
+    payload: ProjectEntryUpdate,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProjectEntryOut:
+    person = _person(db, actor)
+    changes = payload.model_dump(exclude_unset=True)
+    if "kind" in changes:
+        changes["kind"] = _parse_kind(changes["kind"])
+    if "artifact_visibility" in changes:
+        changes["artifact_visibility"] = _parse_visibility(changes["artifact_visibility"])
+    try:
+        entry = update_entry(db, person.id, entry_id, changes)
+    except ProjectError as exc:
+        raise _project_http_error(exc) from exc
+    db.commit()
+    db.refresh(entry)
+    return _project_out(entry)
+
+
+@router.delete("/projects/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_project(
+    entry_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> None:
+    person = _person(db, actor)
+    try:
+        delete_entry(db, person.id, entry_id)
+    except ProjectError as exc:
+        raise _project_http_error(exc) from exc
+    db.commit()
+
+
+class ProjectLinkCreate(BaseModel):
+    kind: str
+    url: str = Field(min_length=1)
+    label: str | None = None
+
+
+@router.post(
+    "/projects/{entry_id}/links",
+    response_model=ProjectEntryOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_project_link(
+    entry_id: uuid.UUID,
+    payload: ProjectLinkCreate,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProjectEntryOut:
+    person = _person(db, actor)
+    try:
+        kind = ProjectLinkKind(payload.kind)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown link kind.") from exc
+    try:
+        add_link(db, person.id, entry_id, kind=kind, url=payload.url, label=payload.label)
+    except ProjectError as exc:
+        raise _project_http_error(exc) from exc
+    db.commit()
+    entry = db.get(ProjectEntry, entry_id)
+    assert entry is not None
+    return _project_out(entry)
+
+
+@router.delete("/projects/{entry_id}/links/{link_id}", response_model=ProjectEntryOut)
+def remove_project_link(
+    entry_id: uuid.UUID,
+    link_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProjectEntryOut:
+    person = _person(db, actor)
+    try:
+        remove_link(db, person.id, entry_id, link_id)
+    except ProjectError as exc:
+        raise _project_http_error(exc) from exc
+    db.commit()
+    entry = db.get(ProjectEntry, entry_id)
+    assert entry is not None
+    return _project_out(entry)
+
+
+class ProjectSkillsUpdate(BaseModel):
+    skill_ids: list[uuid.UUID]
+
+
+@router.put("/projects/{entry_id}/skills", response_model=ProjectEntryOut)
+def set_project_skills(
+    entry_id: uuid.UUID,
+    payload: ProjectSkillsUpdate,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProjectEntryOut:
+    """Tag what a self-declared project used.
+
+    Never reachable for a verified entry: what it demonstrated is for a judge
+    to attest, not for the participant to claim, and this is the boundary
+    that keeps the two apart.
+    """
+    person = _person(db, actor)
+    try:
+        entry = set_skills(db, person.id, entry_id, payload.skill_ids)
+    except ProjectError as exc:
+        raise _project_http_error(exc) from exc
+    db.commit()
+    db.refresh(entry)
+    return _project_out(entry)
+
+
+class SkillOptionOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    type: str
+
+
+@router.get("/skills/options", response_model=list[SkillOptionOut])
+def project_skill_options(
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> list[SkillOptionOut]:
+    """The whole taxonomy for the self-declared skill drawer.
+
+    No role to rank against here — a self-declared project has none — so
+    every skill is offered on equal footing and reached by typing, same as
+    the judge's picker with an empty template (FR-903b).
+    """
+    return [
+        SkillOptionOut(id=ranked.skill.id, name=ranked.skill.name, type=ranked.skill.type.value)
+        for ranked in options_for_role(db, None)
+    ]
 
 
 @router.patch("/profile", response_model=ProfileOut)

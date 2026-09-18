@@ -3881,6 +3881,64 @@
             }
           }
         }
+      },
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Add Project",
+        "description": "Start a case study for work this platform never ran.\n\nCounted alongside the verified ones and always shown after them \u2014 the\nscope decision this whole feature turns on.",
+        "operationId": "add_project_me_projects_post",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectEntryCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/me/projects/from-participant/{participant_id}": {
@@ -3926,6 +3984,387 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/projects/{entry_id}": {
+      "patch": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Edit Project",
+        "operationId": "edit_project_me_projects__entry_id__patch",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectEntryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Remove Project",
+        "operationId": "remove_project_me_projects__entry_id__delete",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/projects/{entry_id}/links": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Add Project Link",
+        "operationId": "add_project_link_me_projects__entry_id__links_post",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectLinkCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/projects/{entry_id}/links/{link_id}": {
+      "delete": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Remove Project Link",
+        "operationId": "remove_project_link_me_projects__entry_id__links__link_id__delete",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "link_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Link Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/projects/{entry_id}/skills": {
+      "put": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Set Project Skills",
+        "description": "Tag what a self-declared project used.\n\nNever reachable for a verified entry: what it demonstrated is for a judge\nto attest, not for the participant to claim, and this is the boundary\nthat keeps the two apart.",
+        "operationId": "set_project_skills_me_projects__entry_id__skills_put",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectSkillsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/skills/options": {
+      "get": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Project Skill Options",
+        "description": "The whole taxonomy for the self-declared skill drawer.\n\nNo role to rank against here \u2014 a self-declared project has none \u2014 so\nevery skill is offered on equal footing and reached by typing, same as\nthe judge's picker with an empty template (FR-903b).",
+        "operationId": "project_skill_options_me_skills_options_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SkillOptionOut"
+                  },
+                  "title": "Response Project Skill Options Me Skills Options Get"
                 }
               }
             }
@@ -8245,6 +8684,106 @@
         "title": "ProgrammeUpdate",
         "description": "The submission deadline and pitch day are not settable.\n\nThey derive from kickoff (see services/schedule.py), so letting either be\nedited independently would let a programme drift out of the shape every\nparticipant was promised at application time."
       },
+      "ProjectEntryCreate": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "organisation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation Name"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "approach": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach"
+          },
+          "contribution": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contribution"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "artifact_visibility": {
+            "type": "string",
+            "title": "Artifact Visibility",
+            "default": "private"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "title"
+        ],
+        "title": "ProjectEntryCreate"
+      },
       "ProjectEntryOut": {
         "properties": {
           "id": {
@@ -8343,12 +8882,23 @@
             "type": "string",
             "title": "Artifact Visibility"
           },
+          "visible": {
+            "type": "boolean",
+            "title": "Visible"
+          },
           "links": {
             "items": {
               "$ref": "#/components/schemas/ProjectLinkOut"
             },
             "type": "array",
             "title": "Links"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectSkillOut"
+            },
+            "type": "array",
+            "title": "Skills"
           }
         },
         "type": "object",
@@ -8365,13 +8915,185 @@
           "contribution",
           "outcome",
           "artifact_visibility",
-          "links"
+          "visible",
+          "links",
+          "skills"
         ],
         "title": "ProjectEntryOut",
         "description": "One case-study card.\n\n`verified` is the only thing on here the participant cannot set, and it is\nthe thing the whole card is read against, so it is a field of its own\nrather than something a reader has to infer from `kind`."
       },
+      "ProjectEntryUpdate": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "organisation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation Name"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "approach": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach"
+          },
+          "contribution": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contribution"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "artifact_visibility": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Visibility"
+          },
+          "visible": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visible"
+          }
+        },
+        "type": "object",
+        "title": "ProjectEntryUpdate",
+        "description": "Every field optional; only the ones sent are changed.\n\nA verified entry accepts the narrative and consent fields and rejects the\nrest with a named error (see `update_entry`) \u2014 never a silent no-op on a\nfield the request thought it was changing."
+      },
+      "ProjectLinkCreate": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Url"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "url"
+        ],
+        "title": "ProjectLinkCreate"
+      },
       "ProjectLinkOut": {
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
           "kind": {
             "type": "string",
             "title": "Kind"
@@ -8394,11 +9116,53 @@
         },
         "type": "object",
         "required": [
+          "id",
           "kind",
           "url",
           "label"
         ],
         "title": "ProjectLinkOut"
+      },
+      "ProjectSkillOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "ProjectSkillOut"
+      },
+      "ProjectSkillsUpdate": {
+        "properties": {
+          "skill_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Skill Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "skill_ids"
+        ],
+        "title": "ProjectSkillsUpdate"
       },
       "PublicAttestedSkill": {
         "properties": {
@@ -9708,6 +10472,30 @@
           "type"
         ],
         "title": "SkillOption"
+      },
+      "SkillOptionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type"
+        ],
+        "title": "SkillOptionOut"
       },
       "SlotOut": {
         "properties": {

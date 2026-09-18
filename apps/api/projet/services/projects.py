@@ -21,6 +21,7 @@ from projet.models import (
     Programme,
     ProjectEntry,
     ProjectLink,
+    Skill,
 )
 from projet.models.enums import (
     ArtifactVisibility,
@@ -28,10 +29,27 @@ from projet.models.enums import (
     ProjectKind,
     ProjectLinkKind,
 )
+from projet.models.portfolio import ProjectSkill
+
+# Fields a participant may write on a verified entry: the narrative and the
+# consent to show it. Everything else on a verified entry — who, when, the
+# organisation — was derived from a programme this platform ran and stays
+# platform-derived, however the entry is edited afterwards.
+VERIFIED_EDITABLE_FIELDS = frozenset(
+    {"problem", "approach", "contribution", "outcome", "artifact_visibility", "visible"}
+)
+# Everything a self-declared entry has, all of it theirs.
+SELF_DECLARED_EDITABLE_FIELDS = VERIFIED_EDITABLE_FIELDS | {
+    "kind",
+    "title",
+    "organisation_name",
+    "started_at",
+    "ended_at",
+}
 
 
 class ProjectError(Exception):
-    """A seed that cannot be honoured."""
+    """A seed, edit or delete that cannot be honoured."""
 
 
 def _as_date(value):  # type: ignore[no-untyped-def]
@@ -125,3 +143,160 @@ def entries_for(
             -(e.ended_at.toordinal() if e.ended_at else 0),
         ),
     )
+
+
+def _owned_entry(session: Session, person_id: uuid.UUID, entry_id: uuid.UUID) -> ProjectEntry:
+    entry = session.get(ProjectEntry, entry_id)
+    if entry is None or entry.person_id != person_id:
+        raise ProjectError("No project there.")
+    return entry
+
+
+def create_entry(
+    session: Session,
+    person_id: uuid.UUID,
+    *,
+    kind: ProjectKind,
+    title: str,
+    organisation_name: str | None = None,
+    started_at=None,  # noqa: ANN001
+    ended_at=None,  # noqa: ANN001
+    problem: str | None = None,
+    approach: str | None = None,
+    contribution: list[str] | None = None,
+    outcome: str | None = None,
+    artifact_visibility: ArtifactVisibility = ArtifactVisibility.PRIVATE,
+) -> ProjectEntry:
+    """A self-declared entry. Verified ones come only from `seed_from_participant`
+    — kind=PROGRAMME is reserved for those, so a self-declared entry claiming
+    it could not be told apart from a company's own account of a week."""
+    if kind is ProjectKind.PROGRAMME:
+        raise ProjectError("That kind is reserved for a programme this platform ran.")
+    if not title.strip():
+        raise ProjectError("A title is required.")
+
+    entry = ProjectEntry(
+        person_id=person_id,
+        participant_id=None,
+        kind=kind,
+        title=title.strip(),
+        organisation_name=(organisation_name or "").strip() or None,
+        started_at=started_at,
+        ended_at=ended_at,
+        problem=problem,
+        approach=approach,
+        contribution=list(contribution or []),
+        outcome=outcome,
+        artifact_visibility=artifact_visibility,
+    )
+    session.add(entry)
+    session.flush()
+    return entry
+
+
+def update_entry(
+    session: Session, person_id: uuid.UUID, entry_id: uuid.UUID, changes: dict
+) -> ProjectEntry:
+    """Apply `changes` to an entry the caller owns.
+
+    A verified entry only accepts the narrative and the consent fields —
+    VERIFIED_EDITABLE_FIELDS — silently rejecting anything else with a named
+    error rather than quietly dropping it, so an attempt to rewrite who they
+    worked for surfaces instead of vanishing.
+    """
+    entry = _owned_entry(session, person_id, entry_id)
+    allowed = SELF_DECLARED_EDITABLE_FIELDS if not entry.verified else VERIFIED_EDITABLE_FIELDS
+    unknown = set(changes) - allowed
+    if unknown:
+        raise ProjectError(
+            f"Cannot change {', '.join(sorted(unknown))} on a "
+            f"{'verified' if entry.verified else 'self-declared'} entry."
+        )
+    if "kind" in changes and changes["kind"] is ProjectKind.PROGRAMME:
+        raise ProjectError("That kind is reserved for a programme this platform ran.")
+    if "title" in changes and not (changes["title"] or "").strip():
+        raise ProjectError("A title is required.")
+
+    for field, value in changes.items():
+        setattr(entry, field, value)
+    session.flush()
+    return entry
+
+
+def delete_entry(session: Session, person_id: uuid.UUID, entry_id: uuid.UUID) -> None:
+    """Self-declared only. A verified entry is a record of a week this platform
+    ran, and stays available to hide (`visible=False`) rather than erase."""
+    entry = _owned_entry(session, person_id, entry_id)
+    if entry.verified:
+        raise ProjectError("A verified entry can be hidden, not deleted.")
+    session.delete(entry)
+    session.flush()
+
+
+def add_link(
+    session: Session,
+    person_id: uuid.UUID,
+    entry_id: uuid.UUID,
+    *,
+    kind: ProjectLinkKind,
+    url: str,
+    label: str | None = None,
+) -> ProjectLink:
+    entry = _owned_entry(session, person_id, entry_id)
+    if not url.strip():
+        raise ProjectError("A link needs a URL.")
+    link = ProjectLink(
+        project_entry_id=entry.id, kind=kind, url=url.strip(), label=(label or "").strip() or None
+    )
+    session.add(link)
+    session.flush()
+    return link
+
+
+def remove_link(
+    session: Session, person_id: uuid.UUID, entry_id: uuid.UUID, link_id: uuid.UUID
+) -> None:
+    entry = _owned_entry(session, person_id, entry_id)
+    link = session.get(ProjectLink, link_id)
+    if link is None or link.project_entry_id != entry.id:
+        raise ProjectError("No link there.")
+    session.delete(link)
+    session.flush()
+
+
+def set_skills(
+    session: Session, person_id: uuid.UUID, entry_id: uuid.UUID, skill_ids: list[uuid.UUID]
+) -> ProjectEntry:
+    """Replace a self-declared entry's claimed skills.
+
+    Verified entries never take a skill through here: what a verified entry
+    demonstrated is for a judge to attest as a ProfileSkill, not for the
+    participant to claim, and ProjectSkill exists precisely so a claim can
+    never be mistaken for that attestation.
+    """
+    entry = _owned_entry(session, person_id, entry_id)
+    if entry.verified:
+        raise ProjectError("Skills on a verified entry come from attestation, not a claim.")
+
+    wanted = set(skill_ids)
+    if wanted:
+        found = set(
+            session.scalars(select(Skill.id).where(Skill.id.in_(wanted)))
+        )
+        missing = wanted - found
+        if missing:
+            raise ProjectError("Unknown skill.")
+
+    existing = {
+        row.skill_id: row
+        for row in session.scalars(
+            select(ProjectSkill).where(ProjectSkill.project_entry_id == entry.id)
+        )
+    }
+    for skill_id, row in existing.items():
+        if skill_id not in wanted:
+            session.delete(row)
+    for skill_id in wanted - existing.keys():
+        session.add(ProjectSkill(project_entry_id=entry.id, skill_id=skill_id))
+    session.flush()
+    return entry
