@@ -15,7 +15,7 @@ from projet.db import get_session
 from projet.integrations.google.client import set_google_client
 from projet.main import create_app
 from projet.models import Person, ProjectEntry, ProjectLink
-from projet.models.enums import ArtifactVisibility, ProgrammeStatus, ProjectKind, ProjectLinkKind
+from projet.models.enums import ArtifactVisibility, ProgrammeStatus
 from projet.services.projects import seed_from_participant
 
 
@@ -83,9 +83,7 @@ def test_verified_and_self_declared_are_counted_apart(client, session, programme
     participant = participant_factory()
     person = _make_public(session, participant)
     seed_from_participant(session, person.id, participant.id)
-    session.add(
-        ProjectEntry(person_id=person.id, kind=ProjectKind.HACKATHON, title="Weekend build")
-    )
+    session.add(ProjectEntry(person_id=person.id, title="Weekend build"))
     session.flush()
 
     body = client.get("/p/sam-student").json()
@@ -98,9 +96,7 @@ def test_verified_and_self_declared_are_counted_apart(client, session, programme
 def test_a_hidden_entry_never_appears(client, session, participant_factory):
     participant = participant_factory()
     person = _make_public(session, participant)
-    entry = ProjectEntry(
-        person_id=person.id, kind=ProjectKind.INDEPENDENT, title="Not ready", visible=False
-    )
+    entry = ProjectEntry(person_id=person.id, title="Not ready", visible=False)
     session.add(entry)
     session.flush()
 
@@ -114,17 +110,12 @@ def test_a_private_artifact_shows_the_entry_but_not_its_links(client, session, p
     person = _make_public(session, participant)
     entry = ProjectEntry(
         person_id=person.id,
-        kind=ProjectKind.FREELANCE,
         title="Client dashboard",
         artifact_visibility=ArtifactVisibility.PRIVATE,
     )
     session.add(entry)
     session.flush()
-    session.add(
-        ProjectLink(
-            project_entry_id=entry.id, kind=ProjectLinkKind.DEMO, url="https://example.test/demo"
-        )
-    )
+    session.add(ProjectLink(project_entry_id=entry.id, url="https://example.test/demo"))
     session.flush()
 
     body = client.get("/p/sam-student").json()
@@ -138,20 +129,41 @@ def test_consenting_to_show_links_makes_them_appear(client, session, participant
     person = _make_public(session, participant)
     entry = ProjectEntry(
         person_id=person.id,
-        kind=ProjectKind.FREELANCE,
         title="Client dashboard",
         artifact_visibility=ArtifactVisibility.PUBLIC,
     )
     session.add(entry)
     session.flush()
-    session.add(
-        ProjectLink(
-            project_entry_id=entry.id, kind=ProjectLinkKind.DEMO, url="https://example.test/demo"
-        )
-    )
+    session.add(ProjectLink(project_entry_id=entry.id, url="https://example.test/demo"))
     session.flush()
 
     body = client.get("/p/sam-student").json()
     assert body["projects"][0]["links"] == [
-        {"kind": "demo", "url": "https://example.test/demo", "label": None}
+        {"url": "https://example.test/demo", "filename": None, "label": None}
     ]
+
+
+def test_an_uploaded_file_is_hidden_and_shown_by_the_same_consent(
+    client, session, participant_factory
+):
+    """A file is the work just as much as a URL is, so one gate covers both."""
+    from projet.services.projects import attach_file, create_entry
+
+    participant = participant_factory()
+    person = _make_public(session, participant)
+    entry = create_entry(session, person.id, title="Client dashboard")
+    attach_file(
+        session, person.id, entry.id, filename="deck.pdf", content_type="application/pdf", data=b"%PDF-1.4"
+    )
+    session.flush()
+
+    assert client.get("/p/sam-student").json()["projects"][0]["links"] == []
+
+    entry.artifact_visibility = ArtifactVisibility.PUBLIC
+    session.flush()
+
+    link = client.get("/p/sam-student").json()["projects"][0]["links"][0]
+    assert link["filename"] == "deck.pdf"
+    # Signed even on a public page: the key never becomes a permanent address.
+    assert "sig=" in link["url"]
+    assert client.get(link["url"]).content == b"%PDF-1.4"

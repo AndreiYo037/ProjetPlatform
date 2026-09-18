@@ -1,7 +1,7 @@
-"""Case-study entries — verified and self-declared, never confused.
+"""Project entries — verified and self-declared, never confused.
 
 The load-bearing rule this file defends: a verified entry verifies the facts
-(who, when, the brief) and never the narrative, and self-declared work is
+(who, when, the brief) and never the description, and self-declared work is
 counted and shown but can never outrank a week a company watched.
 """
 
@@ -14,13 +14,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from projet.models import ProjectEntry, Skill
-from projet.models.enums import (
-    ArtifactVisibility,
-    ProgrammeStatus,
-    ProjectKind,
-    ProjectLinkKind,
-    SkillType,
-)
+from projet.models.enums import ArtifactVisibility, ProgrammeStatus, SkillType
 from projet.models.portfolio import ProjectSkill
 from projet.services.projects import ProjectError, entries_for, seed_from_participant
 
@@ -33,21 +27,18 @@ def completed(session, programme, participant_factory):
     return participant_factory()
 
 
-def test_seeding_copies_the_facts_and_leaves_the_narrative_empty(session, completed, programme, company):
+def test_seeding_copies_the_facts_and_leaves_the_description_empty(
+    session, completed, programme, company
+):
     """The participant writes the story. The platform vouches for the setting."""
     entry = seed_from_participant(session, completed.person_id, completed.id)
 
     assert entry.verified is True
-    assert entry.kind is ProjectKind.PROGRAMME
     assert entry.title == programme.title
-    assert entry.organisation_name == company.name
+    assert entry.associated_experience == company.name
     assert entry.started_at == programme.start_at.date()
     assert entry.ended_at == programme.submit_deadline_at.date()
-
-    assert entry.problem is None
-    assert entry.approach is None
-    assert entry.contribution == []
-    assert entry.outcome is None
+    assert entry.description is None
 
 
 def test_the_brief_comes_across_but_nothing_else_does(session, completed):
@@ -55,8 +46,8 @@ def test_the_brief_comes_across_but_nothing_else_does(session, completed):
     it can carry their data pack, which needs its own act of consent."""
     entry = seed_from_participant(session, completed.person_id, completed.id)
 
-    assert [(link.kind, link.url) for link in entry.links] == [
-        (ProjectLinkKind.BRIEF, "https://example.test/brief")
+    assert [(link.url, link.label) for link in entry.links] == [
+        ("https://example.test/brief", "The brief")
     ]
 
 
@@ -70,13 +61,13 @@ def test_artifacts_start_private(session, completed):
 def test_seeding_twice_does_not_wipe_what_they_wrote(session, completed):
     """A second click must be harmless, not destructive."""
     first = seed_from_participant(session, completed.person_id, completed.id)
-    first.problem = "Churn was measured monthly and acted on quarterly."
+    first.description = "Churn was measured monthly and acted on quarterly."
     session.flush()
 
     second = seed_from_participant(session, completed.person_id, completed.id)
 
     assert second.id == first.id
-    assert second.problem == "Churn was measured monthly and acted on quarterly."
+    assert second.description == "Churn was measured monthly and acted on quarterly."
     assert session.query(ProjectEntry).count() == 1
 
 
@@ -104,10 +95,7 @@ def test_verified_work_sorts_ahead_of_anything_self_declared(session, completed)
     verified = seed_from_participant(session, completed.person_id, completed.id)
     session.add(
         ProjectEntry(
-            person_id=completed.person_id,
-            kind=ProjectKind.HACKATHON,
-            title="Weekend build",
-            ended_at=date(2030, 1, 1),
+            person_id=completed.person_id, title="Weekend build", ended_at=date(2030, 1, 1)
         )
     )
     session.flush()
@@ -134,11 +122,7 @@ def test_a_claimed_skill_never_lands_in_the_attested_table(session, completed):
     session.add(skill)
     session.flush()
 
-    entry = ProjectEntry(
-        person_id=completed.person_id,
-        kind=ProjectKind.INDEPENDENT,
-        title="Compiler toy",
-    )
+    entry = ProjectEntry(person_id=completed.person_id, title="Compiler toy")
     session.add(entry)
     session.flush()
     session.add(ProjectSkill(project_entry_id=entry.id, skill_id=skill.id))
@@ -153,9 +137,7 @@ def test_a_claimed_skill_never_lands_in_the_attested_table(session, completed):
 def test_the_same_skill_cannot_be_claimed_twice_on_one_project(session, completed):
     skill = Skill(name="Go", slug="go", type=SkillType.HARD)
     session.add(skill)
-    entry = ProjectEntry(
-        person_id=completed.person_id, kind=ProjectKind.FREELANCE, title="A thing"
-    )
+    entry = ProjectEntry(person_id=completed.person_id, title="A thing")
     session.add(entry)
     session.flush()
     session.add(ProjectSkill(project_entry_id=entry.id, skill_id=skill.id))

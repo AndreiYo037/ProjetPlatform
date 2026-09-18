@@ -106,7 +106,12 @@ def create_app() -> FastAPI:
             content = get_storage().get(key)
         except StorageError:
             raise HTTPException(404, "Not found.") from None
-        media_type = "application/pdf" if key.endswith(".pdf") else "application/octet-stream"
+        # Project attachments are not all PDFs. Guessing from the extension
+        # keeps a stored image rendering as an image rather than downloading
+        # as an opaque blob.
+        import mimetypes
+
+        media_type = mimetypes.guess_type(key)[0] or "application/octet-stream"
         return Response(content, media_type=media_type)
 
     @app.get("/healthz", tags=["ops"], response_model=Health)

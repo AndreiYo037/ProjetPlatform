@@ -25,6 +25,7 @@ from projet.models import (
     Post,
     Programme,
     ProjectEntry,
+    ProjectLink,
     Role,
     RoleTemplate,
     RubricCriterion,
@@ -32,13 +33,7 @@ from projet.models import (
     Thread,
 )
 from projet.models.base import utcnow
-from projet.models.enums import (
-    ArtifactVisibility,
-    ProgrammeStatus,
-    ProjectKind,
-    ProjectLinkKind,
-    SubmissionSlot,
-)
+from projet.models.enums import ArtifactVisibility, ProgrammeStatus, SubmissionSlot
 from projet.services.auth import Actor
 from projet.services.closeout import credentials_for
 from projet.services.data_pack import released_resources, resource_url
@@ -52,6 +47,7 @@ from projet.services.profile import capability_rollup, published_testimonials_fo
 from projet.services.projects import (
     ProjectError,
     add_link,
+    attach_file,
     create_entry,
     delete_entry,
     entries_for,
@@ -250,9 +246,13 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
 
 
 class ProjectLinkOut(BaseModel):
+    """A URL or an uploaded file. `file_url` is a signed, expiring link and is
+    only ever populated for a file."""
+
     id: uuid.UUID
-    kind: str
-    url: str
+    url: str | None
+    filename: str | None
+    file_url: str | None
     label: str | None
 
 
@@ -263,49 +263,55 @@ class ProjectSkillOut(BaseModel):
 
 
 class ProjectEntryOut(BaseModel):
-    """One case-study card.
+    """One project card.
 
     `verified` is the only thing on here the participant cannot set, and it is
-    the thing the whole card is read against, so it is a field of its own
-    rather than something a reader has to infer from `kind`.
+    the thing the whole card is read against, so it is a field of its own.
     """
 
     id: uuid.UUID
     verified: bool
-    kind: str
     title: str
-    organisation_name: str | None
+    associated_experience: str | None
     started_at: date | None
     ended_at: date | None
-    problem: str | None
-    approach: str | None
-    contribution: list[str]
-    outcome: str | None
+    ongoing: bool
+    description: str | None
     artifact_visibility: str
     visible: bool
     links: list[ProjectLinkOut]
     skills: list[ProjectSkillOut]
 
 
+def _link_out(link: ProjectLink) -> ProjectLinkOut:
+    return ProjectLinkOut(
+        id=link.id,
+        url=link.url,
+        filename=link.filename,
+        # Signed here rather than stored: the link expires, so a URL that
+        # leaks stops working instead of becoming a permanent back door.
+        file_url=(
+            f"/files/{link.storage_key}?sig={sign_key(link.storage_key)}"
+            if link.storage_key
+            else None
+        ),
+        label=link.label,
+    )
+
+
 def _project_out(entry: ProjectEntry) -> ProjectEntryOut:
     return ProjectEntryOut(
         id=entry.id,
         verified=entry.verified,
-        kind=entry.kind.value,
         title=entry.title,
-        organisation_name=entry.organisation_name,
+        associated_experience=entry.associated_experience,
         started_at=entry.started_at,
         ended_at=entry.ended_at,
-        problem=entry.problem,
-        approach=entry.approach,
-        contribution=list(entry.contribution or []),
-        outcome=entry.outcome,
+        ongoing=entry.ongoing,
+        description=entry.description,
         artifact_visibility=entry.artifact_visibility.value,
         visible=entry.visible,
-        links=[
-            ProjectLinkOut(id=link.id, kind=link.kind.value, url=link.url, label=link.label)
-            for link in entry.links
-        ],
+        links=[_link_out(link) for link in entry.links],
         skills=[
             ProjectSkillOut(id=ps.skill_id, name=ps.skill.name, type=ps.skill.type.value)
             for ps in entry.skills
@@ -360,23 +366,13 @@ def _project_http_error(exc: ProjectError) -> HTTPException:
 
 
 class ProjectEntryCreate(BaseModel):
-    kind: str
     title: str = Field(min_length=1, max_length=300)
-    organisation_name: str | None = None
+    associated_experience: str | None = None
     started_at: date | None = None
     ended_at: date | None = None
-    problem: str | None = None
-    approach: str | None = None
-    contribution: list[str] = Field(default_factory=list)
-    outcome: str | None = None
+    ongoing: bool = False
+    description: str | None = None
     artifact_visibility: str = "private"
-
-
-def _parse_kind(value: str) -> ProjectKind:
-    try:
-        return ProjectKind(value)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown project kind.") from exc
 
 
 def _parse_visibility(value: str) -> ArtifactVisibility:
@@ -386,6 +382,17 @@ def _parse_visibility(value: str) -> ArtifactVisibility:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown artifact visibility."
         ) from exc
+
+
+def _project_http_error(exc: ProjectError) -> HTTPException:
+    """404 when the entry is not theirs, 400 when the edit is not allowed.
+
+    A missing entry and someone else's entry answer identically, so the
+    response cannot be used to learn that an entry exists.
+    """
+    missing = "No project" in str(exc) or "No link" in str(exc)
+    code = status.HTTP_404_NOT_FOUND if missing else status.HTTP_400_BAD_REQUEST
+    return HTTPException(code, str(exc))
 
 
 @router.post("/projects", response_model=ProjectEntryOut, status_code=status.HTTP_201_CREATED)
@@ -404,15 +411,12 @@ def add_project(
         entry = create_entry(
             db,
             person.id,
-            kind=_parse_kind(payload.kind),
             title=payload.title,
-            organisation_name=payload.organisation_name,
+            associated_experience=payload.associated_experience,
             started_at=payload.started_at,
             ended_at=payload.ended_at,
-            problem=payload.problem,
-            approach=payload.approach,
-            contribution=payload.contribution,
-            outcome=payload.outcome,
+            ongoing=payload.ongoing,
+            description=payload.description,
             artifact_visibility=_parse_visibility(payload.artifact_visibility),
         )
     except ProjectError as exc:
@@ -425,20 +429,17 @@ def add_project(
 class ProjectEntryUpdate(BaseModel):
     """Every field optional; only the ones sent are changed.
 
-    A verified entry accepts the narrative and consent fields and rejects the
-    rest with a named error (see `update_entry`) — never a silent no-op on a
-    field the request thought it was changing.
+    A verified entry accepts the description and consent fields and rejects
+    the rest with a named error (see `update_entry`) — never a silent no-op on
+    a field the request thought it was changing.
     """
 
-    kind: str | None = None
     title: str | None = Field(default=None, min_length=1, max_length=300)
-    organisation_name: str | None = None
+    associated_experience: str | None = None
     started_at: date | None = None
     ended_at: date | None = None
-    problem: str | None = None
-    approach: str | None = None
-    contribution: list[str] | None = None
-    outcome: str | None = None
+    ongoing: bool | None = None
+    description: str | None = None
     artifact_visibility: str | None = None
     visible: bool | None = None
 
@@ -452,8 +453,6 @@ def edit_project(
 ) -> ProjectEntryOut:
     person = _person(db, actor)
     changes = payload.model_dump(exclude_unset=True)
-    if "kind" in changes:
-        changes["kind"] = _parse_kind(changes["kind"])
     if "artifact_visibility" in changes:
         changes["artifact_visibility"] = _parse_visibility(changes["artifact_visibility"])
     try:
@@ -480,7 +479,6 @@ def remove_project(
 
 
 class ProjectLinkCreate(BaseModel):
-    kind: str
     url: str = Field(min_length=1)
     label: str | None = None
 
@@ -498,11 +496,45 @@ def add_project_link(
 ) -> ProjectEntryOut:
     person = _person(db, actor)
     try:
-        kind = ProjectLinkKind(payload.kind)
-    except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown link kind.") from exc
+        add_link(db, person.id, entry_id, url=payload.url, label=payload.label)
+    except ProjectError as exc:
+        raise _project_http_error(exc) from exc
+    db.commit()
+    entry = db.get(ProjectEntry, entry_id)
+    assert entry is not None
+    return _project_out(entry)
+
+
+@router.post(
+    "/projects/{entry_id}/files",
+    response_model=ProjectEntryOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_project_file(
+    entry_id: uuid.UUID,
+    file: UploadFile = File(...),
+    label: str | None = Form(default=None),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProjectEntryOut:
+    """Attach the work itself, for work that does not live at a URL.
+
+    Stored privately and reachable only through an expiring signed link, and
+    only when this project's own consent setting allows it.
+    """
+    person = _person(db, actor)
+    data = await file.read()
     try:
-        add_link(db, person.id, entry_id, kind=kind, url=payload.url, label=payload.label)
+        link = attach_file(
+            db,
+            person.id,
+            entry_id,
+            filename=file.filename or "attachment",
+            content_type=file.content_type,
+            data=data,
+        )
+        if label and label.strip():
+            link.label = label.strip()
     except ProjectError as exc:
         raise _project_http_error(exc) from exc
     db.commit()

@@ -1,6 +1,6 @@
-"""Editing a case study — what each kind of entry will and will not accept.
+"""Editing a project — what each kind of entry will and will not accept.
 
-The boundary this file defends: on a verified entry the narrative is theirs
+The boundary this file defends: on a verified entry the description is theirs
 and the facts are the platform's, and a skill on a verified entry is a judge's
 attestation rather than anything the participant can type.
 """
@@ -12,17 +12,12 @@ import uuid
 import pytest
 
 from projet.models import ProjectEntry, Skill
-from projet.models.enums import (
-    ArtifactVisibility,
-    ProgrammeStatus,
-    ProjectKind,
-    ProjectLinkKind,
-    SkillType,
-)
+from projet.models.enums import ArtifactVisibility, ProgrammeStatus, SkillType
 from projet.models.portfolio import ProjectSkill
 from projet.services.projects import (
     ProjectError,
     add_link,
+    attach_file,
     create_entry,
     delete_entry,
     remove_link,
@@ -30,6 +25,9 @@ from projet.services.projects import (
     set_skills,
     update_entry,
 )
+from projet.storage import get_storage
+
+PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
 
 
 @pytest.fixture
@@ -43,12 +41,7 @@ def verified(session, programme, participant_factory):
 @pytest.fixture
 def mine(session, participant_factory):
     participant = participant_factory()
-    return create_entry(
-        session,
-        participant.person_id,
-        kind=ProjectKind.HACKATHON,
-        title="Weekend build",
-    )
+    return create_entry(session, participant.person_id, title="Weekend build")
 
 
 def _skill(session, name="Rust"):
@@ -58,27 +51,11 @@ def _skill(session, name="Rust"):
     return skill
 
 
-def test_a_self_declared_entry_cannot_claim_to_be_a_programme(session, participant_factory):
-    """PROGRAMME is what a seeded entry is. If anyone could type it, a claim
-    and a week a company watched would look identical on the page."""
-    participant = participant_factory()
-
-    with pytest.raises(ProjectError, match="reserved"):
-        create_entry(
-            session, participant.person_id, kind=ProjectKind.PROGRAMME, title="Not really"
-        )
-
-
-def test_the_narrative_on_a_verified_entry_is_theirs_to_write(session, verified):
+def test_the_description_on_a_verified_entry_is_theirs_to_write(session, verified):
     updated = update_entry(
-        session,
-        verified.person_id,
-        verified.id,
-        {"problem": "Churn was measured monthly.", "outcome": "Flags a week earlier."},
+        session, verified.person_id, verified.id, {"description": "Churn was measured monthly."}
     )
-
-    assert updated.problem == "Churn was measured monthly."
-    assert updated.outcome == "Flags a week earlier."
+    assert updated.description == "Churn was measured monthly."
 
 
 def test_the_facts_on_a_verified_entry_are_not(session, verified):
@@ -86,8 +63,8 @@ def test_the_facts_on_a_verified_entry_are_not(session, verified):
     silently dropped — an edit that vanishes is worse than one that fails."""
     for field, value in (
         ("title", "Something else"),
-        ("organisation_name", "A more impressive company"),
-        ("kind", ProjectKind.INTERNSHIP),
+        ("associated_experience", "A more impressive company"),
+        ("ongoing", True),
     ):
         with pytest.raises(ProjectError, match="Cannot change"):
             update_entry(session, verified.person_id, verified.id, {field: value})
@@ -98,20 +75,29 @@ def test_a_self_declared_entry_accepts_every_field(session, mine):
         session,
         mine.person_id,
         mine.id,
-        {"title": "Renamed", "organisation_name": "Self", "kind": ProjectKind.COMPETITION},
+        {"title": "Renamed", "associated_experience": "Self", "description": "A story."},
     )
 
     assert updated.title == "Renamed"
-    assert updated.kind is ProjectKind.COMPETITION
+    assert updated.associated_experience == "Self"
+    assert updated.description == "A story."
 
 
-def test_consent_to_show_artifacts_is_editable_on_both(session, verified, mine):
+def test_marking_it_ongoing_clears_the_end_date(session, mine):
+    """The two contradict each other, and the flag is what they ticked last."""
+    from datetime import date
+
+    update_entry(session, mine.person_id, mine.id, {"ended_at": date(2026, 1, 1)})
+    updated = update_entry(session, mine.person_id, mine.id, {"ongoing": True})
+
+    assert updated.ongoing is True
+    assert updated.ended_at is None
+
+
+def test_consent_to_show_the_work_is_editable_on_both(session, verified, mine):
     for entry in (verified, mine):
         updated = update_entry(
-            session,
-            entry.person_id,
-            entry.id,
-            {"artifact_visibility": ArtifactVisibility.PUBLIC},
+            session, entry.person_id, entry.id, {"artifact_visibility": ArtifactVisibility.PUBLIC}
         )
         assert updated.artifact_visibility is ArtifactVisibility.PUBLIC
 
@@ -131,6 +117,18 @@ def test_a_self_declared_entry_can_be_deleted(session, mine):
     assert session.get(ProjectEntry, mine.id) is None
 
 
+def test_deleting_an_entry_takes_its_uploaded_files_with_it(session, mine):
+    """An orphaned object nobody can reach is still the work sitting on disk."""
+    link = attach_file(
+        session, mine.person_id, mine.id, filename="shot.png", content_type="image/png", data=PNG
+    )
+    key = link.storage_key
+    assert get_storage().exists(key)
+
+    delete_entry(session, mine.person_id, mine.id)
+    assert not get_storage().exists(key)
+
+
 def test_you_cannot_edit_an_entry_that_is_not_yours(session, mine, participant_factory):
     stranger = participant_factory(name="Someone Else")
 
@@ -147,18 +145,74 @@ def test_an_entry_that_does_not_exist_answers_the_same_way(session, mine):
 
 def test_links_can_be_added_and_removed(session, mine):
     link = add_link(
-        session,
-        mine.person_id,
-        mine.id,
-        kind=ProjectLinkKind.GITHUB,
-        url="https://github.test/repo",
-        label="The code",
+        session, mine.person_id, mine.id, url="https://github.test/repo", label="The code"
     )
     assert [link_.url for link_ in mine.links] == ["https://github.test/repo"]
 
     remove_link(session, mine.person_id, mine.id, link.id)
     session.refresh(mine)
     assert mine.links == []
+
+
+def test_a_file_can_be_attached_and_is_stored_privately(session, mine):
+    link = attach_file(
+        session, mine.person_id, mine.id, filename="shot.png", content_type="image/png", data=PNG
+    )
+
+    assert link.is_file is True
+    assert link.url is None
+    assert link.filename == "shot.png"
+    # Never guessable from the entry alone: the key carries a random segment.
+    assert link.storage_key.startswith(f"projects/{mine.id}/")
+    assert get_storage().get(link.storage_key) == PNG
+
+
+def test_removing_a_file_deletes_the_object(session, mine):
+    link = attach_file(
+        session, mine.person_id, mine.id, filename="shot.png", content_type="image/png", data=PNG
+    )
+    key = link.storage_key
+
+    remove_link(session, mine.person_id, mine.id, link.id)
+    assert not get_storage().exists(key)
+
+
+def test_an_oversized_file_is_refused(session, mine):
+    with pytest.raises(ProjectError, match="larger than"):
+        attach_file(
+            session,
+            mine.person_id,
+            mine.id,
+            filename="big.png",
+            content_type="image/png",
+            data=b"0" * (20 * 1024 * 1024 + 1),
+        )
+
+
+def test_an_unaccepted_file_type_is_refused(session, mine):
+    with pytest.raises(ProjectError, match="not accepted"):
+        attach_file(
+            session,
+            mine.person_id,
+            mine.id,
+            filename="run.exe",
+            content_type="application/x-msdownload",
+            data=b"MZ",
+        )
+
+
+def test_you_cannot_attach_a_file_to_someone_elses_project(session, mine, participant_factory):
+    stranger = participant_factory(name="Someone Else")
+
+    with pytest.raises(ProjectError, match="No project"):
+        attach_file(
+            session,
+            stranger.person_id,
+            mine.id,
+            filename="shot.png",
+            content_type="image/png",
+            data=PNG,
+        )
 
 
 def test_skills_on_a_self_declared_entry_are_a_claim_they_can_set(session, mine):

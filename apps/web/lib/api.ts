@@ -417,30 +417,24 @@ export const getPortfolio = () => api.get<Portfolio>("/me/portfolio");
 export const getProjects = () => api.get<ProjectEntry[]>("/me/projects");
 
 export const createProject = (body: {
-  kind: string;
   title: string;
-  organisation_name?: string | null;
+  associated_experience?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
-  problem?: string | null;
-  approach?: string | null;
-  contribution?: string[];
-  outcome?: string | null;
+  ongoing?: boolean;
+  description?: string | null;
   artifact_visibility?: string;
 }) => api.post<ProjectEntry>("/me/projects", body);
 
 export const updateProject = (
   id: string,
   body: Partial<{
-    kind: string;
     title: string;
-    organisation_name: string | null;
+    associated_experience: string | null;
     started_at: string | null;
     ended_at: string | null;
-    problem: string | null;
-    approach: string | null;
-    contribution: string[];
-    outcome: string | null;
+    ongoing: boolean;
+    description: string | null;
     artifact_visibility: string;
     visible: boolean;
   }>,
@@ -448,10 +442,17 @@ export const updateProject = (
 
 export const deleteProject = (id: string) => api.del<void>(`/me/projects/${id}`);
 
-export const addProjectLink = (
-  id: string,
-  body: { kind: string; url: string; label?: string | null },
-) => api.post<ProjectEntry>(`/me/projects/${id}/links`, body);
+export const addProjectLink = (id: string, body: { url: string; label?: string | null }) =>
+  api.post<ProjectEntry>(`/me/projects/${id}/links`, body);
+
+/** For work that does not live at a URL. The file is stored privately and
+ * comes back as a signed, expiring link. */
+export const uploadProjectFile = (id: string, file: File, label?: string) => {
+  const form = new FormData();
+  form.append("file", file);
+  if (label) form.append("label", label);
+  return api.post<ProjectEntry>(`/me/projects/${id}/files`, form);
+};
 
 export const removeProjectLink = (id: string, linkId: string) =>
   api.del<ProjectEntry>(`/me/projects/${id}/links/${linkId}`);

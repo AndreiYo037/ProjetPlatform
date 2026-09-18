@@ -31,6 +31,7 @@ from projet.models.enums import ArtifactVisibility
 from projet.services.closeout import credentials_for
 from projet.services.profile import capability_rollup, published_testimonials_for
 from projet.services.projects import entries_for
+from projet.storage import sign_key
 
 router = APIRouter(prefix="/p", tags=["public profile"])
 
@@ -52,22 +53,21 @@ class PublicCapability(BaseModel):
 
 
 class PublicProjectLink(BaseModel):
-    kind: str
+    """A URL, or a signed expiring link to an uploaded file."""
+
     url: str
+    filename: str | None
     label: str | None
 
 
 class PublicProjectEntry(BaseModel):
     verified: bool
-    kind: str
     title: str
-    organisation_name: str | None
+    associated_experience: str | None
     started_at: date | None
     ended_at: date | None
-    problem: str | None
-    approach: str | None
-    contribution: list[str]
-    outcome: str | None
+    ongoing: bool
+    description: str | None
     links: list[PublicProjectLink]
 
 
@@ -107,26 +107,35 @@ class PublicProfile(BaseModel):
     programmes_completed: int
 
 
+def _public_link(link) -> PublicProjectLink | None:  # type: ignore[no-untyped-def]
+    if link.storage_key:
+        # Signed and expiring even here. A public profile makes the file
+        # reachable; it does not make its storage key a permanent address.
+        return PublicProjectLink(
+            url=f"/files/{link.storage_key}?sig={sign_key(link.storage_key)}",
+            filename=link.filename,
+            label=link.label or link.filename,
+        )
+    if link.url:
+        return PublicProjectLink(url=link.url, filename=None, label=link.label)
+    return None
+
+
 def _project_out(entry) -> PublicProjectEntry:  # type: ignore[no-untyped-def]
-    links = (
-        []
-        if entry.artifact_visibility is ArtifactVisibility.PRIVATE
-        else [
-            PublicProjectLink(kind=link.kind.value, url=link.url, label=link.label)
-            for link in entry.links
-        ]
-    )
+    # The consent gate, applied once, here: the description is not the
+    # confidential part, but the work itself can be.
+    links: list[PublicProjectLink] = []
+    if entry.artifact_visibility is not ArtifactVisibility.PRIVATE:
+        links = [out for out in (_public_link(link) for link in entry.links) if out is not None]
+
     return PublicProjectEntry(
         verified=entry.verified,
-        kind=entry.kind.value,
         title=entry.title,
-        organisation_name=entry.organisation_name,
+        associated_experience=entry.associated_experience,
         started_at=entry.started_at,
         ended_at=entry.ended_at,
-        problem=entry.problem,
-        approach=entry.approach,
-        contribution=list(entry.contribution or []),
-        outcome=entry.outcome,
+        ongoing=entry.ongoing,
+        description=entry.description,
         links=links,
     )
 

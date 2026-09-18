@@ -4189,6 +4189,76 @@
         }
       }
     },
+    "/me/projects/{entry_id}/files": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Upload Project File",
+        "description": "Attach the work itself, for work that does not live at a URL.\n\nStored privately and reachable only through an expiring signed link, and\nonly when this project's own consent setting allows it.",
+        "operationId": "upload_project_file_me_projects__entry_id__files_post",
+        "parameters": [
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_project_file_me_projects__entry_id__files_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/projects/{entry_id}/links/{link_id}": {
       "delete": {
         "tags": [
@@ -6377,6 +6447,31 @@
           "file"
         ],
         "title": "Body_upload_data_pack_resource_programmes__programme_id__data_pack_upload_post"
+      },
+      "Body_upload_project_file_me_projects__entry_id__files_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_project_file_me_projects__entry_id__files_post"
       },
       "Body_upload_slot_me_submission_upload_put": {
         "properties": {
@@ -8686,17 +8781,13 @@
       },
       "ProjectEntryCreate": {
         "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
           "title": {
             "type": "string",
             "maxLength": 300,
             "minLength": 1,
             "title": "Title"
           },
-          "organisation_name": {
+          "associated_experience": {
             "anyOf": [
               {
                 "type": "string"
@@ -8705,7 +8796,7 @@
                 "type": "null"
               }
             ],
-            "title": "Organisation Name"
+            "title": "Associated Experience"
           },
           "started_at": {
             "anyOf": [
@@ -8731,7 +8822,12 @@
             ],
             "title": "Ended At"
           },
-          "problem": {
+          "ongoing": {
+            "type": "boolean",
+            "title": "Ongoing",
+            "default": false
+          },
+          "description": {
             "anyOf": [
               {
                 "type": "string"
@@ -8740,36 +8836,7 @@
                 "type": "null"
               }
             ],
-            "title": "Problem"
-          },
-          "approach": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approach"
-          },
-          "contribution": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Contribution"
-          },
-          "outcome": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Outcome"
+            "title": "Description"
           },
           "artifact_visibility": {
             "type": "string",
@@ -8779,7 +8846,6 @@
         },
         "type": "object",
         "required": [
-          "kind",
           "title"
         ],
         "title": "ProjectEntryCreate"
@@ -8795,15 +8861,11 @@
             "type": "boolean",
             "title": "Verified"
           },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
           "title": {
             "type": "string",
             "title": "Title"
           },
-          "organisation_name": {
+          "associated_experience": {
             "anyOf": [
               {
                 "type": "string"
@@ -8812,7 +8874,7 @@
                 "type": "null"
               }
             ],
-            "title": "Organisation Name"
+            "title": "Associated Experience"
           },
           "started_at": {
             "anyOf": [
@@ -8838,7 +8900,11 @@
             ],
             "title": "Ended At"
           },
-          "problem": {
+          "ongoing": {
+            "type": "boolean",
+            "title": "Ongoing"
+          },
+          "description": {
             "anyOf": [
               {
                 "type": "string"
@@ -8847,36 +8913,7 @@
                 "type": "null"
               }
             ],
-            "title": "Problem"
-          },
-          "approach": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approach"
-          },
-          "contribution": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Contribution"
-          },
-          "outcome": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Outcome"
+            "title": "Description"
           },
           "artifact_visibility": {
             "type": "string",
@@ -8905,36 +8942,22 @@
         "required": [
           "id",
           "verified",
-          "kind",
           "title",
-          "organisation_name",
+          "associated_experience",
           "started_at",
           "ended_at",
-          "problem",
-          "approach",
-          "contribution",
-          "outcome",
+          "ongoing",
+          "description",
           "artifact_visibility",
           "visible",
           "links",
           "skills"
         ],
         "title": "ProjectEntryOut",
-        "description": "One case-study card.\n\n`verified` is the only thing on here the participant cannot set, and it is\nthe thing the whole card is read against, so it is a field of its own\nrather than something a reader has to infer from `kind`."
+        "description": "One project card.\n\n`verified` is the only thing on here the participant cannot set, and it is\nthe thing the whole card is read against, so it is a field of its own."
       },
       "ProjectEntryUpdate": {
         "properties": {
-          "kind": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Kind"
-          },
           "title": {
             "anyOf": [
               {
@@ -8948,7 +8971,7 @@
             ],
             "title": "Title"
           },
-          "organisation_name": {
+          "associated_experience": {
             "anyOf": [
               {
                 "type": "string"
@@ -8957,7 +8980,7 @@
                 "type": "null"
               }
             ],
-            "title": "Organisation Name"
+            "title": "Associated Experience"
           },
           "started_at": {
             "anyOf": [
@@ -8983,7 +9006,18 @@
             ],
             "title": "Ended At"
           },
-          "problem": {
+          "ongoing": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ongoing"
+          },
+          "description": {
             "anyOf": [
               {
                 "type": "string"
@@ -8992,43 +9026,7 @@
                 "type": "null"
               }
             ],
-            "title": "Problem"
-          },
-          "approach": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approach"
-          },
-          "contribution": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contribution"
-          },
-          "outcome": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Outcome"
+            "title": "Description"
           },
           "artifact_visibility": {
             "anyOf": [
@@ -9055,14 +9053,10 @@
         },
         "type": "object",
         "title": "ProjectEntryUpdate",
-        "description": "Every field optional; only the ones sent are changed.\n\nA verified entry accepts the narrative and consent fields and rejects the\nrest with a named error (see `update_entry`) \u2014 never a silent no-op on a\nfield the request thought it was changing."
+        "description": "Every field optional; only the ones sent are changed.\n\nA verified entry accepts the description and consent fields and rejects\nthe rest with a named error (see `update_entry`) \u2014 never a silent no-op on\na field the request thought it was changing."
       },
       "ProjectLinkCreate": {
         "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
           "url": {
             "type": "string",
             "minLength": 1,
@@ -9082,7 +9076,6 @@
         },
         "type": "object",
         "required": [
-          "kind",
           "url"
         ],
         "title": "ProjectLinkCreate"
@@ -9094,13 +9087,38 @@
             "format": "uuid",
             "title": "Id"
           },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
           "url": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Url"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "file_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Url"
           },
           "label": {
             "anyOf": [
@@ -9117,11 +9135,13 @@
         "type": "object",
         "required": [
           "id",
-          "kind",
           "url",
+          "filename",
+          "file_url",
           "label"
         ],
-        "title": "ProjectLinkOut"
+        "title": "ProjectLinkOut",
+        "description": "A URL or an uploaded file. `file_url` is a signed, expiring link and is\nonly ever populated for a file."
       },
       "ProjectSkillOut": {
         "properties": {
@@ -9702,15 +9722,11 @@
             "type": "boolean",
             "title": "Verified"
           },
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
           "title": {
             "type": "string",
             "title": "Title"
           },
-          "organisation_name": {
+          "associated_experience": {
             "anyOf": [
               {
                 "type": "string"
@@ -9719,7 +9735,7 @@
                 "type": "null"
               }
             ],
-            "title": "Organisation Name"
+            "title": "Associated Experience"
           },
           "started_at": {
             "anyOf": [
@@ -9745,7 +9761,11 @@
             ],
             "title": "Ended At"
           },
-          "problem": {
+          "ongoing": {
+            "type": "boolean",
+            "title": "Ongoing"
+          },
+          "description": {
             "anyOf": [
               {
                 "type": "string"
@@ -9754,36 +9774,7 @@
                 "type": "null"
               }
             ],
-            "title": "Problem"
-          },
-          "approach": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Approach"
-          },
-          "contribution": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "title": "Contribution"
-          },
-          "outcome": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Outcome"
+            "title": "Description"
           },
           "links": {
             "items": {
@@ -9796,28 +9787,32 @@
         "type": "object",
         "required": [
           "verified",
-          "kind",
           "title",
-          "organisation_name",
+          "associated_experience",
           "started_at",
           "ended_at",
-          "problem",
-          "approach",
-          "contribution",
-          "outcome",
+          "ongoing",
+          "description",
           "links"
         ],
         "title": "PublicProjectEntry"
       },
       "PublicProjectLink": {
         "properties": {
-          "kind": {
-            "type": "string",
-            "title": "Kind"
-          },
           "url": {
             "type": "string",
             "title": "Url"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
           },
           "label": {
             "anyOf": [
@@ -9833,11 +9828,12 @@
         },
         "type": "object",
         "required": [
-          "kind",
           "url",
+          "filename",
           "label"
         ],
-        "title": "PublicProjectLink"
+        "title": "PublicProjectLink",
+        "description": "A URL, or a signed expiring link to an uploaded file."
       },
       "PublicTestimonial": {
         "properties": {

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { API_BASE_URL, externalHref, type PublicProfile } from "@/lib/api";
+import { API_BASE_URL, assetUrl, externalHref, type PublicProfile } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +27,20 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
+/** A bare URL reads better as its domain than as the word "Link". */
+function linkLabel(link: PublicProfile["projects"][number]["links"][number]) {
+  if (link.label) return link.label;
+  if (link.filename) return link.filename;
+  try {
+    return new URL(link.url).hostname.replace(/^www\./, "");
+  } catch {
+    return link.url;
+  }
+}
+
 function projectDateRange(project: PublicProfile["projects"][number]) {
   const start = formatDate(project.started_at);
-  const end = formatDate(project.ended_at);
+  const end = project.ongoing ? "ongoing" : formatDate(project.ended_at);
   if (start && end) return `${start} – ${end}`;
   return start ?? end ?? null;
 }
@@ -185,42 +196,27 @@ function ProjectCard({ project }: { project: PublicProfile["projects"][number] }
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <strong>{project.title}</strong>
-        <span className="tag" style={{ textTransform: "capitalize" }}>
-          {project.kind.replace("_", " ")}
-        </span>
+        {project.verified && <span className="tag open">company verified</span>}
       </div>
       <p className="small muted" style={{ marginTop: "0.2rem" }}>
-        {project.organisation_name}
-        {project.organisation_name && range && " · "}
+        {project.associated_experience}
+        {project.associated_experience && range && " · "}
         {range}
       </p>
-      {project.problem && (
-        <p>
-          <strong className="small">Problem.</strong> {project.problem}
-        </p>
-      )}
-      {project.approach && (
-        <p>
-          <strong className="small">Approach.</strong> {project.approach}
-        </p>
-      )}
-      {project.contribution.length > 0 && (
-        <ul>
-          {project.contribution.map((line, i) => (
-            <li key={i}>{line}</li>
-          ))}
-        </ul>
-      )}
-      {project.outcome && (
-        <p>
-          <strong className="small">Outcome.</strong> {project.outcome}
-        </p>
-      )}
+      {project.description && <p style={{ whiteSpace: "pre-wrap" }}>{project.description}</p>}
       {project.links.length > 0 && (
         <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
           {project.links.map((link, i) => (
-            <a key={i} href={externalHref(link.url)} target="_blank" rel="noreferrer">
-              {link.label ?? link.kind}
+            <a
+              key={i}
+              // An uploaded file is a backend-relative signed path and has to
+              // go through the proxy; a pasted URL is somebody else's site.
+              href={link.filename ? assetUrl(link.url) : externalHref(link.url)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {link.filename ? "📎 " : ""}
+              {linkLabel(link)}
             </a>
           ))}
         </div>

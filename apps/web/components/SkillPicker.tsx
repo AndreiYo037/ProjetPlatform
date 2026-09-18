@@ -151,11 +151,15 @@ export default function SkillPicker({
   selectedIds,
   disabled,
   onToggle,
+  /** False where there is no role to rank against — a self-declared project
+   * has no template, so promising "ranked for this role" would be a lie. */
+  ranked = true,
 }: {
   options: SkillChoice[];
   selectedIds: string[];
   disabled?: boolean;
   onToggle: (id: string) => void;
+  ranked?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -222,7 +226,9 @@ export default function SkillPicker({
 
       <p className="small muted" style={{ margin: "0 0 0.5rem" }}>
         {matches.browsing
-          ? `Ranked for this role. Type to search all ${options.length}.`
+          ? ranked
+            ? `Ranked for this role. Type to search all ${options.length}.`
+            : `Type to search ${options.length} skills.`
           : matches.total === 0
             ? "Nothing matches that."
             : `${matches.total} match${matches.total === 1 ? "" : "es"}${
@@ -252,7 +258,7 @@ export default function SkillPicker({
         ))}
       </div>
 
-      {matches.browsing && matches.rows.length === 0 && (
+      {matches.browsing && matches.rows.length === 0 && ranked && (
         <p className="small muted" style={{ margin: 0 }}>
           This role has no ranked skills yet — search above.
         </p>

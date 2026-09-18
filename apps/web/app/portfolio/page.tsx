@@ -211,11 +211,22 @@ function ProjectRow({ project, onOpen }: { project: ProjectEntry; onOpen: () => 
         </span>
       </div>
       <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
-        {project.organisation_name}
-        {project.organisation_name && project.ended_at && " · "}
-        {project.ended_at}
+        {project.associated_experience}
+        {project.associated_experience && (project.ended_at || project.ongoing) && " · "}
+        {project.ongoing ? "ongoing" : project.ended_at}
       </p>
-      {project.outcome && <p style={{ marginTop: 0 }}>{project.outcome}</p>}
+      {project.description && (
+        <p style={{ marginTop: 0, whiteSpace: "pre-wrap" }}>{project.description}</p>
+      )}
+      {project.skills.length > 0 && (
+        <div className="row" style={{ flexWrap: "wrap", gap: "0.3rem", marginBottom: "0.5rem" }}>
+          {project.skills.map((skill) => (
+            <span className="tag" key={skill.id}>
+              {skill.name}
+            </span>
+          ))}
+        </div>
+      )}
       <button className="secondary" onClick={onOpen}>
         {project.verified ? "Write it up" : "Edit"}
       </button>

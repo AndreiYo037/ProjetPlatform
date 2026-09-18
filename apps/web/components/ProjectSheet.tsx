@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SkillPicker, { type SkillChoice } from "@/components/SkillPicker";
 import {
   addProjectLink,
@@ -10,44 +10,28 @@ import {
   removeProjectLink,
   setProjectSkills,
   updateProject,
+  uploadProjectFile,
   type ProjectEntry,
 } from "@/lib/api";
 
 /**
- * One case study, open for editing.
+ * One project, open for editing.
  *
- * The rule the whole sheet is built around: on a verified entry the narrative
- * is theirs and the facts are not. So the title, organisation and dates render
- * as plain text with a note saying where they came from, and only the four
- * narrative fields, the artifact consent and the visibility toggle are inputs.
- * The API refuses the rest anyway — this just means they never get to try and
- * lose their typing to a 400.
+ * The rule the sheet is built around: on a verified project the description is
+ * theirs and the facts are not. So the title, associated experience and dates
+ * render as plain text with a note saying where they came from, and only the
+ * description, the consent setting and the visibility toggle are inputs. The
+ * API refuses the rest anyway — this just means they never get to try and lose
+ * their typing to an error.
  *
- * Skills are the same boundary in the other direction. A self-declared entry
- * gets the drawer; a verified one does not, because what it demonstrated is
- * for a judge to attest, not for the participant to claim.
+ * Skills are the same boundary the other way. A self-declared project gets the
+ * drawer; a verified one does not, because what it demonstrated is for a judge
+ * to attest, not for the participant to claim.
  */
 
-const KINDS = [
-  { value: "hackathon", label: "Hackathon" },
-  { value: "internship", label: "Internship" },
-  { value: "freelance", label: "Freelance" },
-  { value: "competition", label: "Competition" },
-  { value: "independent", label: "Independent" },
-];
-
-const LINK_KINDS = [
-  { value: "github", label: "GitHub" },
-  { value: "demo", label: "Demo" },
-  { value: "video", label: "Video" },
-  { value: "deck", label: "Deck" },
-  { value: "doc", label: "Doc" },
-  { value: "brief", label: "Brief" },
-];
-
 const VISIBILITY = [
-  { value: "private", label: "Nobody", hint: "The work stays off the public page." },
-  { value: "link_only", label: "Anyone with the profile link", hint: "Shown on your page." },
+  { value: "private", label: "Nobody", hint: "The work stays off your public page." },
+  { value: "link_only", label: "Anyone with your profile link", hint: "Shown on your page." },
   { value: "public", label: "Everyone", hint: "Shown on your page." },
 ];
 
@@ -64,13 +48,12 @@ export default function ProjectSheet({
   const creating = entry === null;
   const verified = entry?.verified ?? false;
 
-  const [kind, setKind] = useState(entry?.kind ?? "hackathon");
   const [title, setTitle] = useState(entry?.title ?? "");
-  const [organisation, setOrganisation] = useState(entry?.organisation_name ?? "");
-  const [problem, setProblem] = useState(entry?.problem ?? "");
-  const [approach, setApproach] = useState(entry?.approach ?? "");
-  const [outcome, setOutcome] = useState(entry?.outcome ?? "");
-  const [contribution, setContribution] = useState<string[]>(entry?.contribution ?? []);
+  const [experience, setExperience] = useState(entry?.associated_experience ?? "");
+  const [startedAt, setStartedAt] = useState(entry?.started_at ?? "");
+  const [endedAt, setEndedAt] = useState(entry?.ended_at ?? "");
+  const [ongoing, setOngoing] = useState(entry?.ongoing ?? false);
+  const [description, setDescription] = useState(entry?.description ?? "");
   const [visibility, setVisibility] = useState(entry?.artifact_visibility ?? "private");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,30 +62,24 @@ export default function ProjectSheet({
     setBusy(true);
     setError(null);
     try {
-      const body = {
-        problem: problem.trim() || null,
-        approach: approach.trim() || null,
-        outcome: outcome.trim() || null,
-        contribution: contribution.filter((line) => line.trim()),
+      const shared = {
+        description: description.trim() || null,
         artifact_visibility: visibility,
       };
+      const own = {
+        title: title.trim(),
+        associated_experience: experience.trim() || null,
+        started_at: startedAt || null,
+        ended_at: ongoing ? null : endedAt || null,
+        ongoing,
+      };
       if (creating) {
-        await createProject({
-          ...body,
-          kind,
-          title: title.trim(),
-          organisation_name: organisation.trim() || null,
-        });
+        await createProject({ ...shared, ...own });
       } else if (verified) {
-        // The facts are the platform's; only the narrative goes up.
-        await updateProject(entry.id, body);
+        // The facts are the platform's; only the description goes up.
+        await updateProject(entry.id, shared);
       } else {
-        await updateProject(entry.id, {
-          ...body,
-          kind,
-          title: title.trim(),
-          organisation_name: organisation.trim() || null,
-        });
+        await updateProject(entry.id, { ...shared, ...own });
       }
       onSaved();
       onClose();
@@ -139,7 +116,7 @@ export default function ProjectSheet({
             <h2>{creating ? "Add a project" : title}</h2>
             <p className="small muted" style={{ margin: 0 }}>
               {verified
-                ? "Verified. The company, the dates and the brief came from the programme — yours to describe, not to restate."
+                ? "Verified. The company and the dates came from the programme — yours to describe, not to restate."
                 : "Self-declared. Shown after verified work, always."}
             </p>
           </div>
@@ -151,84 +128,83 @@ export default function ProjectSheet({
         {error && <div className="notice bad">{error}</div>}
 
         {verified && entry ? (
-          <div className="facts">
-            <p className="small muted" style={{ marginTop: 0 }}>
-              {entry.organisation_name}
-              {entry.started_at && ` · ${entry.started_at}`}
-              {entry.ended_at && ` – ${entry.ended_at}`}
-            </p>
-          </div>
+          <p className="small muted">
+            {entry.associated_experience}
+            {entry.started_at && ` · ${entry.started_at}`}
+            {entry.ongoing ? " – ongoing" : entry.ended_at && ` – ${entry.ended_at}`}
+          </p>
         ) : (
           <>
             <div className="field">
-              <label htmlFor="project-title">Title</label>
+              <label htmlFor="project-title">Project name</label>
               <input
                 id="project-title"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="What the work was"
+                placeholder="A clear title describing the work"
               />
             </div>
             <div className="field">
-              <label htmlFor="project-kind">Kind</label>
-              <select id="project-kind" value={kind} onChange={(e) => setKind(e.target.value)}>
-                {KINDS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="project-org">Organisation</label>
+              <label htmlFor="project-experience">Associated experience</label>
               <input
-                id="project-org"
+                id="project-experience"
                 type="text"
-                value={organisation}
-                onChange={(e) => setOrganisation(e.target.value)}
-                placeholder="Who it was for, if anyone"
+                value={experience}
+                onChange={(e) => setExperience(e.target.value)}
+                placeholder="The job, course or event this sat under"
               />
+            </div>
+            <div className="row" style={{ gap: "0.75rem", alignItems: "flex-end" }}>
+              <div className="field" style={{ flex: 1 }}>
+                <label htmlFor="project-start">Started</label>
+                <input
+                  id="project-start"
+                  type="date"
+                  value={startedAt}
+                  onChange={(e) => setStartedAt(e.target.value)}
+                />
+              </div>
+              <div className="field" style={{ flex: 1 }}>
+                <label htmlFor="project-end">Ended</label>
+                <input
+                  id="project-end"
+                  type="date"
+                  value={ongoing ? "" : endedAt}
+                  disabled={ongoing}
+                  onChange={(e) => setEndedAt(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="check">
+              <input
+                id="project-ongoing"
+                type="checkbox"
+                checked={ongoing}
+                onChange={(e) => setOngoing(e.target.checked)}
+              />
+              <label htmlFor="project-ongoing">Still working on it</label>
             </div>
           </>
         )}
 
         <div className="field">
-          <label htmlFor="project-problem">Problem</label>
+          <label htmlFor="project-description">Description</label>
           <textarea
-            id="project-problem"
-            rows={2}
-            value={problem}
-            onChange={(e) => setProblem(e.target.value)}
-            placeholder="What was actually wrong."
-          />
-        </div>
-        <div className="field">
-          <label htmlFor="project-approach">Approach</label>
-          <textarea
-            id="project-approach"
-            rows={2}
-            value={approach}
-            onChange={(e) => setApproach(e.target.value)}
-            placeholder="What you did about it."
+            id="project-description"
+            rows={6}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="The problem you solved, what you actually did, and what changed because of it."
           />
         </div>
 
-        <ContributionEditor lines={contribution} onChange={setContribution} disabled={busy} />
+        {!creating && <SkillDrawer entry={entry} verified={verified} onSaved={onSaved} />}
+
+        {!creating && <LinksEditor entry={entry} onSaved={onSaved} />}
 
         <div className="field">
-          <label htmlFor="project-outcome">Outcome</label>
-          <textarea
-            id="project-outcome"
-            rows={2}
-            value={outcome}
-            onChange={(e) => setOutcome(e.target.value)}
-            placeholder="What changed because of it."
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="project-visibility">Who can see the links</label>
+          <label htmlFor="project-visibility">Who can see the links and files</label>
           <select
             id="project-visibility"
             value={visibility}
@@ -246,17 +222,8 @@ export default function ProjectSheet({
           </div>
         </div>
 
-        {!creating && <LinksEditor entry={entry} onSaved={onSaved} />}
-        {!creating && !verified && <SkillDrawer entry={entry} onSaved={onSaved} />}
-        {!creating && verified && (
-          <p className="small muted">
-            Skills on a verified project come from the judges who watched it, and appear under
-            your capabilities.
-          </p>
-        )}
-
         <div className="row" style={{ gap: "0.75rem", marginTop: "1rem" }}>
-          <button onClick={save} disabled={busy || (!creating ? false : !title.trim())}>
+          <button onClick={save} disabled={busy || (creating && !title.trim())}>
             {creating ? "Add project" : "Save"}
           </button>
           {!creating && !verified && (
@@ -265,93 +232,57 @@ export default function ProjectSheet({
             </button>
           )}
         </div>
+        {creating && (
+          <p className="small muted">
+            Links, files and skills can be added once the project is saved.
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-/** The bullets under "what I did". A list, not a paragraph, because the thing
- * a reader scans for is the specific contribution. */
-function ContributionEditor({
-  lines,
-  onChange,
-  disabled,
-}: {
-  lines: string[];
-  onChange: (lines: string[]) => void;
-  disabled?: boolean;
-}) {
-  const [draft, setDraft] = useState("");
-
-  function add() {
-    if (!draft.trim()) return;
-    onChange([...lines, draft.trim()]);
-    setDraft("");
-  }
-
-  return (
-    <div className="field">
-      <label htmlFor="project-contribution">What you did</label>
-      {lines.length > 0 && (
-        <ul style={{ marginTop: 0 }}>
-          {lines.map((line, index) => (
-            <li key={index}>
-              {line}{" "}
-              <button
-                className="secondary small"
-                disabled={disabled}
-                onClick={() => onChange(lines.filter((_, i) => i !== index))}
-                style={{ padding: "0.1rem 0.4rem" }}
-              >
-                ✕
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="row" style={{ gap: "0.5rem" }}>
-        <input
-          id="project-contribution"
-          type="text"
-          style={{ flex: 1 }}
-          value={draft}
-          disabled={disabled}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add();
-            }
-          }}
-          placeholder="One thing you did"
-        />
-        <button className="secondary" onClick={add} disabled={disabled || !draft.trim()}>
-          Add
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** Links save immediately rather than on the sheet's Save, because they are
- * their own rows on the server and batching them would mean reconciling a
- * client-side list against server ids for no benefit. */
+/**
+ * URLs and uploads, saving immediately rather than on the sheet's Save.
+ *
+ * They are their own rows on the server, so batching them would mean
+ * reconciling a client-side list against server ids for no benefit.
+ */
 function LinksEditor({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => void }) {
   const [links, setLinks] = useState(entry.links);
-  const [kind, setKind] = useState("github");
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const filePicker = useRef<HTMLInputElement>(null);
 
-  async function add() {
+  async function addUrl() {
     if (!url.trim()) return;
     setBusy(true);
+    setError(null);
     try {
-      const updated = await addProjectLink(entry.id, { kind, url: url.trim() });
+      const updated = await addProjectLink(entry.id, { url: url.trim() });
       setLinks(updated.links);
       setUrl("");
       onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not add that link.");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function upload(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await uploadProjectFile(entry.id, file);
+      setLinks(updated.links);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not upload that file.");
+    } finally {
+      setBusy(false);
+      if (filePicker.current) filePicker.current.value = "";
     }
   }
 
@@ -368,7 +299,7 @@ function LinksEditor({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
 
   return (
     <div className="field">
-      <label htmlFor="link-url">Links</label>
+      <label htmlFor="link-url">Project URL or file</label>
       {links.length > 0 && (
         <div className="row" style={{ flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.5rem" }}>
           {links.map((link) => (
@@ -377,26 +308,16 @@ function LinksEditor({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
               className="secondary"
               disabled={busy}
               onClick={() => remove(link.id)}
-              title="Remove this link"
+              title="Remove this"
             >
-              {link.label ?? link.kind} ✕
+              {link.filename ? "📎 " : ""}
+              {link.label ?? link.filename ?? link.url} ✕
             </button>
           ))}
         </div>
       )}
+      {error && <div className="notice bad">{error}</div>}
       <div className="row" style={{ gap: "0.5rem" }}>
-        <select
-          value={kind}
-          onChange={(e) => setKind(e.target.value)}
-          disabled={busy}
-          style={{ width: "auto" }}
-        >
-          {LINK_KINDS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
         <input
           id="link-url"
           type="url"
@@ -404,11 +325,37 @@ function LinksEditor({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
           value={url}
           disabled={busy}
           onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addUrl();
+            }
+          }}
           placeholder="https://"
         />
-        <button className="secondary" onClick={add} disabled={busy || !url.trim()}>
+        <button className="secondary" onClick={addUrl} disabled={busy || !url.trim()}>
           Add
         </button>
+      </div>
+      <input
+        ref={filePicker}
+        type="file"
+        style={{ display: "none" }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) upload(file);
+        }}
+      />
+      <button
+        className="secondary"
+        disabled={busy}
+        onClick={() => filePicker.current?.click()}
+        style={{ marginTop: "0.5rem" }}
+      >
+        Attach a file
+      </button>
+      <div className="hint">
+        For work that does not live at a URL. Up to 20MB — PDF, image, document or zip.
       </div>
     </div>
   );
@@ -416,12 +363,21 @@ function LinksEditor({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
 
 /** Self-declared skills, in their own bordered well so a claim never sits on
  * the same visual plane as an attested capability. */
-function SkillDrawer({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => void }) {
+function SkillDrawer({
+  entry,
+  verified,
+  onSaved,
+}: {
+  entry: ProjectEntry;
+  verified: boolean;
+  onSaved: () => void;
+}) {
   const [options, setOptions] = useState<SkillChoice[]>([]);
-  const [selected, setSelected] = useState<string[]>(entry.skills.map((s) => s.id));
+  const [selected, setSelected] = useState<string[]>(entry.skills.map((s) => String(s.id)));
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
+    if (verified) return;
     getProjectSkillOptions()
       .then((rows) =>
         // Nothing is "suggested" here: a self-declared project has no role
@@ -429,7 +385,16 @@ function SkillDrawer({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
         setOptions(rows.map((row) => ({ ...row, id: String(row.id), suggested: false }))),
       )
       .catch(() => setOptions([]));
-  }, []);
+  }, [verified]);
+
+  if (verified) {
+    return (
+      <p className="small muted">
+        Skills on a verified project come from the judges who watched it, and appear under your
+        capabilities.
+      </p>
+    );
+  }
 
   async function toggle(id: string) {
     const next = selected.includes(id)
@@ -447,7 +412,7 @@ function SkillDrawer({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
 
   return (
     <div className="drawer">
-      <strong className="small">Skills you used</strong>
+      <strong className="small">Skills</strong>
       <p className="small muted" style={{ marginTop: "0.2rem" }}>
         Your own claim, and shown as one. Skills a judge watched you use are attested separately
         and carry their name.
@@ -457,6 +422,7 @@ function SkillDrawer({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
         selectedIds={selected}
         disabled={busy}
         onToggle={toggle}
+        ranked={false}
       />
     </div>
   );

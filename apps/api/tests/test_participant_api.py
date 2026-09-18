@@ -18,13 +18,7 @@ from projet.integrations.google.client import set_google_client
 from projet.main import create_app
 from projet.models import ProjectEntry
 from projet.models.base import utcnow
-from projet.models.enums import (
-    ActorType,
-    AuthorRole,
-    ProgrammeStatus,
-    ProjectKind,
-    ThreadType,
-)
+from projet.models.enums import ActorType, AuthorRole, ProgrammeStatus, ThreadType
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.messaging import open_thread
 from projet.services.teams import ensure_submission, ensure_team_for_participant
@@ -178,11 +172,11 @@ def test_a_company_user_cannot_use_the_participant_dashboard(client, session, re
     assert client.get("/me/dashboard").status_code == 403
 
 
-def test_seeding_a_project_returns_verified_facts_and_a_blank_narrative(
+def test_seeding_a_project_returns_verified_facts_and_a_blank_description(
     client, signed_in, session, programme, company
 ):
     """POST /me/projects/from-participant — the company and the dates are the
-    platform's word; the four narrative fields are theirs to fill in."""
+    platform's word; the description is theirs to fill in."""
     programme.status = ProgrammeStatus.COMPLETE
     session.flush()
 
@@ -192,9 +186,8 @@ def test_seeding_a_project_returns_verified_facts_and_a_blank_narrative(
     body = response.json()
     assert body["verified"] is True
     assert body["title"] == programme.title
-    assert body["organisation_name"] == company.name
-    assert body["problem"] is None
-    assert body["contribution"] == []
+    assert body["associated_experience"] == company.name
+    assert body["description"] is None
     assert body["artifact_visibility"] == "private"
 
 
@@ -245,10 +238,9 @@ def test_a_participant_can_add_a_self_declared_project(client, signed_in):
     response = client.post(
         "/me/projects",
         json={
-            "kind": "hackathon",
             "title": "Weekend build",
-            "organisation_name": "Self-organized",
-            "outcome": "Won most useful.",
+            "associated_experience": "Self-organized",
+            "description": "Built a bus predictor over a weekend.",
         },
     )
 
@@ -256,31 +248,26 @@ def test_a_participant_can_add_a_self_declared_project(client, signed_in):
     body = response.json()
     assert body["verified"] is False
     assert body["title"] == "Weekend build"
+    assert body["description"] == "Built a bus predictor over a weekend."
     assert body["artifact_visibility"] == "private"
 
 
-def test_a_self_declared_project_cannot_claim_the_programme_kind(client, signed_in):
-    response = client.post("/me/projects", json={"kind": "programme", "title": "Not really"})
-
-    assert response.status_code == 400
-    assert "reserved" in response.json()["detail"]
+def test_a_project_needs_a_title(client, signed_in):
+    assert client.post("/me/projects", json={"title": ""}).status_code == 422
 
 
-def test_an_unknown_kind_is_refused(client, signed_in):
-    response = client.post("/me/projects", json={"kind": "interpretive-dance", "title": "x"})
-    assert response.status_code == 422
-
-
-def test_editing_a_verified_entry_rewrites_the_narrative_only(
+def test_editing_a_verified_entry_rewrites_the_description_only(
     client, signed_in, session, programme
 ):
     programme.status = ProgrammeStatus.COMPLETE
     session.flush()
     entry_id = client.post(f"/me/projects/from-participant/{signed_in.id}").json()["id"]
 
-    narrative = client.patch(f"/me/projects/{entry_id}", json={"problem": "Churn was guessed at."})
-    assert narrative.status_code == 200
-    assert narrative.json()["problem"] == "Churn was guessed at."
+    described = client.patch(
+        f"/me/projects/{entry_id}", json={"description": "Churn was guessed at."}
+    )
+    assert described.status_code == 200
+    assert described.json()["description"] == "Churn was guessed at."
 
     facts = client.patch(f"/me/projects/{entry_id}", json={"title": "Something grander"})
     assert facts.status_code == 400
@@ -301,22 +288,18 @@ def test_a_verified_entry_cannot_be_deleted_but_can_be_hidden(
 
 
 def test_a_self_declared_project_can_be_deleted(client, signed_in):
-    entry_id = client.post("/me/projects", json={"kind": "freelance", "title": "A thing"}).json()[
-        "id"
-    ]
+    entry_id = client.post("/me/projects", json={"title": "A thing"}).json()["id"]
 
     assert client.delete(f"/me/projects/{entry_id}").status_code == 204
     assert client.get("/me/projects").json() == []
 
 
 def test_links_round_trip_through_the_api(client, signed_in):
-    entry_id = client.post("/me/projects", json={"kind": "freelance", "title": "A thing"}).json()[
-        "id"
-    ]
+    entry_id = client.post("/me/projects", json={"title": "A thing"}).json()["id"]
 
     added = client.post(
         f"/me/projects/{entry_id}/links",
-        json={"kind": "github", "url": "https://github.test/repo", "label": "The code"},
+        json={"url": "https://github.test/repo", "label": "The code"},
     )
     assert added.status_code == 201
     link_id = added.json()["links"][0]["id"]
@@ -326,11 +309,54 @@ def test_links_round_trip_through_the_api(client, signed_in):
     assert removed.json()["links"] == []
 
 
+def test_a_file_can_be_attached_and_fetched_back(client, signed_in):
+    """The stored object is not publicly addressable: the response hands back
+    a signed link, and that link is what works."""
+    entry_id = client.post("/me/projects", json={"title": "A thing"}).json()["id"]
+    png = b"\x89PNG\r\n\x1a\n" + b"0" * 32
+
+    uploaded = client.post(
+        f"/me/projects/{entry_id}/files",
+        files={"file": ("shot.png", png, "image/png")},
+    )
+
+    assert uploaded.status_code == 201
+    link = uploaded.json()["links"][0]
+    assert link["filename"] == "shot.png"
+    assert link["url"] is None
+    assert link["file_url"].startswith("/files/projects/")
+
+    fetched = client.get(link["file_url"])
+    assert fetched.status_code == 200
+    assert fetched.content == png
+
+
+def test_an_unsigned_file_url_is_refused(client, signed_in):
+    """Stripping the signature off must not work, or the key is the address."""
+    entry_id = client.post("/me/projects", json={"title": "A thing"}).json()["id"]
+    uploaded = client.post(
+        f"/me/projects/{entry_id}/files", files={"file": ("shot.png", b"x" * 16, "image/png")}
+    )
+    signed = uploaded.json()["links"][0]["file_url"]
+
+    assert client.get(signed.split("?")[0]).status_code in (403, 422)
+
+
+def test_a_rejected_file_type_is_refused_over_http(client, signed_in):
+    entry_id = client.post("/me/projects", json={"title": "A thing"}).json()["id"]
+
+    response = client.post(
+        f"/me/projects/{entry_id}/files",
+        files={"file": ("run.exe", b"MZ", "application/x-msdownload")},
+    )
+
+    assert response.status_code == 400
+    assert "not accepted" in response.json()["detail"]
+
+
 def test_the_skill_drawer_offers_the_taxonomy_and_tags_a_project(client, signed_in, session):
     skill = _skill_row(session, "Rust")
-    entry_id = client.post("/me/projects", json={"kind": "independent", "title": "Toy"}).json()[
-        "id"
-    ]
+    entry_id = client.post("/me/projects", json={"title": "Toy"}).json()["id"]
 
     options = client.get("/me/skills/options").json()
     assert any(option["name"] == "Rust" for option in options)
@@ -356,7 +382,7 @@ def test_a_verified_entry_refuses_a_claimed_skill_over_http(
 
 def test_someone_elses_project_is_a_404(client, signed_in, session, participant_factory):
     stranger = participant_factory(name="Someone Else")
-    entry = ProjectEntry(person_id=stranger.person_id, kind=ProjectKind.FREELANCE, title="Theirs")
+    entry = ProjectEntry(person_id=stranger.person_id, title="Theirs")
     session.add(entry)
     session.flush()
 
