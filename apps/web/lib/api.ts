@@ -402,12 +402,25 @@ export const updateScoringCard = (
   );
 
 export type Portfolio = Schemas["Portfolio"];
+export type PublicProfile = Schemas["PublicProfile"];
 export type TestimonialOut = Schemas["TestimonialOut"];
 export type TestimonialDraftOut = Schemas["TestimonialDraftOut"];
 export type CloseoutOut = Schemas["CloseoutOut"];
 
 /** What the participant keeps: attested skills, credentials, testimonials. */
 export const getPortfolio = () => api.get<Portfolio>("/me/portfolio");
+
+/** The public page — FR-1201. No session; a bare fetch answers it the same
+ * way the browser does. Null on a 404, since "no profile at that handle" is
+ * an ordinary outcome here, not an error to surface as one. */
+export async function getPublicProfile(handle: string): Promise<PublicProfile | null> {
+  try {
+    return await api.get<PublicProfile>(`/p/${encodeURIComponent(handle)}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
+}
 
 export const getTestimonial = (programmeId: string, participantId: string) =>
   api.get<TestimonialOut | null>(

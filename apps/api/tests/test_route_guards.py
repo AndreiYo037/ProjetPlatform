@@ -21,6 +21,7 @@ from projet.api import (
     companies,
     judging,
     participant,
+    profile_public,
     programmes,
     public,
     roles,
@@ -36,6 +37,7 @@ ROUTERS = [
     applications.router,
     judging.router,
     public.router,
+    profile_public.router,
     participant.router,
     threads.router,
 ]
@@ -62,6 +64,8 @@ PUBLIC: dict[tuple[str, str], str] = {
     ("GET", "/public/challenges"): "the platform-wide directory (FR-105)",
     # The logo renders on those pages, which are read without a session.
     ("GET", "/companies/{company_id}/logo"): "a brand mark on an unauthenticated page",
+    # FR-1201 — someone never in the room reads this with no account at all.
+    ("GET", "/p/{handle}"): "the public profile",
 }
 
 

@@ -3632,6 +3632,48 @@
         }
       }
     },
+    "/p/{handle}": {
+      "get": {
+        "tags": [
+          "public profile"
+        ],
+        "summary": "Get Public Profile",
+        "operationId": "get_public_profile_p__handle__get",
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Handle"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicProfile"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/profile": {
       "get": {
         "tags": [
@@ -8358,6 +8400,112 @@
         ],
         "title": "ProjectLinkOut"
       },
+      "PublicAttestedSkill": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "attesters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Attesters"
+          },
+          "programme_count": {
+            "type": "integer",
+            "title": "Programme Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "attesters",
+          "programme_count"
+        ],
+        "title": "PublicAttestedSkill"
+      },
+      "PublicCapability": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PublicAttestedSkill"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "programme_count": {
+            "type": "integer",
+            "title": "Programme Count"
+          },
+          "attester_count": {
+            "type": "integer",
+            "title": "Attester Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "slug",
+          "summary",
+          "skills",
+          "programme_count",
+          "attester_count"
+        ],
+        "title": "PublicCapability"
+      },
+      "PublicCredential": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "programme": {
+            "type": "string",
+            "title": "Programme"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          },
+          "verify_code": {
+            "type": "string",
+            "title": "Verify Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "programme",
+          "company",
+          "issued_at",
+          "verify_code"
+        ],
+        "title": "PublicCredential"
+      },
       "PublicCriterion": {
         "properties": {
           "slot": {
@@ -8682,6 +8830,310 @@
         ],
         "title": "PublicListingSummary",
         "description": "FR-104/FR-105 \u2014 the row shape for both listing endpoints below.\n\nDeliberately thinner than `PublicListing`: a browsing stranger picking\nbetween programmes does not need the rubric or the data pack yet, only\nenough to decide whether to open the full page."
+      },
+      "PublicProfile": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "handle": {
+            "type": "string",
+            "title": "Handle"
+          },
+          "headline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline"
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bio"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCapability"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/PublicProjectEntry"
+            },
+            "type": "array",
+            "title": "Projects"
+          },
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/PublicCredential"
+            },
+            "type": "array",
+            "title": "Credentials"
+          },
+          "testimonials": {
+            "items": {
+              "$ref": "#/components/schemas/PublicTestimonial"
+            },
+            "type": "array",
+            "title": "Testimonials"
+          },
+          "verified_project_count": {
+            "type": "integer",
+            "title": "Verified Project Count"
+          },
+          "self_declared_project_count": {
+            "type": "integer",
+            "title": "Self Declared Project Count"
+          },
+          "programmes_completed": {
+            "type": "integer",
+            "title": "Programmes Completed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "handle",
+          "headline",
+          "bio",
+          "location",
+          "capabilities",
+          "projects",
+          "credentials",
+          "testimonials",
+          "verified_project_count",
+          "self_declared_project_count",
+          "programmes_completed"
+        ],
+        "title": "PublicProfile"
+      },
+      "PublicProjectEntry": {
+        "properties": {
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "organisation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation Name"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "approach": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach"
+          },
+          "contribution": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contribution"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/PublicProjectLink"
+            },
+            "type": "array",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "verified",
+          "kind",
+          "title",
+          "organisation_name",
+          "started_at",
+          "ended_at",
+          "problem",
+          "approach",
+          "contribution",
+          "outcome",
+          "links"
+        ],
+        "title": "PublicProjectEntry"
+      },
+      "PublicProjectLink": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "url",
+          "label"
+        ],
+        "title": "PublicProjectLink"
+      },
+      "PublicTestimonial": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "author_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Title"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "programme": {
+            "type": "string",
+            "title": "Programme"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body",
+          "author_name",
+          "author_title",
+          "company",
+          "programme",
+          "published_at"
+        ],
+        "title": "PublicTestimonial"
       },
       "PublicationCheck": {
         "properties": {

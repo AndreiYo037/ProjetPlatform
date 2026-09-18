@@ -27,10 +27,12 @@ from projet.models import (
     CompanyUser,
     Participant,
     ProfileSkill,
+    Programme,
     Score,
     ScoreSkillTag,
     Skill,
     SkillCapability,
+    Testimonial,
 )
 from projet.models.enums import SkillType
 
@@ -198,3 +200,22 @@ def capability_rollup(
         rollup.attester_count = len({a for a in attesters[capability_id] if a[0]})
 
     return sorted(rollups.values(), key=lambda r: r.sort_order)
+
+
+def published_testimonials_for(session: Session, person_id: uuid.UUID):
+    """Published testimonials across every programme this person has done.
+
+    Published only. A draft is a rep still thinking, and surfacing it — to the
+    person it is about or to a stranger reading the public page — would make
+    every draft a promise nobody chose to make yet.
+    """
+    return session.execute(
+        select(Testimonial, CompanyUser, Company, Programme)
+        .join(Participant, Participant.id == Testimonial.participant_id)
+        .join(CompanyUser, CompanyUser.id == Testimonial.author_company_user_id)
+        .join(Company, Company.id == CompanyUser.company_id)
+        .join(Programme, Programme.id == Participant.programme_id)
+        .where(Participant.person_id == person_id)
+        .where(Testimonial.published_at.isnot(None))
+        .order_by(Testimonial.published_at.desc())
+    ).all()

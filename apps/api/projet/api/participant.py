@@ -19,7 +19,6 @@ from projet.api.deps import require_participant
 from projet.db import get_session
 from projet.models import (
     Company,
-    CompanyUser,
     JudgingSession,
     Participant,
     Person,
@@ -30,7 +29,6 @@ from projet.models import (
     RoleTemplate,
     RubricCriterion,
     SubmissionLink,
-    Testimonial,
     Thread,
 )
 from projet.models.base import utcnow
@@ -44,7 +42,7 @@ from projet.services.messaging import (
     unread_counts,
     visible_threads,
 )
-from projet.services.profile import capability_rollup
+from projet.services.profile import capability_rollup, published_testimonials_for
 from projet.services.projects import ProjectError, entries_for, seed_from_participant
 from projet.services.submission import (
     SubmissionError,
@@ -209,18 +207,7 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
             )
         )
 
-    # Published only. A draft is a rep still thinking, and showing it to the
-    # person it is about would make every draft a promise.
-    rows = db.execute(
-        select(Testimonial, CompanyUser, Company, Programme)
-        .join(Participant, Participant.id == Testimonial.participant_id)
-        .join(CompanyUser, CompanyUser.id == Testimonial.author_company_user_id)
-        .join(Company, Company.id == CompanyUser.company_id)
-        .join(Programme, Programme.id == Participant.programme_id)
-        .where(Participant.person_id == person.id)
-        .where(Testimonial.published_at.isnot(None))
-        .order_by(Testimonial.published_at.desc())
-    ).all()
+    rows = published_testimonials_for(db, person.id)
     testimonials = [
         TestimonialCard(
             body=row.Testimonial.body,
