@@ -195,3 +195,42 @@ class OutboxSubjectType(StrEnum):
     PROGRAMME = "programme"
     SUBMISSION_LINK = "submission_link"
     ACCOUNT_ACTION = "account_action"
+
+
+class ProjectKind(StrEnum):
+    """Where a piece of work came from.
+
+    PROGRAMME is the only kind the platform can vouch for by itself; the rest
+    are the participant's own account of work done elsewhere, which is why the
+    two are counted and ordered separately on a profile.
+    """
+
+    PROGRAMME = "programme"
+    HACKATHON = "hackathon"
+    INTERNSHIP = "internship"
+    FREELANCE = "freelance"
+    COMPETITION = "competition"
+    INDEPENDENT = "independent"
+
+
+class ProjectLinkKind(StrEnum):
+    GITHUB = "github"
+    DEMO = "demo"
+    VIDEO = "video"
+    DECK = "deck"
+    DOC = "doc"
+    BRIEF = "brief"
+
+
+class ArtifactVisibility(StrEnum):
+    """Per-project consent for showing the work itself.
+
+    Deliberately not inherited from Application.consent_share_company: that
+    consent was given to one company for one week of judging, and a public
+    profile is a different audience for an indefinite time. PRIVATE is the
+    default, so an artifact becomes visible only by an explicit act.
+    """
+
+    PRIVATE = "private"
+    LINK_ONLY = "link_only"
+    PUBLIC = "public"

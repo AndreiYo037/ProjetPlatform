@@ -8,7 +8,7 @@ rule holds by construction rather than by remembering to omit them (FR-1004).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
@@ -25,6 +25,7 @@ from projet.models import (
     Person,
     Post,
     Programme,
+    ProjectEntry,
     Role,
     RoleTemplate,
     RubricCriterion,
@@ -44,6 +45,7 @@ from projet.services.messaging import (
     visible_threads,
 )
 from projet.services.profile import capability_rollup
+from projet.services.projects import ProjectError, entries_for, seed_from_participant
 from projet.services.submission import (
     SubmissionError,
     clear_link,
@@ -241,6 +243,91 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
             {c.programme_id for c in credentials_for(db, person.id)}
         ),
     )
+
+
+class ProjectLinkOut(BaseModel):
+    kind: str
+    url: str
+    label: str | None
+
+
+class ProjectEntryOut(BaseModel):
+    """One case-study card.
+
+    `verified` is the only thing on here the participant cannot set, and it is
+    the thing the whole card is read against, so it is a field of its own
+    rather than something a reader has to infer from `kind`.
+    """
+
+    id: uuid.UUID
+    verified: bool
+    kind: str
+    title: str
+    organisation_name: str | None
+    started_at: date | None
+    ended_at: date | None
+    problem: str | None
+    approach: str | None
+    contribution: list[str]
+    outcome: str | None
+    artifact_visibility: str
+    links: list[ProjectLinkOut]
+
+
+def _project_out(entry: ProjectEntry) -> ProjectEntryOut:
+    return ProjectEntryOut(
+        id=entry.id,
+        verified=entry.verified,
+        kind=entry.kind.value,
+        title=entry.title,
+        organisation_name=entry.organisation_name,
+        started_at=entry.started_at,
+        ended_at=entry.ended_at,
+        problem=entry.problem,
+        approach=entry.approach,
+        contribution=list(entry.contribution or []),
+        outcome=entry.outcome,
+        artifact_visibility=entry.artifact_visibility.value,
+        links=[
+            ProjectLinkOut(kind=link.kind.value, url=link.url, label=link.label)
+            for link in entry.links
+        ],
+    )
+
+
+@router.get("/projects", response_model=list[ProjectEntryOut])
+def list_projects(
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> list[ProjectEntryOut]:
+    person = _person(db, actor)
+    return [_project_out(entry) for entry in entries_for(db, person.id)]
+
+
+@router.post(
+    "/projects/from-participant/{participant_id}",
+    response_model=ProjectEntryOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def seed_project(
+    participant_id: uuid.UUID,
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProjectEntryOut:
+    """Start a case study from a programme they finished.
+
+    The organisation, the dates and the brief come across already verified.
+    The four narrative fields come across empty, because the account of the
+    work is theirs to write and always was.
+    """
+    person = _person(db, actor)
+    try:
+        entry = seed_from_participant(db, person.id, participant_id)
+    except ProjectError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    db.commit()
+    db.refresh(entry)
+    return _project_out(entry)
 
 
 @router.patch("/profile", response_model=ProfileOut)

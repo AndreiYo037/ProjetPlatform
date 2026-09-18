@@ -17,7 +17,7 @@ from projet.db import get_session
 from projet.integrations.google.client import set_google_client
 from projet.main import create_app
 from projet.models.base import utcnow
-from projet.models.enums import ActorType, AuthorRole, ThreadType
+from projet.models.enums import ActorType, AuthorRole, ProgrammeStatus, ThreadType
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.messaging import open_thread
 from projet.services.teams import ensure_submission, ensure_team_for_participant
@@ -169,3 +169,56 @@ def test_a_company_user_cannot_use_the_participant_dashboard(client, session, re
     _, raw = start_session(session, actor_type=ActorType.COMPANY_USER, subject_id=rep.id)
     client.cookies.set(SESSION_COOKIE, raw)
     assert client.get("/me/dashboard").status_code == 403
+
+
+def test_seeding_a_project_returns_verified_facts_and_a_blank_narrative(
+    client, signed_in, session, programme, company
+):
+    """POST /me/projects/from-participant — the company and the dates are the
+    platform's word; the four narrative fields are theirs to fill in."""
+    programme.status = ProgrammeStatus.COMPLETE
+    session.flush()
+
+    response = client.post(f"/me/projects/from-participant/{signed_in.id}")
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["verified"] is True
+    assert body["title"] == programme.title
+    assert body["organisation_name"] == company.name
+    assert body["problem"] is None
+    assert body["contribution"] == []
+    assert body["artifact_visibility"] == "private"
+
+
+def test_seeding_before_the_programme_finishes_is_refused(client, signed_in, session, programme):
+    programme.status = ProgrammeStatus.RUNNING
+    session.flush()
+
+    response = client.post(f"/me/projects/from-participant/{signed_in.id}")
+
+    assert response.status_code == 400
+    assert "not finished" in response.json()["detail"]
+
+
+def test_you_cannot_seed_a_programme_that_is_not_yours(client, signed_in, session, participant_factory, programme):
+    programme.status = ProgrammeStatus.COMPLETE
+    theirs = participant_factory(name="Someone Else")
+    session.flush()
+
+    response = client.post(f"/me/projects/from-participant/{theirs.id}")
+
+    assert response.status_code == 400
+
+
+def test_the_project_list_carries_no_score(client, signed_in, session, programme):
+    """Same section 8 rule as the dashboard: nothing on a participant-facing
+    schema has anywhere to put a rating."""
+    programme.status = ProgrammeStatus.COMPLETE
+    session.flush()
+    client.post(f"/me/projects/from-participant/{signed_in.id}")
+
+    raw = json.dumps(client.get("/me/projects").json()).lower()
+
+    for forbidden in ("score", "rank", "would_refer", "referral"):
+        assert forbidden not in raw

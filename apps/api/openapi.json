@@ -3788,6 +3788,119 @@
         }
       }
     },
+    "/me/projects": {
+      "get": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "List Projects",
+        "operationId": "list_projects_me_projects_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectEntryOut"
+                  },
+                  "title": "Response List Projects Me Projects Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/projects/from-participant/{participant_id}": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Seed Project",
+        "description": "Start a case study from a programme they finished.\n\nThe organisation, the dates and the brief come across already verified.\nThe four narrative fields come across empty, because the account of the\nwork is theirs to write and always was.",
+        "operationId": "seed_project_me_projects_from_participant__participant_id__post",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectEntryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/dashboard": {
       "get": {
         "tags": [
@@ -8089,6 +8202,161 @@
         "type": "object",
         "title": "ProgrammeUpdate",
         "description": "The submission deadline and pitch day are not settable.\n\nThey derive from kickoff (see services/schedule.py), so letting either be\nedited independently would let a programme drift out of the shape every\nparticipant was promised at application time."
+      },
+      "ProjectEntryOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "verified": {
+            "type": "boolean",
+            "title": "Verified"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "organisation_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation Name"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "approach": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approach"
+          },
+          "contribution": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contribution"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "artifact_visibility": {
+            "type": "string",
+            "title": "Artifact Visibility"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectLinkOut"
+            },
+            "type": "array",
+            "title": "Links"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "verified",
+          "kind",
+          "title",
+          "organisation_name",
+          "started_at",
+          "ended_at",
+          "problem",
+          "approach",
+          "contribution",
+          "outcome",
+          "artifact_visibility",
+          "links"
+        ],
+        "title": "ProjectEntryOut",
+        "description": "One case-study card.\n\n`verified` is the only thing on here the participant cannot set, and it is\nthe thing the whole card is read against, so it is a field of its own\nrather than something a reader has to infer from `kind`."
+      },
+      "ProjectLinkOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "url",
+          "label"
+        ],
+        "title": "ProjectLinkOut"
       },
       "PublicCriterion": {
         "properties": {

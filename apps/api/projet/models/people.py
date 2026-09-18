@@ -50,6 +50,17 @@ class Person(Base):
     # FR-1201 — the public profile lives at /p/{handle}. Scheme still open
     # (PRD section 12 question 1); the column existing now keeps it out of a migration.
     handle: Mapped[str | None] = mapped_column(String(80), unique=True)
+
+    # The top of the public profile. A headline is what someone reads before
+    # deciding whether to read anything else, so it is the participant's to
+    # write — none of it is a platform claim.
+    headline: Mapped[str | None] = mapped_column(String(160))
+    bio: Mapped[str | None] = mapped_column(Text)
+    location: Mapped[str | None] = mapped_column(String(160))
+    # FR-1201 — /p/{handle} resolves only when this is on. Off by default: a
+    # profile becomes public by an act, never by accumulating enough evidence.
+    public: Mapped[bool] = mapped_column(Boolean, default=False)
+
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
 
 

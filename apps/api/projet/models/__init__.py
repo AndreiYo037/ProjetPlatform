@@ -17,6 +17,7 @@ from projet.models.people import (
     TeamMember,
     normalise_email,
 )
+from projet.models.portfolio import ProjectEntry, ProjectLink, ProjectSkill
 from projet.models.profile import Credential, ProfileSkill, Testimonial
 from projet.models.programme import (
     DataPackResource,
@@ -59,6 +60,9 @@ __all__ = [
     "ProfileSkill",
     "Programme",
     "ProgrammeAssignment",
+    "ProjectEntry",
+    "ProjectLink",
+    "ProjectSkill",
     "Role",
     "RoleTemplate",
     "RubricCriterion",
