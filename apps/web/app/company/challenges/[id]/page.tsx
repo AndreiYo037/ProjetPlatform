@@ -9,7 +9,6 @@ import {
   disposition,
   draftProblemStatements,
   getApplication,
-  getKickoffDays,
   getProgramme,
   getPublicationCheck,
   listApplications,
@@ -18,11 +17,12 @@ import {
   updateProgramme,
   type ApplicationDetail,
   type ApplicationOut,
-  type KickoffOption,
   type ProblemStatementAngle,
   type ProgrammeDetail,
   type PublicationCheck,
 } from "@/lib/api";
+import { fromDateInput, toDateInput } from "@/lib/dates";
+import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
 /**
@@ -133,35 +133,11 @@ export default function ChallengeDetailPage({
       {flash && <div className="notice good">{flash}</div>}
       {error && <div className="notice bad">{error}</div>}
 
-      {/* Publishing is the whole point of a draft, so what is holding it up
-          stays above the section nav rather than inside one of them. */}
       {isDraft && (
-        <>
-          <div className="notice warn">
-            This challenge is still a draft. It will not appear in listings until you
-            publish it.
-          </div>
-
-          {pubCheck && pubCheck.problems.length > 0 && (
-            <div className="notice warn">
-              <strong>{pubCheck.ready ? "Before you go live:" : "Not ready to publish:"}</strong>
-              <ul className="small" style={{ margin: "0.3rem 0 0", paddingLeft: "1.2rem" }}>
-                {pubCheck.problems.map((p, i) => (
-                  <li key={i}>{p}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="row">
-            <button
-              disabled={busy || (pubCheck !== null && !pubCheck.ready)}
-              onClick={handlePublish}
-            >
-              {busy ? "Publishing…" : "Publish challenge"}
-            </button>
-          </div>
-        </>
+        <div className="notice warn">
+          This challenge is still a draft. It will not appear in listings until you
+          publish it.
+        </div>
       )}
 
       <nav className="row" style={{ margin: "1.25rem 0" }}>
@@ -241,23 +217,35 @@ export default function ChallengeDetailPage({
       {active === "schedule" && (
         <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
       )}
+
+      {isDraft && (
+        <>
+          {pubCheck && pubCheck.problems.length > 0 && (
+            <div className="notice warn">
+              <strong>{pubCheck.ready ? "Before you go live:" : "Not ready to publish:"}</strong>
+              <ul className="small" style={{ margin: "0.3rem 0 0", paddingLeft: "1.2rem" }}>
+                {pubCheck.problems.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="row" style={{ marginTop: "1.25rem" }}>
+            <button
+              disabled={busy || (pubCheck !== null && !pubCheck.ready)}
+              onClick={handlePublish}
+            >
+              {busy ? "Publishing…" : "Publish challenge"}
+            </button>
+          </div>
+        </>
+      )}
     </main>
   );
 }
 
-/** "Wed 4 Nov, pitches Wed 11 Nov" — the whole commitment in one line. */
-function weekOf(option: KickoffOption): string {
-  const day = (value: string) =>
-    new Date(value).toLocaleDateString(undefined, {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    });
-  return `${day(option.kickoff_at)}, pitches ${day(option.pitch_at)}`;
-}
-
 /**
- * Title, seats and the week. Logistics, not content — the brief lives in its
+ * Title, seats and the dates. Logistics, not content — the brief lives in its
  * own section below, and publishing lives at the bottom of the page, after
  * the rubric a company is agreeing to run against.
  */
@@ -270,132 +258,130 @@ function ScheduleSection({
   isDraft: boolean;
   onSaved: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(programme.title);
   const [capacity, setCapacity] = useState(String(programme.capacity ?? ""));
-  const [appsCloseAt, setAppsCloseAt] = useState(
-    programme.applications_close_at
-      ? programme.applications_close_at.slice(0, 16)
-      : "",
-  );
-  const [startAt, setStartAt] = useState(programme.start_at ?? "");
-  const [kickoffDays, setKickoffDays] = useState<KickoffOption[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [appsCloseAt, setAppsCloseAt] = useState(toDateInput(programme.applications_close_at));
+  const [startAt, setStartAt] = useState(toDateInput(programme.start_at));
+  const [endAt, setEndAt] = useState(toDateInput(programme.submit_deadline_at));
 
-  useEffect(() => {
-    getKickoffDays()
-      .then(setKickoffDays)
-      .catch(() => setKickoffDays([]));
-  }, []);
+  const draft = {
+    title: title.trim(),
+    capacity,
+    appsCloseAt,
+    startAt,
+    endAt,
+  };
+  const baseline = {
+    title: programme.title,
+    capacity: String(programme.capacity ?? ""),
+    appsCloseAt: toDateInput(programme.applications_close_at),
+    startAt: toDateInput(programme.start_at),
+    endAt: toDateInput(programme.submit_deadline_at),
+  };
 
-  async function save() {
-    setSaving(true);
-    setSaveError(null);
-    try {
+  const { status, error: saveError } = useAutosave(
+    draft,
+    baseline,
+    async (next) => {
       await updateProgramme(programme.id, {
-        title: title.trim() || undefined,
-        capacity: capacity ? Number(capacity) : null,
-        applications_close_at: appsCloseAt || null,
-        start_at: startAt || null,
+        title: next.title || undefined,
+        capacity: next.capacity ? Number(next.capacity) : null,
+        applications_close_at: fromDateInput(next.appsCloseAt),
+        start_at: fromDateInput(next.startAt),
+        submit_deadline_at: fromDateInput(next.endAt),
       });
-      setEditing(false);
       onSaved();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Could not save.");
-    } finally {
-      setSaving(false);
-    }
+    },
+  );
+
+  function formatDay(iso: string | null | undefined, time: string) {
+    if (!iso) return "Not set";
+    const day = new Date(iso).toLocaleDateString(undefined, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    });
+    return `${day} · ${time}`;
+  }
+
+  if (!isDraft) {
+    return (
+      <div className="panel">
+        <dl className="facts">
+          <dt>Slug</dt>
+          <dd>{programme.slug}</dd>
+          <dt>Capacity</dt>
+          <dd>{programme.capacity ?? "Uncapped"}</dd>
+          <dt>Apps close</dt>
+          <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
+          <dt>Starts</dt>
+          <dd>{formatDay(programme.start_at, "00:00")}</dd>
+          <dt>Ends</dt>
+          <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
+        </dl>
+      </div>
+    );
   }
 
   return (
-    <>
-      {!editing ? (
-        <div className="panel">
-          <dl className="facts">
-            <dt>Slug</dt>
-            <dd>{programme.slug}</dd>
-            <dt>Capacity</dt>
-            <dd>{programme.capacity ?? "Uncapped"}</dd>
-            <dt>Apps close</dt>
-            <dd>{programme.applications_close_at ? new Date(programme.applications_close_at).toLocaleString() : "Not set"}</dd>
-            <dt>Starts</dt>
-            <dd>{programme.start_at ? new Date(programme.start_at).toLocaleString() : "Not set"}</dd>
-            <dt>Deadline</dt>
-            <dd>{programme.submit_deadline_at ? new Date(programme.submit_deadline_at).toLocaleString() : "Not set"}</dd>
-            <dt>Pitch day</dt>
-            <dd>{programme.pitch_at ? new Date(programme.pitch_at).toLocaleString() : "Not set"}</dd>
-          </dl>
-          {isDraft && (
-            <button className="secondary" onClick={() => setEditing(true)}>
-              Edit details
-            </button>
-          )}
+    <div className="panel">
+      <p className="small muted" style={{ marginTop: 0 }}>
+        Saves as you type{autosaveLabel(status) ? ` · ${autosaveLabel(status)}` : ""}.
+      </p>
+      <div className="field">
+        <label htmlFor="edit-title">Title</label>
+        <input
+          id="edit-title"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="edit-capacity">Seats</label>
+        <input
+          id="edit-capacity"
+          type="number"
+          min={1}
+          value={capacity}
+          onChange={(e) => setCapacity(e.target.value)}
+          placeholder="Uncapped"
+        />
+      </div>
+      <div className="field">
+        <label htmlFor="edit-apps-close">Applications close</label>
+        <input
+          id="edit-apps-close"
+          type="date"
+          value={appsCloseAt}
+          onChange={(e) => setAppsCloseAt(e.target.value)}
+        />
+        <p className="small muted">Closes at 23:59 on that day.</p>
+      </div>
+      <div className="row" style={{ gap: "1rem" }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="edit-start">Starts</label>
+          <input
+            id="edit-start"
+            type="date"
+            value={startAt}
+            onChange={(e) => setStartAt(e.target.value)}
+          />
+          <p className="small muted">00:00 on that day.</p>
         </div>
-      ) : (
-        <div className="panel">
-          <div className="field">
-            <label htmlFor="edit-title">Title</label>
-            <input
-              id="edit-title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="edit-capacity">Seats</label>
-            <input
-              id="edit-capacity"
-              type="number"
-              min={1}
-              value={capacity}
-              onChange={(e) => setCapacity(e.target.value)}
-              placeholder="Uncapped"
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="edit-apps-close">Applications close</label>
-            <input
-              id="edit-apps-close"
-              type="datetime-local"
-              value={appsCloseAt}
-              onChange={(e) => setAppsCloseAt(e.target.value)}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="edit-start">Kickoff Wednesday</label>
-            <select
-              id="edit-start"
-              value={startAt}
-              onChange={(e) => setStartAt(e.target.value)}
-            >
-              <option value="">Not picked yet</option>
-              {kickoffDays.map((option) => (
-                <option key={option.kickoff_at} value={option.kickoff_at}>
-                  {weekOf(option)}
-                </option>
-              ))}
-            </select>
-            <p className="small muted">
-              Every programme runs the same week: kickoff Wednesday, work due the
-              following Tuesday night, pitches the Wednesday after. The deadline
-              and the pitch day follow from this date, so there is nothing else
-              to set.
-            </p>
-          </div>
-          {saveError && <div className="notice bad">{saveError}</div>}
-          <div className="row" style={{ gap: "0.75rem" }}>
-            <button disabled={saving} onClick={save}>
-              {saving ? "Saving…" : "Save"}
-            </button>
-            <button className="secondary" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-          </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="edit-end">Ends</label>
+          <input
+            id="edit-end"
+            type="date"
+            value={endAt}
+            onChange={(e) => setEndAt(e.target.value)}
+          />
+          <p className="small muted">23:59 on that day.</p>
         </div>
-      )}
-    </>
+      </div>
+      {saveError && <div className="notice bad">{saveError}</div>}
+    </div>
   );
 }
 
@@ -417,37 +403,35 @@ function BriefSection({
   const [deliverableSpec, setDeliverableSpec] = useState(
     programme.deliverable_spec ?? "",
   );
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
-  const dirty =
-    problemStatement !== (programme.problem_statement ?? "") ||
-    deliverableSpec !== (programme.deliverable_spec ?? "");
+  const draft = {
+    problemStatement,
+    deliverableSpec,
+  };
+  const baseline = {
+    problemStatement: programme.problem_statement ?? "",
+    deliverableSpec: programme.deliverable_spec ?? "",
+  };
 
-  async function save() {
-    setSaving(true);
-    setSaveError(null);
-    setSaved(false);
-    try {
+  const { status, error: saveError } = useAutosave(
+    draft,
+    baseline,
+    async (next) => {
       await updateProgramme(programme.id, {
-        problem_statement: problemStatement.trim() || null,
-        deliverable_spec: deliverableSpec.trim() || null,
+        problem_statement: next.problemStatement.trim() || null,
+        deliverable_spec: next.deliverableSpec.trim() || null,
       });
-      setSaved(true);
       onSaved();
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : "Could not save.");
-    } finally {
-      setSaving(false);
-    }
-  }
+    },
+  );
 
   return (
     <>
       <h2>The brief</h2>
       <p className="small muted">
-        What participants are being asked to solve, and what they hand in.
+        What participants are being asked to solve, and what they hand in. Saves as
+        you type
+        {autosaveLabel(status) ? ` · ${autosaveLabel(status)}` : ""}.
       </p>
 
       <AnglePicker
@@ -488,10 +472,6 @@ function BriefSection({
           />
         </div>
         {saveError && <div className="notice bad">{saveError}</div>}
-        {saved && !dirty && <div className="notice good">Saved.</div>}
-        <button disabled={saving || !dirty} onClick={save}>
-          {saving ? "Saving…" : "Save brief"}
-        </button>
       </div>
     </>
   );

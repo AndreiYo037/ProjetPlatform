@@ -244,8 +244,9 @@ def test_seeding_a_project_returns_verified_facts_and_a_blank_description(
 ):
     """POST /me/projects/from-participant — the company and the dates are the
     platform's word; the description is theirs to fill in."""
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    from tests._programme_finish import finish_programme
+
+    finish_programme(programme, session)
 
     response = client.post(f"/me/projects/from-participant/{signed_in.id}")
 
@@ -259,7 +260,8 @@ def test_seeding_a_project_returns_verified_facts_and_a_blank_description(
 
 
 def test_seeding_before_the_programme_finishes_is_refused(client, signed_in, session, programme):
-    programme.status = ProgrammeStatus.RUNNING
+    # Status COMPLETE with a future deadline is still active — not finished yet.
+    programme.status = ProgrammeStatus.COMPLETE
     session.flush()
 
     response = client.post(f"/me/projects/from-participant/{signed_in.id}")
@@ -269,7 +271,9 @@ def test_seeding_before_the_programme_finishes_is_refused(client, signed_in, ses
 
 
 def test_you_cannot_seed_a_programme_that_is_not_yours(client, signed_in, session, participant_factory, programme):
-    programme.status = ProgrammeStatus.COMPLETE
+    from tests._programme_finish import finish_programme
+
+    finish_programme(programme, session)
     theirs = participant_factory(name="Someone Else")
     session.flush()
 
@@ -281,8 +285,9 @@ def test_you_cannot_seed_a_programme_that_is_not_yours(client, signed_in, sessio
 def test_the_project_list_carries_no_score(client, signed_in, session, programme):
     """Same section 8 rule as the dashboard: nothing on a participant-facing
     schema has anywhere to put a rating."""
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    from tests._programme_finish import finish_programme
+
+    finish_programme(programme, session)
     client.post(f"/me/projects/from-participant/{signed_in.id}")
 
     raw = json.dumps(client.get("/me/projects").json()).lower()
@@ -326,8 +331,9 @@ def test_a_project_needs_a_title(client, signed_in):
 def test_editing_a_verified_entry_rewrites_the_description_only(
     client, signed_in, session, programme
 ):
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    from tests._programme_finish import finish_programme
+
+    finish_programme(programme, session)
     entry_id = client.post(f"/me/projects/from-participant/{signed_in.id}").json()["id"]
 
     described = client.patch(
@@ -344,8 +350,9 @@ def test_editing_a_verified_entry_rewrites_the_description_only(
 def test_a_verified_entry_cannot_be_deleted_but_can_be_hidden(
     client, signed_in, session, programme
 ):
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    from tests._programme_finish import finish_programme
+
+    finish_programme(programme, session)
     entry_id = client.post(f"/me/projects/from-participant/{signed_in.id}").json()["id"]
 
     assert client.delete(f"/me/projects/{entry_id}").status_code == 400
@@ -436,8 +443,9 @@ def test_the_skill_drawer_offers_the_taxonomy_and_tags_a_project(client, signed_
 def test_a_verified_entry_accepts_an_unverified_skill_over_http(
     client, signed_in, session, programme
 ):
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    from tests._programme_finish import finish_programme
+
+    finish_programme(programme, session)
     skill = _skill_row(session, "Go")
     entry_id = client.post(f"/me/projects/from-participant/{signed_in.id}").json()["id"]
 

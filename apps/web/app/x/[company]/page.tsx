@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
+import ChallengeCards from "@/components/ChallengeCards";
 import { API_BASE_URL, assetUrl, type PublicListingSummary } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -13,17 +13,6 @@ async function fetchCompanyListing(company: string): Promise<PublicListingSummar
   return (await response.json()) as PublicListingSummary[];
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-}
-
-function stateLabel(state: string) {
-  if (state === "open") return "Open";
-  if (state === "complete") return "Complete";
-  return "Closed";
-}
-
 export default async function CompanyChallengesPage({
   params,
 }: {
@@ -34,16 +23,18 @@ export default async function CompanyChallengesPage({
   if (items === null) notFound();
 
   const companyName = items[0]?.company ?? company;
+  const logo = items[0]?.company_logo_url;
 
   return (
     <main>
       <div className="row" style={{ alignItems: "center", gap: "0.75rem" }}>
-        {items[0]?.company_logo_url && (
+        {logo && (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
-            src={assetUrl(items[0].company_logo_url)}
+            src={assetUrl(logo)}
             alt=""
-            style={{ height: "2.5rem", width: "auto" }}
+            className="challenge-logo"
+            style={{ height: "2.5rem", maxWidth: "8rem" }}
           />
         )}
         <h1 style={{ margin: 0 }}>{companyName}</h1>
@@ -53,40 +44,7 @@ export default async function CompanyChallengesPage({
       {items.length === 0 ? (
         <p className="muted">No published challenges yet.</p>
       ) : (
-        <div className="grid-challenges">
-          {items.map((item) => {
-            const open = item.state === "open";
-            return (
-              <Link
-                key={item.programme_slug}
-                href={`/x/${company}/${item.programme_slug}`}
-                className="card challenge-card"
-              >
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className={`tag ${open ? "open" : "closed"}`}>{stateLabel(item.state)}</span>
-                  {item.seats_total !== null && (
-                    <span className="small muted">
-                      {item.seats_remaining} of {item.seats_total} seats left
-                    </span>
-                  )}
-                </div>
-                <h3 style={{ margin: "0.5rem 0 0.1rem" }}>{item.title}</h3>
-                <p className="small muted" style={{ margin: 0 }}>
-                  {item.role} · {item.cluster}
-                </p>
-                {open && item.applications_close_at ? (
-                  <p className="small" style={{ marginTop: "0.6rem" }}>
-                    Apply by {formatDate(item.applications_close_at)}
-                  </p>
-                ) : item.start_at ? (
-                  <p className="small muted" style={{ marginTop: "0.6rem" }}>
-                    Started {formatDate(item.start_at)}
-                  </p>
-                ) : null}
-              </Link>
-            );
-          })}
-        </div>
+        <ChallengeCards items={items} />
       )}
     </main>
   );

@@ -13,17 +13,15 @@ import {
 } from "@/lib/api";
 
 /**
- * The day and the time, both. A date alone is not a commitment: the pitch is a
- * live session at a fixed hour, and someone agreeing to it needs to know which.
+ * The calendar day. Times of day are fixed (start 00:00, end 23:59), so the
+ * commitment is the date the company picked.
  */
 function formatMoment(value: string | null | undefined) {
   if (!value) return null;
-  return new Date(value).toLocaleString(undefined, {
+  return new Date(value).toLocaleDateString(undefined, {
     weekday: "long",
     day: "numeric",
     month: "long",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 
@@ -53,10 +51,14 @@ export default function ApplyPage({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ warning: string | null } | null>(null);
+  const [alreadyApplied, setAlreadyApplied] = useState(false);
 
   useEffect(() => {
     getListing(company, programme)
-      .then(setListing)
+      .then((data) => {
+        setListing(data);
+        if (data.already_applied) setAlreadyApplied(true);
+      })
       .catch(() => setListing(null));
   }, [company, programme]);
 
@@ -121,13 +123,35 @@ export default function ApplyPage({
         { method: "POST", body: form, credentials: "include" },
       );
       const body = await response.json();
-      if (!response.ok) throw new Error(body?.detail ?? "Could not submit your application.");
+      if (!response.ok) {
+        const detail =
+          typeof body?.detail === "string"
+            ? body.detail
+            : "Could not submit your application.";
+        if (response.status === 409 && /already applied/i.test(detail)) {
+          setAlreadyApplied(true);
+          return;
+        }
+        throw new Error(detail);
+      }
       setDone({ warning: body.google_email_warning ?? null });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not submit your application.");
     } finally {
       setBusy(false);
     }
+  }
+
+  if (alreadyApplied) {
+    return (
+      <main className="narrow">
+        <h1>Already applied</h1>
+        <div className="notice good">
+          You have already applied to this challenge. We will email you when there is a
+          decision — there is nothing more to submit.
+        </div>
+      </main>
+    );
   }
 
   if (done) {
@@ -312,16 +336,15 @@ export default function ApplyPage({
           />
         </div>
 
-        <h2>The week</h2>
+        <h2>The dates</h2>
         <p className="small muted">
-          Two dates are fixed and everything else is yours to plan around. If you cannot
-          make both, this is the moment to say so: a seat you cannot use is a seat nobody
-          else got.
+          If you cannot make both, this is the moment to say so: a seat you cannot
+          use is a seat nobody else got.
         </p>
         <dl className="facts">
-          <dt>Kickoff call</dt>
+          <dt>Starts</dt>
           <dd>{kickoff ?? "To be confirmed"}</dd>
-          <dt>Pitch, day 7</dt>
+          <dt>Ends</dt>
           <dd>{pitch ?? "To be confirmed"}</dd>
         </dl>
         <div className="check">
@@ -335,15 +358,15 @@ export default function ApplyPage({
           <label htmlFor="availability_confirmed">
             {kickoff && pitch ? (
               <>
-                I can attend the kickoff on {kickoff} and pitch live on {pitch}.
+                I can take part from {kickoff} through {pitch}.
               </>
             ) : (
-              <>I can attend the kickoff and pitch live on day 7.</>
+              <>I can take part for the full run of this challenge.</>
             )}
           </label>
         </div>
         <div className="field">
-          <label htmlFor="availability_note">Anything in the way during the week (optional)</label>
+            <label htmlFor="availability_note">Anything in the way (optional)</label>
           <textarea
             id="availability_note"
             name="availability_note"

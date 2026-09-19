@@ -11,6 +11,7 @@ import {
   uploadCompanyLogo,
   type CompanyHome,
 } from "@/lib/api";
+import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
 export default function CompanyHomePage() {
@@ -73,7 +74,10 @@ export default function CompanyHomePage() {
               <div>
                 <strong>{programme.title}</strong>
                 <div className="small muted">
-                  {programme.role?.name} · {programme.status}
+                  {programme.role?.name}
+                  {programme.submit_deadline_at
+                    ? ` · due ${new Date(programme.submit_deadline_at).toLocaleDateString()}`
+                    : null}
                 </div>
               </div>
               <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
@@ -116,33 +120,35 @@ function CompanyProfile({
   const [name, setName] = useState(home.company.name);
   const [contactName, setContactName] = useState(home.team[0]?.name ?? "");
   const [website, setWebsite] = useState(home.company.website_url ?? "");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await updateCompanyProfile(home.company.id, {
-        name,
-        website_url: website.trim(),
-        ...(contactName.trim() ? { your_name: contactName.trim() } : {}),
-      });
-      setSaved(true);
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const draft = {
+    name: name.trim(),
+    contactName: contactName.trim(),
+    website: website.trim(),
+  };
+  const baseline = {
+    name: home.company.name,
+    contactName: home.team[0]?.name ?? "",
+    website: home.company.website_url ?? "",
+  };
+
+  const { status, error } = useAutosave(draft, baseline, async (next) => {
+    if (!next.name) return;
+    await updateCompanyProfile(home.company.id, {
+      name: next.name,
+      website_url: next.website,
+      ...(next.contactName ? { your_name: next.contactName } : {}),
+    });
+    onSaved();
+  });
 
   return (
-    <form onSubmit={submit} className="panel" style={{ margin: "1.5rem 0" }}>
+    <div className="panel" style={{ margin: "1.5rem 0" }}>
       <h2 style={{ marginTop: 0 }}>Company profile</h2>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        Saves as you type
+        {autosaveLabel(status) ? ` · ${autosaveLabel(status)}` : ""}.
+      </p>
       <div className="field">
         <label htmlFor="company-name">Company name</label>
         <input
@@ -167,7 +173,7 @@ function CompanyProfile({
           type="url"
           value={website}
           onChange={(e) => setWebsite(e.target.value)}
-          placeholder="https://…"
+          placeholder="https://"
         />
         <div className="hint">
           Read when we draft a problem statement for you. A research pass with your
@@ -175,22 +181,12 @@ function CompanyProfile({
         </div>
       </div>
       {error && <div className="notice bad">{error}</div>}
-      {saved && <div className="notice good">Saved.</div>}
-      <button type="submit" disabled={busy || !name}>
-        {busy ? "Saving…" : "Save profile"}
-      </button>
       <LogoField home={home} onSaved={onSaved} />
-    </form>
+    </div>
   );
 }
 
-/**
- * The mark that goes on the challenge a stranger reads.
- *
- * Saved on choosing rather than on submitting the form around it: a file input
- * has nothing to hold on to between renders, and asking someone to pick a file
- * and then remember to press Save is how logos end up not uploaded.
- */
+
 function LogoField({ home, onSaved }: { home: CompanyHome; onSaved: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

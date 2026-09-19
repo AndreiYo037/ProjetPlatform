@@ -8,9 +8,9 @@ The two are deliberately the same object seen twice. A judge on the pitch call
 wants the links to hand and the anchors on screen at once, so the scoring card
 carries the submission with it rather than making them hold two tabs open.
 
-Consent is enforced at the query layer as everywhere else: the cards come from
-`company_visible_submissions`, so a participant who declined sharing is not in
-the list a company sees. Platform staff see the cohort whole.
+Recruitment consent (FR-020) does not hide a seated participant from judging.
+Once the company admits someone, they have to score the work — consent only
+gates the post-programme candidate pool and exports (FR-1101, FR-1103).
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from projet.access import company_visible_participants
 from projet.api.deps import can_score_programme, get_programme_or_404, require_actor
 from projet.db import get_session
 from projet.models import (
@@ -145,21 +144,17 @@ class ScoringCard(BaseModel):
 def _participant_or_404(
     db: Session, programme: Programme, actor: Actor, participant_id: uuid.UUID
 ) -> Participant:
-    """Scoped by consent for a company, whole for platform staff.
+    """Any seated participant on this programme.
 
-    404 rather than 403, so a company cannot learn that someone is in the cohort
-    by being refused their card.
+    Recruitment consent does not apply here: judging is part of running the
+    challenge the company already admitted them to.
     """
-    statement = (
+    _ = actor  # judge gate is upstream; kept for call-site symmetry
+    participant = db.scalar(
         select(Participant)
         .where(Participant.programme_id == programme.id)
         .where(Participant.id == participant_id)
     )
-    if not actor.is_platform:
-        statement = company_visible_participants(programme.id).where(
-            Participant.id == participant_id
-        )
-    participant = db.scalar(statement)
     if participant is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such participant.")
     return participant
@@ -220,12 +215,18 @@ def list_submission_cards(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_judge),
 ) -> list[SubmissionCard]:
-    """FR-1051 - the judging day list, in the order people pitch."""
-    statement = select(Participant).where(Participant.programme_id == programme.id)
-    if not actor.is_platform:
-        statement = company_visible_participants(programme.id)
+    """FR-1051 - the judging day list, in the order people pitch.
+
+    Every non-excluded seat appears here, including people who declined
+    recruitment sharing. That consent only gates the candidate pool later.
+    """
+    statement = (
+        select(Participant)
+        .where(Participant.programme_id == programme.id)
+        .where(Participant.excluded.is_(False))
+    )
     participants = sorted(
-        db.scalars(statement.where(Participant.excluded.is_(False))),
+        db.scalars(statement),
         key=lambda p: (p.run_order is None, p.run_order or 0, p.created_at),
     )
     scorer_id = None if actor.is_platform else actor.id

@@ -1,10 +1,9 @@
 """Closing a programme, which is when the profile gets made.
 
-Everything before this point is transient: a Score is a judge's working note, a
-ScoreSkillTag is something one person observed on one evening. Closing the
-programme is what turns that into the durable thing the participant keeps - an
-attested skill with a named practitioner behind it, and a credential that can be
-verified by someone who was never in the room.
+Skill tags already land on the profile when a judge saves them. Closing is
+still the moment credentials are issued — the durable, verifiable claim that
+someone presented the work — and a second pass that promotes any tag a late
+score added after the first close.
 
 So closing is deliberately a single explicit act rather than a status that
 drifts in on a timer. It is the moment the platform makes claims on a
@@ -100,6 +99,15 @@ def close_programme(db: Session, programme: Programme) -> CloseoutResult:
     """Promote every judge tag, issue every earned credential, then mark it done."""
     if programme.status == ProgrammeStatus.DRAFT:
         raise CloseoutError("Publish the challenge first.")
+    from projet.services.schedule import programme_is_past
+
+    # Closing before the week is over would bury an active challenge in every
+    # listing that still treats status as gospel — and the week is not over
+    # until the pitch/submit deadline has passed.
+    if not programme_is_past(programme):
+        raise CloseoutError(
+            "This challenge is still running. Close it after the pitch day."
+        )
 
     result = CloseoutResult()
     participants = db.scalars(

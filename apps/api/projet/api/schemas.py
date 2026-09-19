@@ -111,8 +111,8 @@ class ProgrammeOut(BaseModel):
     applications_close_at: datetime | None = None
     start_at: datetime | None = None
     submit_deadline_at: datetime | None = None
-    # Derived from kickoff, never stored: the seventh day. Carried on the wire
-    # so the apply form can name both dates a participant is committing to.
+    # Same instant as submit_deadline_at (end of the last day). Carried on the
+    # wire so the apply form can name both dates a participant is committing to.
     pitch_at: datetime | None = None
     company: CompanySummary | None = None
     role: RoleSummary | None = None

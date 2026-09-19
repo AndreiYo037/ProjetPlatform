@@ -1,13 +1,18 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { API_BASE_URL, assetUrl, type PublicListing } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
 async function fetchListing(company: string, programme: string): Promise<PublicListing | null> {
+  const jar = await cookies();
   const response = await fetch(
     `${API_BASE_URL}/public/x/${encodeURIComponent(company)}/${encodeURIComponent(programme)}`,
-    { cache: "no-store" },
+    {
+      cache: "no-store",
+      headers: { cookie: jar.toString() },
+    },
   );
   if (!response.ok) return null;
   return (await response.json()) as PublicListing;
@@ -89,18 +94,18 @@ export default async function ListingPage({
         )}
         {listing.start_at && (
           <>
-            <dt>Kickoff</dt>
+            <dt>Starts</dt>
             <dd>{formatDate(listing.start_at)}</dd>
           </>
         )}
         {listing.submit_deadline_at && (
           <>
-            <dt>Submission due</dt>
+            <dt>Ends</dt>
             <dd>{formatDate(listing.submit_deadline_at)}</dd>
           </>
         )}
         <dt>Time</dt>
-        <dd>One week, roughly 12–18 hours around your own schedule</dd>
+        <dd>Work around your own schedule between the start and the deadline</dd>
         <dt>You get</dt>
         <dd>
           A certificate, judge-attested skills on your profile, and the work itself to show
@@ -131,22 +136,16 @@ export default async function ListingPage({
         </div>
       ))}
 
-      {listing.data_pack_preview.length > 0 && (
-        <>
-          <h2>What you work from</h2>
-          <p className="small muted">
-            Validated public sources, released with the brief. The company may add their own.
-          </p>
-          <ul className="small">
-            {listing.data_pack_preview.slice(0, 8).map((label) => (
-              <li key={label}>{label}</li>
-            ))}
-          </ul>
-        </>
-      )}
-
       <div style={{ marginTop: "2rem" }}>
-        {open ? (
+        {listing.already_applied ? (
+          <div className="panel">
+            <strong>You have already applied.</strong>
+            <p className="small muted" style={{ margin: "0.4rem 0 0" }}>
+              We will email you when there is a decision. You cannot apply again to this
+              challenge.
+            </p>
+          </div>
+        ) : open ? (
           <Link className="btn" href={`/x/${company}/${programme}/apply`}>
             Apply
           </Link>

@@ -224,8 +224,8 @@ export const getRoleClusters = () => api.get<ClusterGroup[]>("/roles/clusters");
 export const getRoleImplications = (roleId: string) =>
   api.get<RoleImplications>(`/roles/${roleId}/implications`);
 
-// The submission deadline and the pitch day are not sent: both derive from
-// kickoff on the server, so there is nothing here to keep in step.
+// The company picks the days. Times of day are pinned on the server:
+// start at 00:00, end (and applications close) at 23:59.
 export type CreateProgrammeInput = {
   role_id: string;
   title: string;
@@ -234,8 +234,8 @@ export type CreateProgrammeInput = {
   capacity?: number | null;
   applications_open_at?: string | null;
   applications_close_at?: string | null;
-  /** Kickoff. Must be one of the Wednesdays getKickoffDays returns. */
   start_at?: string | null;
+  submit_deadline_at?: string | null;
   problem_statement?: string | null;
   deliverable_spec?: string | null;
   winners_count?: number;
@@ -247,15 +247,6 @@ export const createProgramme = (data: CreateProgrammeInput) =>
   api.post<ProgrammeDetail>("/programmes", data);
 export const updateProgramme = (id: string, data: UpdateProgrammeInput) =>
   api.patch<ProgrammeDetail>(`/programmes/${id}`, data);
-
-/** One choosable week: pick the kickoff, the other two dates follow. */
-export type KickoffOption = {
-  kickoff_at: string;
-  submit_deadline_at: string;
-  pitch_at: string;
-};
-/** The Wednesdays a company may kick off on, so nobody types a rejected date. */
-export const getKickoffDays = () => api.get<KickoffOption[]>("/programmes/kickoff-days");
 
 /** One angle from a drafting run. A run returns two or three of them. */
 export type ProblemStatementAngle = {

@@ -482,3 +482,5 @@ def test_endorsements_are_the_company_programme_and_skills(
     assert cards[0].programme == programme.title
     assert cards[0].skills == [skill.name]
     assert cards[0].attesters == ["Mo Manager"]
+    assert cards[0].start_at == programme.start_at
+    assert cards[0].ended_at == programme.submit_deadline_at

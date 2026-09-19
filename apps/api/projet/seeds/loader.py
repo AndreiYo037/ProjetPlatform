@@ -29,13 +29,12 @@ from sqlalchemy.orm import Session
 from projet.config import get_settings
 from projet.models import (
     Capability,
-    DataPackResource,
     Role,
     RoleTemplate,
     Skill,
     SkillCapability,
 )
-from projet.models.enums import Provenance, SkillStatus, SkillType, VerificationStatus
+from projet.models.enums import SkillStatus, SkillType
 from projet.seeds.parsers import (
     CLUSTERS,
     parse_capabilities,
@@ -449,14 +448,8 @@ def seed_roles(session: Session, bundle: ContentBundle, report: SeedReport) -> N
             template = RoleTemplate(role_id=role.id)
             session.add(template)
         template.default_deliverable = seed.deliverable
-        template.public_sources = [
-            {
-                "label": ref.label,
-                "url": ref.url,
-                "verification_status": VerificationStatus.UNVERIFIED.value,
-            }
-            for ref in seed.public_sources
-        ]
+        # Public registry sources are no longer used on roles or programmes.
+        template.public_sources = []
         template.student_tools = seed.student_tools
         template.asks_easy = seed.asks_easy
         template.asks_moderate = seed.asks_moderate
@@ -474,49 +467,7 @@ def seed_roles(session: Session, bundle: ContentBundle, report: SeedReport) -> N
         template.delivery_risk_note = seed.delivery_risk_note
         report.templates_written += 1
 
-        _seed_registry_sources(session, role, seed, report)
-
     session.flush()
-
-
-def _seed_registry_sources(
-    session: Session, role: Role, seed: RoleSeed, report: SeedReport
-) -> None:
-    """Registry entries per role, seeded unverified.
-
-    Most named sources now carry a URL straight from the document
-    (`[SingStat](https://www.singstat.gov.sg)`); the rest are categories or
-    company-specific things with no single canonical link
-    (`sector datasets`, `their open-source repos`) and stay null. Either way,
-    `verification_status` stays unverified until `projet-verify-sources`
-    actually fetches the link — a URL existing is not the same as it working.
-
-    Backfills the URL onto an existing row of the same label, so adding a link
-    to a source that was already seeded takes effect on the next re-seed
-    rather than needing the row dropped and recreated.
-    """
-    existing = {
-        r.label: r
-        for r in session.scalars(
-            select(DataPackResource).where(DataPackResource.role_id == role.id)
-        )
-    }
-    for ref in seed.public_sources:
-        row = existing.get(ref.label)
-        if row is not None:
-            if ref.url and not row.url_or_storage_key:
-                row.url_or_storage_key = ref.url
-            continue
-        session.add(
-            DataPackResource(
-                role_id=role.id,
-                label=ref.label,
-                url_or_storage_key=ref.url,
-                provenance=Provenance.PUBLIC,
-                verification_status=VerificationStatus.UNVERIFIED,
-            )
-        )
-        report.sources_created += 1
 
 
 def _assert_skills_resolve(bundle: ContentBundle, skills: dict[str, Skill]) -> None:

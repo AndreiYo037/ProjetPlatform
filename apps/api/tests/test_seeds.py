@@ -11,7 +11,6 @@ import pytest
 from sqlalchemy import select
 
 from projet.models import DataPackResource, Role, RoleTemplate, Skill
-from projet.models.enums import VerificationStatus
 from projet.seeds.loader import (
     SeedError,
     check_slug_lock,
@@ -60,7 +59,6 @@ def test_every_role_has_a_complete_template(content_dir):
                 f"{role.name} slot {spec.slot} is missing an anchor"
             )
         assert role.hard_skills and role.soft_skills, f"{role.name} has no ranked skills"
-        assert role.public_sources, f"{role.name} has no public sources"
 
 
 def test_company_asks_are_split_by_friction_tier(content_dir):
@@ -174,42 +172,15 @@ def test_seeding_is_idempotent(session, content_dir):
     assert session.query(RoleTemplate).count() == EXPECTED_ROLES
 
 
-def test_seeded_sources_start_unverified_even_with_a_url(session, content_dir):
-    """Most named sources now carry a URL straight from the document; a
-    handful of categories and company-specific things ("sector datasets",
-    "their open-source repos") still have none, and never will. Either way, a
-    URL existing is not the same as it working: verification_status stays
-    unverified until projet-verify-sources actually fetches it, or marking
-    something verified would be a lie."""
+def test_role_templates_do_not_carry_public_sources(session, content_dir):
     seed_all(session, content_dir)
-    sources = list(session.scalars(select(DataPackResource)))
-
-    assert sources
-    assert all(s.verification_status == VerificationStatus.UNVERIFIED for s in sources)
-    with_url = [s for s in sources if s.url_or_storage_key]
-    assert with_url, "the seed should have carried real links through by now"
-    assert all(s.url_or_storage_key.startswith("http") for s in with_url)
+    for template in session.scalars(select(RoleTemplate)):
+        assert template.public_sources == []
 
 
-def test_a_source_link_is_backfilled_onto_an_existing_row(session, content_dir, tmp_path):
-    """Adding a URL to a source that was already seeded should update that
-    row on the next re-seed, not require it dropped and recreated."""
+def test_seeding_does_not_create_registry_data_pack_rows(session, content_dir):
     seed_all(session, content_dir)
-    role = session.scalar(select(Role).where(Role.slug == "data-science"))
-    row = session.scalar(
-        select(DataPackResource)
-        .where(DataPackResource.role_id == role.id)
-        .where(DataPackResource.label == "sector datasets")
-    )
-    assert row is not None and row.url_or_storage_key is None
-
-    row.url_or_storage_key = "https://example.test/manually-added"
-    session.flush()
-
-    # Re-seeding must not clobber a URL someone already filled in by hand.
-    seed_all(session, content_dir)
-    session.refresh(row)
-    assert row.url_or_storage_key == "https://example.test/manually-added"
+    assert session.scalars(select(DataPackResource)).all() == []
 
 
 def test_every_ranked_skill_resolves_to_a_skill_row(session, content_dir):

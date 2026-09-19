@@ -49,6 +49,7 @@ from projet.services.profile import (
     attested_skills,
     endorsements_for,
     published_testimonials_for,
+    sync_person_skills_from_tags,
 )
 from projet.services.projects import (
     ProjectError,
@@ -62,6 +63,7 @@ from projet.services.projects import (
     set_skills,
     update_entry,
 )
+from projet.services.schedule import programme_is_past
 from projet.services.skills import options_for_role
 from projet.services.submission import (
     SubmissionError,
@@ -192,6 +194,8 @@ class CredentialOut(BaseModel):
     programme: str
     skills: list[str]
     attesters: list[str]
+    start_at: datetime | None
+    ended_at: datetime | None
 
 
 class TestimonialCard(BaseModel):
@@ -241,6 +245,8 @@ def get_portfolio(
 
 
 def _portfolio(db: Session, person: Person) -> Portfolio:
+    sync_person_skills_from_tags(db, person.id)
+    db.commit()
     evidence = attested_skills(db, person.id)
     skills = [
         AttestedSkill(
@@ -258,6 +264,8 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
             programme=row.programme,
             skills=row.skills,
             attesters=row.attesters,
+            start_at=row.start_at,
+            ended_at=row.ended_at,
         )
         for row in endorsements_for(db, person.id)
     ]
@@ -870,14 +878,6 @@ class Dashboard(BaseModel):
     blocking_acknowledgements: list[ThreadSummary]
 
 
-def _programme_is_past(programme: Programme, now) -> bool:
-    """Same rule as company home: past only once the week is over."""
-    end = programme.pitch_at or programme.submit_deadline_at
-    if end is not None:
-        return end <= now
-    return programme.status == ProgrammeStatus.COMPLETE
-
-
 def _participations_for(db: Session, person_id: uuid.UUID) -> list[tuple[Participant, Programme]]:
     return list(
         db.execute(
@@ -923,7 +923,7 @@ def _participant(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "You are not on that programme.")
     now = utcnow()
     for participant, programme in rows:
-        if not _programme_is_past(programme, now):
+        if not programme_is_past(programme, now):
             return participant
     return rows[0][0]
 
@@ -936,7 +936,7 @@ def _programme_lists(
     past: list[ProgrammeChoice] = []
     for _, programme in _participations_for(db, person_id):
         choice = _programme_choice(db, programme)
-        if _programme_is_past(programme, now):
+        if programme_is_past(programme, now):
             past.append(choice)
         else:
             active.append(choice)

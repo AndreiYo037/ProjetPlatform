@@ -11,15 +11,10 @@ import {
 } from "@/lib/api";
 
 /**
- * What the participants get to work with, and what the company keeps back.
+ * What the participants get to work with.
  *
- * The role's public sources arrive already in the list, so the company starts
- * by curating rather than by filling in a blank form. Clearing one is a toggle,
- * not a delete: the source belongs to the role, and a company that changes its
- * mind should not have to go and find the URL again.
- *
- * Nothing here reaches an applicant. The pack is released once a seat is
- * accepted, which is what makes it safe to ask for real data at all.
+ * The company adds its own links and files. Nothing here reaches an applicant
+ * until a seat is accepted, which is what makes it safe to share real data.
  */
 export default function DataPackPanel({ programmeId }: { programmeId: string }) {
   const [resources, setResources] = useState<DataPackResource[]>([]);
@@ -47,18 +42,15 @@ export default function DataPackPanel({ programmeId }: { programmeId: string }) 
     }
   }
 
-  const seeded = resources.filter((r) => !r.uploaded);
-  const own = resources.filter((r) => r.uploaded);
-  const confidentialCount = resources.filter((r) => r.included && r.confidential).length;
+  const own = resources;
+  const confidentialCount = own.filter((r) => r.included && r.confidential).length;
 
   return (
     <>
       <h2>Data pack</h2>
       <p className="small muted">
-        What participants get on day one. Public sources for the role are already
-        here; clear the ones that do not fit and add whatever of your own you are
-        willing to share. Nobody outside the programme sees any of it, and the
-        public listing names the public sources only.
+        What participants get on day one. Add the links and files you are willing
+        to share. Nobody outside the programme sees any of it.
       </p>
 
       {error && <div className="notice bad">{error}</div>}
@@ -70,45 +62,7 @@ export default function DataPackPanel({ programmeId }: { programmeId: string }) 
       )}
 
       <div className="panel">
-        <strong>Public sources for this role</strong>
-        {seeded.length === 0 ? (
-          <p className="small muted">The role has no seeded sources yet.</p>
-        ) : (
-          seeded.map((resource) => (
-            <div className="check" key={resource.id}>
-              <input
-                id={`include-${resource.id}`}
-                type="checkbox"
-                checked={resource.included}
-                disabled={busy}
-                onChange={(e) =>
-                  run(() =>
-                    updateDataPackResource(programmeId, resource.id, {
-                      included: e.target.checked,
-                    }),
-                  )
-                }
-              />
-              <label htmlFor={`include-${resource.id}`}>
-                {resource.url ? (
-                  <a href={resource.url} target="_blank" rel="noreferrer">
-                    {resource.label}
-                  </a>
-                ) : (
-                  resource.label
-                )}
-                {resource.licence && <span className="small muted"> · {resource.licence}</span>}
-                {resource.verification_status !== "verified" && (
-                  <span className="tag"> {resource.verification_status}</span>
-                )}
-              </label>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="panel">
-        <strong>Your own data and resources</strong>
+        <strong>Your data and resources</strong>
         {own.length === 0 ? (
           <p className="small muted">
             Nothing added yet. A challenge built on your real data gets you work you
@@ -194,13 +148,6 @@ export default function DataPackPanel({ programmeId }: { programmeId: string }) 
   );
 }
 
-/**
- * A link or a file, side by side.
- *
- * An upload is the better answer for anything sensitive: a shared Drive link is
- * a permission the company has to keep right for a week, whereas an upload is a
- * copy served through an expiring signature and pulled when the pack closes.
- */
 function AddResource({
   programmeId,
   busy,

@@ -14,8 +14,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from projet.api.deps import current_actor
 from projet.db import get_session
 from projet.models import (
     Application,
@@ -29,9 +31,10 @@ from projet.models import (
 from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
 from projet.services.branding import logo_url
-from projet.services.data_pack import public_preview
 from projet.services.people import google_email_warning, looks_like_email, resolve_person
+from projet.services.schedule import programme_is_past
 from projet.services.writeup import writeup_prompt_for
+from projet.services.auth import Actor
 from projet.storage import get_storage
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -70,8 +73,8 @@ class PublicListing(BaseModel):
     applications_close_at: datetime | None
     start_at: datetime | None
     submit_deadline_at: datetime | None
-    # The seventh day. Published before anyone applies, because the whole point
-    # of a fixed week is that the commitment is knowable up front (FR-800).
+    # End of the last day. Named here so the apply form can commit to both
+    # dates a participant has to make.
     pitch_at: datetime | None
     seats_total: int | None
     seats_remaining: int | None
@@ -81,15 +84,28 @@ class PublicListing(BaseModel):
     # on the listing too, so someone can read the question before committing to
     # the form.
     writeup_prompt: str
+    # True when the signed-in participant already has an application here.
+    # Strangers always see false; the apply endpoint still enforces the rule.
+    already_applied: bool = False
 
 
 def _state(programme: Programme) -> str:
-    """FR-102 — one of three states, and nothing else."""
-    if programme.status in (ProgrammeStatus.COMPLETE,):
-        return "complete"
-    now = utcnow()
-    if programme.status != ProgrammeStatus.OPEN:
+    """FR-102 — one of three states, and nothing else.
+
+    Active week (deadline not yet passed):
+      - `open`   — applications still accepted
+      - `closed` — applications window shut, challenge still running
+    After the pitch/submit deadline:
+      - `complete`
+
+    Status alone never decides this. A row marked complete early stays
+    open/closed until the calendar says the week is over.
+    """
+    if programme.status == ProgrammeStatus.DRAFT:
         return "closed"
+    now = utcnow()
+    if programme_is_past(programme, now):
+        return "complete"
     if programme.applications_close_at and programme.applications_close_at <= now:
         return "closed"
     if programme.applications_open_at and programme.applications_open_at > now:
@@ -189,14 +205,14 @@ def platform_directory(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_session),
 ) -> list[PublicListingSummary]:
-    """FR-105 — every open programme across companies, for a browse page.
+    """FR-105 — every active programme across companies, for a browse page.
 
-    Only `state == "open"` is indexed here: a stranger browsing a directory
-    cares what they can still apply to, not what already closed. The
-    single-company listing above does show closed and complete programmes,
-    since a company's own careers page is a different audience.
+    Active means the week is not over yet: both accepting applications (`open`)
+    and still running with applications shut (`closed`). Complete programmes
+    drop off. The single-company listing above also shows complete ones, since
+    a company's own careers page is a different audience.
     """
-    query = select(Programme).where(Programme.status == ProgrammeStatus.OPEN)
+    query = select(Programme).where(Programme.status != ProgrammeStatus.DRAFT)
     if role_slug is not None:
         role = db.scalar(select(Role).where(Role.slug == role_slug))
         if role is None:
@@ -210,7 +226,7 @@ def platform_directory(
         if company is None:
             continue
         summary = _summarize(db, programme, company)
-        if summary.state != "open":
+        if summary.state == "complete":
             continue
         if cluster is not None and summary.cluster != cluster:
             continue
@@ -225,6 +241,7 @@ def listing(
     company_slug: str,
     programme_slug: str,
     db: Session = Depends(get_session),
+    actor: Actor | None = Depends(current_actor),
 ) -> PublicListing:
     company = db.scalar(select(Company).where(Company.slug == company_slug))
     if company is None:
@@ -256,6 +273,18 @@ def listing(
         )
         seats_remaining = max(0, programme.capacity - (taken or 0))
 
+    already_applied = False
+    if actor is not None and actor.is_participant:
+        already_applied = (
+            db.scalar(
+                select(Application.id)
+                .where(Application.programme_id == programme.id)
+                .where(Application.person_id == actor.id)
+                .limit(1)
+            )
+            is not None
+        )
+
     return PublicListing(
         company=company.name,
         company_slug=company.slug,
@@ -284,8 +313,9 @@ def listing(
             )
             for c in criteria
         ],
-        data_pack_preview=public_preview(db, programme.id),
+        data_pack_preview=[],
         writeup_prompt=writeup_prompt_for(role, template),
+        already_applied=already_applied,
     )
 
 
@@ -307,10 +337,10 @@ def _commitment_refusal(programme: Programme) -> str:
     pitch = _readable(programme.pitch_at)
     if kickoff and pitch:
         return (
-            f"Applications need the commitment confirmed: kickoff on {kickoff} and "
-            f"the pitch on {pitch}."
+            f"Applications need the commitment confirmed: starts on {kickoff} and "
+            f"ends on {pitch}."
         )
-    return "Applications need the commitment to the kickoff and the pitch confirmed."
+    return "Applications need the commitment to the start and end dates confirmed."
 
 
 def _readable(value: datetime | None) -> str | None:
@@ -452,7 +482,14 @@ async def apply(
         status=ApplicationStatus.SUBMITTED,
     )
     db.add(application)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "You have already applied to this programme.",
+        ) from exc
 
     from projet.outbox.application_effects import APPLICATION_RECEIVED_EMAIL
     from projet.outbox.effects import enqueue

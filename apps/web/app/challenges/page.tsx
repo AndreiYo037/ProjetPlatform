@@ -19,8 +19,8 @@ export default async function ChallengesPage({
 }) {
   const { cluster } = await searchParams;
 
-  // FR-105 already returns open-only, so filtering by cluster and building the
-  // pill list both happen against the same fetch rather than a second round trip.
+  // FR-105 returns every active challenge (week not over), including those
+  // whose application window has already closed.
   const all = await fetchOpenChallenges();
   const clusters = Array.from(new Set(all.map((item) => item.cluster))).sort();
   const items = cluster ? all.filter((item) => item.cluster === cluster) : all;
@@ -29,7 +29,8 @@ export default async function ChallengesPage({
     <main>
       <h1>Challenges</h1>
       <p className="lede">
-        Live problems from real companies, open right now. No résumé needed to apply.
+        Live problems from real companies. Apply while the window is open — closed
+        windows still show until the challenge week ends.
       </p>
 
       {clusters.length > 0 && (
@@ -52,8 +53,8 @@ export default async function ChallengesPage({
       {items.length === 0 ? (
         <p className="muted">
           {cluster
-            ? "No open challenges in this cluster right now."
-            : "No open challenges right now — check back soon."}
+            ? "No active challenges in this cluster right now."
+            : "No active challenges right now — check back soon."}
         </p>
       ) : (
         <ChallengeCards items={items} />

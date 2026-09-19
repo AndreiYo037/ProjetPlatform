@@ -6,13 +6,12 @@ import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import {
   createProgramme,
-  getKickoffDays,
   getRoleClusters,
   getRoleImplications,
   type ClusterGroup,
-  type KickoffOption,
   type RoleImplications,
 } from "@/lib/api";
+import { fromDateInput } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 type Step = "role" | "details" | "review";
@@ -41,7 +40,7 @@ export default function NewChallengePage() {
   const [capacity, setCapacity] = useState("");
   const [appsCloseAt, setAppsCloseAt] = useState("");
   const [startAt, setStartAt] = useState("");
-  const [kickoffDays, setKickoffDays] = useState<KickoffOption[]>([]);
+  const [endAt, setEndAt] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +48,6 @@ export default function NewChallengePage() {
   useEffect(() => {
     if (gate.status !== "ready") return;
     getRoleClusters().then(setClusters).catch(() => setClusters([]));
-    getKickoffDays().then(setKickoffDays).catch(() => setKickoffDays([]));
   }, [gate.status]);
 
   const selectRole = useCallback(
@@ -83,8 +81,9 @@ export default function NewChallengePage() {
         title: title.trim(),
         slug: slug.trim(),
         capacity: capacity ? Number(capacity) : null,
-        applications_close_at: appsCloseAt || null,
-        start_at: startAt || null,
+        applications_close_at: fromDateInput(appsCloseAt),
+        start_at: fromDateInput(startAt),
+        submit_deadline_at: fromDateInput(endAt),
       });
       router.push(`/company/challenges/${programme.id}`);
     } catch (err) {
@@ -103,7 +102,7 @@ export default function NewChallengePage() {
       </Link>
       <h1 style={{ marginTop: "0.5rem" }}>New challenge</h1>
       <p className="lede">
-        One challenge, one role. Pick the role, pick the week, and publish when
+        One challenge, one role. Pick the role, pick the dates, and publish when
         the brief is ready.
       </p>
 
@@ -129,7 +128,7 @@ export default function NewChallengePage() {
           capacity={capacity}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
-          kickoffDays={kickoffDays}
+          endAt={endAt}
           onTitleChange={handleTitleChange}
           onSlugChange={(v) => {
             setSlugTouched(true);
@@ -138,6 +137,7 @@ export default function NewChallengePage() {
           onCapacityChange={setCapacity}
           onAppsCloseAtChange={setAppsCloseAt}
           onStartAtChange={setStartAt}
+          onEndAtChange={setEndAt}
           onBack={() => setStep("role")}
           onNext={() => {
             if (title.trim() && slug.trim()) setStep("review");
@@ -152,7 +152,8 @@ export default function NewChallengePage() {
           slug={slug}
           capacity={capacity}
           appsCloseAt={appsCloseAt}
-          week={kickoffDays.find((d) => d.kickoff_at === startAt) ?? null}
+          startAt={startAt}
+          endAt={endAt}
           busy={busy}
           onBack={() => setStep("details")}
           onSubmit={submit}
@@ -244,12 +245,6 @@ function RolePicker({
           <dl className="facts">
             <dt>Deliverable</dt>
             <dd>{implications.default_deliverable}</dd>
-            <dt>Public data sources</dt>
-            <dd>
-              {implications.public_sources.length > 0
-                ? implications.public_sources.join(", ")
-                : "None seeded yet"}
-            </dd>
             <dt>Student tools</dt>
             <dd>
               {implications.student_tools.length > 0
@@ -308,12 +303,13 @@ function DetailsForm({
   capacity,
   appsCloseAt,
   startAt,
-  kickoffDays,
+  endAt,
   onTitleChange,
   onSlugChange,
   onCapacityChange,
   onAppsCloseAtChange,
   onStartAtChange,
+  onEndAtChange,
   onBack,
   onNext,
 }: {
@@ -322,16 +318,16 @@ function DetailsForm({
   capacity: string;
   appsCloseAt: string;
   startAt: string;
-  kickoffDays: KickoffOption[];
+  endAt: string;
   onTitleChange: (v: string) => void;
   onSlugChange: (v: string) => void;
   onCapacityChange: (v: string) => void;
   onAppsCloseAtChange: (v: string) => void;
   onStartAtChange: (v: string) => void;
+  onEndAtChange: (v: string) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
-  const chosen = kickoffDays.find((d) => d.kickoff_at === startAt) ?? null;
   return (
     <>
       <h2>2. Challenge details</h2>
@@ -378,47 +374,34 @@ function DetailsForm({
         <label htmlFor="ch-apps-close">Applications close</label>
         <input
           id="ch-apps-close"
-          type="datetime-local"
+          type="date"
           value={appsCloseAt}
           onChange={(e) => onAppsCloseAtChange(e.target.value)}
         />
+        <div className="hint">Closes at 23:59 on that day.</div>
       </div>
-      <div className="field">
-        <label htmlFor="ch-start">Kickoff week</label>
-        <select
-          id="ch-start"
-          value={startAt}
-          onChange={(e) => onStartAtChange(e.target.value)}
-        >
-          <option value="">Pick a week</option>
-          {kickoffDays.map((option) => (
-            <option key={option.kickoff_at} value={option.kickoff_at}>
-              {formatWeek(option)}
-            </option>
-          ))}
-        </select>
-        <div className="hint">
-          Every programme runs the same shape: kickoff call on the Wednesday,
-          work due the following Tuesday night, pitches the Wednesday after.
+      <div className="row" style={{ gap: "1rem" }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="ch-start">Starts</label>
+          <input
+            id="ch-start"
+            type="date"
+            value={startAt}
+            onChange={(e) => onStartAtChange(e.target.value)}
+          />
+          <div className="hint">00:00 on that day.</div>
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="ch-end">Ends</label>
+          <input
+            id="ch-end"
+            type="date"
+            value={endAt}
+            onChange={(e) => onEndAtChange(e.target.value)}
+          />
+          <div className="hint">23:59 on that day.</div>
         </div>
       </div>
-
-      {chosen && (
-        <div className="panel">
-          <dl className="facts">
-            <dt>Kickoff call</dt>
-            <dd>{new Date(chosen.kickoff_at).toLocaleString()}</dd>
-            <dt>Work due</dt>
-            <dd>{new Date(chosen.submit_deadline_at).toLocaleString()}</dd>
-            <dt>Pitches</dt>
-            <dd>{new Date(chosen.pitch_at).toLocaleString()}</dd>
-          </dl>
-          <p className="small muted" style={{ margin: 0 }}>
-            Applicants see both dates before they apply, and confirm they can
-            make them.
-          </p>
-        </div>
-      )}
 
       <div className="row" style={{ marginTop: "1.5rem", gap: "0.75rem" }}>
         <button className="secondary" onClick={onBack}>
@@ -432,15 +415,13 @@ function DetailsForm({
   );
 }
 
-/** "Wed 4 Nov, pitches Wed 11 Nov" — the whole commitment in one line. */
-function formatWeek(option: KickoffOption): string {
-  const day = (value: string) =>
-    new Date(value).toLocaleDateString(undefined, {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    });
-  return `${day(option.kickoff_at)}, pitches ${day(option.pitch_at)}`;
+function formatDay(value: string) {
+  if (!value) return "Not set";
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 }
 
 function ReviewStep({
@@ -449,7 +430,8 @@ function ReviewStep({
   slug,
   capacity,
   appsCloseAt,
-  week,
+  startAt,
+  endAt,
   busy,
   onBack,
   onSubmit,
@@ -459,19 +441,12 @@ function ReviewStep({
   slug: string;
   capacity: string;
   appsCloseAt: string;
-  week: KickoffOption | null;
+  startAt: string;
+  endAt: string;
   busy: boolean;
   onBack: () => void;
   onSubmit: () => void;
 }) {
-  function formatDate(value: string) {
-    if (!value) return "Not set";
-    return new Date(value).toLocaleString(undefined, {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-  }
-
   return (
     <>
       <h2>3. Review and create</h2>
@@ -489,13 +464,11 @@ function ReviewStep({
           <dt>Seats</dt>
           <dd>{capacity || "Uncapped"}</dd>
           <dt>Apps close</dt>
-          <dd>{formatDate(appsCloseAt)}</dd>
-          <dt>Kickoff call</dt>
-          <dd>{formatDate(week?.kickoff_at ?? "")}</dd>
-          <dt>Work due</dt>
-          <dd>{formatDate(week?.submit_deadline_at ?? "")}</dd>
-          <dt>Pitches</dt>
-          <dd>{formatDate(week?.pitch_at ?? "")}</dd>
+          <dd>{appsCloseAt ? `${formatDay(appsCloseAt)} · 23:59` : "Not set"}</dd>
+          <dt>Starts</dt>
+          <dd>{startAt ? `${formatDay(startAt)} · 00:00` : "Not set"}</dd>
+          <dt>Ends</dt>
+          <dd>{endAt ? `${formatDay(endAt)} · 23:59` : "Not set"}</dd>
         </dl>
       </div>
       <p className="small muted">

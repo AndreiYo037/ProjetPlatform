@@ -1,9 +1,8 @@
 """The commitment declared on the form, and the prompt that asks for it.
 
-The programme is a fixed week: a kickoff on day 1 and a pitch on day 7. Someone
-who cannot make day 7 should find that out on the apply form, before a seat is
-consumed, not on day 6 when there is nobody to give it to. So the declaration is
-required, and the refusal names both dates rather than saying "missing field".
+The company picks the start and end dates. Someone who cannot make them should
+find that out on the apply form, before a seat is consumed. So the declaration
+is required, and the refusal names both dates rather than saying "missing field".
 
 The writeup prompt is derived from the role's own rubric, so what the form asks
 for and what the judge marks stay the same question.
@@ -26,7 +25,7 @@ from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.writeup import derive_writeup_prompt, writeup_prompt_for
-from tests.conftest import next_kickoff
+from tests.conftest import next_end, next_kickoff
 
 
 @pytest.fixture
@@ -75,6 +74,7 @@ def listing(client, session, admin, role) -> dict:
             "title": "Churn dashboard",
             "slug": "churn",
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 views, plus a half-page memo.",
@@ -109,14 +109,14 @@ def apply(client, **overrides):
 def test_an_application_without_the_declaration_is_refused(client, listing):
     response = apply(client, availability_confirmed=None)
     assert response.status_code == 422
-    assert "kickoff" in response.json()["detail"]
+    assert "starts" in response.json()["detail"]
 
 
 def test_the_refusal_names_both_dates(client, listing):
     """The dates are the reason, so the dates are what the message says."""
     response = apply(client, availability_confirmed="false")
     detail = response.json()["detail"]
-    assert "kickoff on" in detail and "pitch on" in detail
+    assert "starts on" in detail and "ends on" in detail
 
 
 def test_the_declaration_is_stored_with_the_application(client, listing, session, admin):
@@ -212,3 +212,10 @@ def test_the_deliverable_reads_as_a_sentence(session, role, content_dir):
 
     assert "The deliverable this week is:" in prompt
     assert f"approach {template.default_deliverable[:12]}" not in prompt
+
+def test_a_second_application_from_the_same_person_is_refused(client, listing):
+    first = apply(client)
+    assert first.status_code == 201, first.text
+    second = apply(client)
+    assert second.status_code == 409
+    assert "already applied" in second.json()["detail"].lower()

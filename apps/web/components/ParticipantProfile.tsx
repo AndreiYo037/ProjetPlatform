@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import {
   assetUrl,
   getMyProfile,
@@ -34,10 +35,8 @@ export default function ParticipantProfile() {
   const [yearCourse, setYearCourse] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
-  const [cvFile, setCvFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     getMyProfile()
@@ -59,40 +58,59 @@ export default function ParticipantProfile() {
 
   const isStudent = orgType === "school";
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
+  const draft = {
+    name: name.trim(),
+    email: email.trim(),
+    googleEmail: googleEmail.trim(),
+    organisation: organisation.trim(),
+    orgType,
+    yearCourse: yearCourse.trim(),
+    jobTitle: jobTitle.trim(),
+    linkedinUrl: linkedinUrl.trim(),
+  };
+  const baseline = {
+    name: profile.name,
+    email: profile.email,
+    googleEmail: profile.google_email ?? "",
+    organisation: profile.organisation ?? "",
+    orgType: profile.org_type ?? "school",
+    yearCourse: profile.year_course ?? "",
+    jobTitle: profile.job_title ?? "",
+    linkedinUrl: profile.linkedin_url ?? "",
+  };
+
+  const { status, error: saveError } = useAutosave(draft, baseline, async (next) => {
+    if (!next.name || !next.email) return;
+    const updated = await updateMyProfile({
+      name: next.name,
+      email: next.email,
+      google_email: next.googleEmail,
+      organisation: next.organisation,
+      org_type: next.orgType,
+      year_course: next.orgType === "school" ? next.yearCourse : "",
+      job_title: next.orgType === "school" ? "" : next.jobTitle,
+      linkedin_url: next.linkedinUrl,
+    });
+    setProfile(updated);
+  });
+
+  async function onCv(file: File) {
     setBusy(true);
     setError(null);
-    setSaved(false);
     try {
-      let updated = await updateMyProfile({
-        name,
-        email,
-        google_email: googleEmail,
-        organisation,
-        org_type: orgType,
-        year_course: isStudent ? yearCourse : "",
-        job_title: isStudent ? "" : jobTitle,
-        linkedin_url: linkedinUrl,
-      });
-      if (cvFile) {
-        updated = await uploadMyCv(cvFile);
-        setCvFile(null);
-      }
-      setProfile(updated);
-      setSaved(true);
+      setProfile(await uploadMyCv(file));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save.");
+      setError(err instanceof Error ? err.message : "Could not upload that CV.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="panel">
+    <div className="panel">
       <h2 style={{ marginTop: 0 }}>Your details</h2>
       <p className="small muted" style={{ marginTop: 0 }}>
-        What companies see alongside your work.
+        What companies see alongside your work. Saves as you type.
       </p>
 
       <div className="field">
@@ -139,9 +157,13 @@ export default function ParticipantProfile() {
           id="profile-cv"
           type="file"
           accept="application/pdf"
-          onChange={(e) => setCvFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void onCv(file);
+          }}
         />
-        {profile.cv_url && !cvFile && (
+        {profile.cv_url && (
           <div className="hint">
             <a href={assetUrl(profile.cv_url)} target="_blank" rel="noreferrer">
               Current CV
@@ -206,11 +228,13 @@ export default function ParticipantProfile() {
         </div>
       )}
 
-      {error && <div className="notice bad">{error}</div>}
-      {saved && <div className="notice good">Saved.</div>}
-      <button type="submit" disabled={busy || !name.trim() || !email.trim()}>
-        {busy ? "Saving…" : "Save details"}
-      </button>
-    </form>
+      {(error || saveError) && (
+        <div className="notice bad">{error ?? saveError}</div>
+      )}
+      <p className="small muted">
+        {autosaveLabel(status) ?? "Saves as you type"}
+        {busy ? " · uploading CV…" : ""}.
+      </p>
+    </div>
   );
 }

@@ -95,20 +95,13 @@ class Programme(Base):
 
     @property
     def pitch_at(self) -> datetime | None:
-        """The seventh day, derived rather than stored.
+        """The last day of the challenge — work is due, and pitches happen then.
 
-        Storing it would let it drift out of step with kickoff; deriving it
-        means the two can never disagree.
+        The company picks this date; it is stored as submit_deadline_at (23:59
+        that day). Exposed under this name so apply forms and listings can
+        still talk about the pitch without a second column.
         """
-        from projet.services.schedule import ScheduleError, derive
-
-        if self.start_at is None:
-            return None
-        try:
-            return derive(self.start_at).pitch_at
-        except ScheduleError:
-            # Programmes created before the weekday rule existed keep working.
-            return None
+        return self.submit_deadline_at
 
 
 class JudgingSession(Base):

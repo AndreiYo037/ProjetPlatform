@@ -12,6 +12,7 @@ import {
   type Portfolio,
   type PublicListingSummary,
 } from "@/lib/api";
+import { formatDay, formatDayRange } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 /**
@@ -63,7 +64,9 @@ export default function ParticipantHomePage() {
       <h1 style={{ marginTop: 0 }}>{portfolio.name}</h1>
       <p className="lede">
         {portfolio.programmes_completed === 0
-          ? "Nothing here yet."
+          ? attested.length > 0
+            ? "Skills from judging. Credentials issue when the challenge closes."
+            : "Nothing here yet."
           : `${portfolio.programmes_completed} programme${
               portfolio.programmes_completed === 1 ? "" : "s"
             } completed.`}
@@ -71,7 +74,7 @@ export default function ParticipantHomePage() {
 
       {empty && (
         <div className="notice">
-          Skills and credentials fill in after you pitch.
+          Skills appear when a judge tags what they saw.
         </div>
       )}
 
@@ -86,6 +89,11 @@ export default function ParticipantHomePage() {
                 <strong>{credential.company}</strong>
                 <span className="small muted">{credential.programme}</span>
               </div>
+              {formatDayRange(credential.start_at, credential.ended_at) && (
+                <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
+                  {formatDayRange(credential.start_at, credential.ended_at)}
+                </p>
+              )}
               {credential.attesters.length > 0 && (
                 <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
                   Endorsed by {credential.attesters.join(", ")}
@@ -106,11 +114,12 @@ export default function ParticipantHomePage() {
                 {testimonial.author_name}
                 {testimonial.author_title && `, ${testimonial.author_title}`} ·{" "}
                 {testimonial.company} · {testimonial.programme}
+                {formatDay(testimonial.published_at) && ` · ${formatDay(testimonial.published_at)}`}
               </div>
               {testimonial.pdf_url && (
                 <p style={{ marginBottom: 0 }}>
                   <a href={assetUrl(testimonial.pdf_url)} target="_blank" rel="noreferrer">
-                    Download PDF
+                    View PDF
                   </a>
                 </p>
               )}
@@ -120,7 +129,7 @@ export default function ParticipantHomePage() {
       )}
 
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-        <h2 style={{ marginBottom: 0 }}>Open challenges</h2>
+        <h2 style={{ marginBottom: 0 }}>Active challenges</h2>
         <Link className="small" href="/challenges">
           Browse all
         </Link>
@@ -128,7 +137,7 @@ export default function ParticipantHomePage() {
       {openChallenges === null ? (
         <p className="muted">Loading challenges…</p>
       ) : openChallenges.length === 0 ? (
-        <p className="muted">No open challenges right now — check back soon.</p>
+        <p className="muted">No active challenges right now — check back soon.</p>
       ) : (
         <ChallengeCards items={openChallenges} />
       )}

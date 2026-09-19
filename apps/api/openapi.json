@@ -1353,60 +1353,6 @@
         }
       }
     },
-    "/programmes/kickoff-days": {
-      "get": {
-        "tags": [
-          "programmes"
-        ],
-        "summary": "Kickoff Days",
-        "description": "The Wednesdays a company may choose from.\n\nOffering the list is what makes the weekday rule invisible: nobody types a\ndate that is then rejected.",
-        "operationId": "kickoff_days_programmes_kickoff_days_get",
-        "parameters": [
-          {
-            "name": "projet_session",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Projet Session"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/KickoffOption"
-                  },
-                  "title": "Response Kickoff Days Programmes Kickoff Days Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/programmes/{programme_id}": {
       "get": {
         "tags": [
@@ -1678,7 +1624,7 @@
           "programmes"
         ],
         "summary": "Publish Programme",
-        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric, and\nthe one hard setup requirement (a kickoff date) runs again here, because\nthe company is not the only caller. The brief and applications-close date\nare the company's judgement call, not a gate \u2014 see _setup_problems.",
+        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric, and\nthe start and end dates run again here, because the company is not the\nonly caller. The brief and applications-close date are the company's\njudgement call, not a gate \u2014 see _setup_problems.",
         "operationId": "publish_programme_programmes__programme_id__publish_post",
         "parameters": [
           {
@@ -1873,7 +1819,7 @@
           "programmes"
         ],
         "summary": "Add Data Pack Resource",
-        "description": "FR-066 \u2014 the public-data pack is the default, not the constraint.\nA company that will share real data produces a better challenge.",
+        "description": "Add a link the company wants participants to work from.",
         "operationId": "add_data_pack_resource_programmes__programme_id__data_pack_post",
         "parameters": [
           {
@@ -2097,7 +2043,7 @@
           "programmes"
         ],
         "summary": "Delete Data Pack Resource",
-        "description": "Only what the company put there.\n\nA seeded public source belongs to the role's registry; deleting it here\nwould lose it for this programme with no way back, so it is excluded\ninstead and the message says so.",
+        "description": "Remove a resource the company put on this programme.",
         "operationId": "delete_data_pack_resource_programmes__programme_id__data_pack__resource_id__delete",
         "parameters": [
           {
@@ -2824,7 +2770,7 @@
           "judging"
         ],
         "summary": "List Submission Cards",
-        "description": "FR-1051 - the judging day list, in the order people pitch.",
+        "description": "FR-1051 - the judging day list, in the order people pitch.\n\nEvery non-excluded seat appears here, including people who declined\nrecruitment sharing. That consent only gates the candidate pool later.",
         "operationId": "list_submission_cards_programmes__programme_id__submissions_get",
         "parameters": [
           {
@@ -3368,7 +3314,7 @@
           "public"
         ],
         "summary": "Platform Directory",
-        "description": "FR-105 \u2014 every open programme across companies, for a browse page.\n\nOnly `state == \"open\"` is indexed here: a stranger browsing a directory\ncares what they can still apply to, not what already closed. The\nsingle-company listing above does show closed and complete programmes,\nsince a company's own careers page is a different audience.",
+        "description": "FR-105 \u2014 every active programme across companies, for a browse page.\n\nActive means the week is not over yet: both accepting applications (`open`)\nand still running with applications shut (`closed`). Complete programmes\ndrop off. The single-company listing above also shows complete ones, since\na company's own careers page is a different audience.",
         "operationId": "platform_directory_public_challenges_get",
         "parameters": [
           {
@@ -3479,6 +3425,22 @@
             "schema": {
               "type": "string",
               "title": "Programme Slug"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
             }
           }
         ],
@@ -7092,6 +7054,30 @@
             },
             "type": "array",
             "title": "Attesters"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
           }
         },
         "type": "object",
@@ -7099,7 +7085,9 @@
           "company",
           "programme",
           "skills",
-          "attesters"
+          "attesters",
+          "start_at",
+          "ended_at"
         ],
         "title": "CredentialOut",
         "description": "Who stood behind which skills, on which programme.\n\nCompletion stamps and verify codes stay off this schema: a credential the\nholder cannot explain is a log entry, and the evidence is the endorsement."
@@ -7875,33 +7863,6 @@
         ],
         "title": "JudgingSlot"
       },
-      "KickoffOption": {
-        "properties": {
-          "kickoff_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Kickoff At"
-          },
-          "submit_deadline_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Submit Deadline At"
-          },
-          "pitch_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Pitch At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kickoff_at",
-          "submit_deadline_at",
-          "pitch_at"
-        ],
-        "title": "KickoffOption",
-        "description": "One choosable week, expanded server-side.\n\nThe company picks a kickoff and the other two dates follow. Sending all\nthree means the picker can show a participant-facing promise (\"pitches on\nthe 22nd\") without the browser re-deriving a rule that lives on the server."
-      },
       "LinkRequest": {
         "properties": {
           "slot": {
@@ -8586,7 +8547,20 @@
               }
             ],
             "title": "Start At",
-            "description": "Kickoff. Must be a Wednesday; the deadline and pitch day derive from it."
+            "description": "First day. Stored as 00:00 in the programme timezone."
+          },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At",
+            "description": "Last day. Stored as 23:59 in the programme timezone."
           },
           "problem_statement": {
             "anyOf": [
@@ -9028,6 +9002,18 @@
             ],
             "title": "Start At"
           },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
           "winners_count": {
             "anyOf": [
               {
@@ -9042,7 +9028,7 @@
         },
         "type": "object",
         "title": "ProgrammeUpdate",
-        "description": "The submission deadline and pitch day are not settable.\n\nThey derive from kickoff (see services/schedule.py), so letting either be\nedited independently would let a programme drift out of the shape every\nparticipant was promised at application time."
+        "description": "The company picks the days; times of day are pinned on the server."
       },
       "ProjectEntryCreate": {
         "properties": {
@@ -9503,6 +9489,30 @@
             },
             "type": "array",
             "title": "Attesters"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
           }
         },
         "type": "object",
@@ -9510,7 +9520,9 @@
           "company",
           "programme",
           "skills",
-          "attesters"
+          "attesters",
+          "start_at",
+          "ended_at"
         ],
         "title": "PublicCredential"
       },
@@ -9707,6 +9719,11 @@
           "writeup_prompt": {
             "type": "string",
             "title": "Writeup Prompt"
+          },
+          "already_applied": {
+            "type": "boolean",
+            "title": "Already Applied",
+            "default": false
           }
         },
         "type": "object",

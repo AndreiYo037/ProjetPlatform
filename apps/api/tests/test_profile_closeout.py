@@ -12,6 +12,8 @@ testimonial is not a promise. And closing twice does not double anything.
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -25,6 +27,7 @@ from projet.models import (
     Credential,
     Outbox,
     PlatformUser,
+    ScoreSkillTag,
     Skill,
     SkillCapability,
     SubmissionLink,
@@ -40,6 +43,7 @@ from projet.models.enums import (
 )
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.rubric import compose_rubric
+from projet.services.scoring import ensure_score
 from projet.services.teams import ensure_submission, ensure_team_for_participant
 from tests.conftest import make_participant
 
@@ -115,6 +119,10 @@ def sat(session, programme, content_dir):
     """A programme at the far end of its week, with two people who presented."""
     compose_rubric(session, programme, content_dir)
     programme.status = ProgrammeStatus.JUDGING
+    now = utcnow()
+    # Pitch day is the end date, so a past submit_deadline is enough.
+    programme.start_at = now - timedelta(days=30)
+    programme.submit_deadline_at = now - timedelta(days=1)
     sam = make_participant(session, programme, name="Sam Student")
     ada = make_participant(session, programme, name="Ada Analyst")
     submitted(session, sam)
@@ -147,7 +155,9 @@ def test_closing_promotes_the_tags_and_issues_the_credentials(
     assert body["status"] == "complete"
     assert body["participants_closed"] == 2
     assert body["credentials_issued"] == 2
-    assert body["skills_promoted"] == 2
+    # Tags land on the profile when the judge saves them, so closeout has
+    # nothing left to promote unless a late score arrives afterwards.
+    assert body["skills_promoted"] == 0
     assert body["unscored"] == 0
 
 
@@ -201,22 +211,22 @@ def test_a_late_judge_still_reaches_the_profile(
     score_fully(client, programme, sat["ada"], skill)
     again = client.post(f"/programmes/{programme.id}/close").json()
     assert again["credentials_issued"] == 1
-    assert again["skills_promoted"] == 1
+    assert again["skills_promoted"] == 0
 
 
-def test_an_open_programme_can_close_when_the_company_is_ready(
+def test_an_open_programme_cannot_close_while_the_week_is_running(
     client, session, programme, manager, sat, skill
 ):
-    """Closing is the company's call, including before pitches."""
     programme.status = ProgrammeStatus.OPEN
+    programme.start_at = utcnow() + timedelta(days=7)
+    programme.submit_deadline_at = utcnow() + timedelta(days=14)
     session.flush()
     sign_in_company(client, session, manager)
     score_fully(client, programme, sat["sam"], skill)
 
     closed = client.post(f"/programmes/{programme.id}/close")
-    assert closed.status_code == 200, closed.text
-    assert closed.json()["status"] == "complete"
-    assert closed.json()["credentials_issued"] == 1
+    assert closed.status_code == 409
+    assert "still running" in closed.json()["detail"]
 
 
 def test_a_draft_cannot_close(client, session, programme, manager, sat):
@@ -226,6 +236,67 @@ def test_a_draft_cannot_close(client, session, programme, manager, sat):
     refused = client.post(f"/programmes/{programme.id}/close")
     assert refused.status_code == 409
     assert "Publish" in refused.json()["detail"]
+
+
+def test_judge_tags_reach_the_portfolio_before_the_programme_closes(
+    client, session, programme, company, manager, sat, skill
+):
+    """The scoring card says a tag is a claim on the profile. It has to show
+    up as soon as the judge saves it, not after an extra close click."""
+    sign_in_company(client, session, manager)
+    score_fully(client, programme, sat["sam"], skill)
+
+    sign_in_participant(client, session, sat["sam"])
+    body = client.get("/me/portfolio").json()
+    assert body["skills"][0]["name"] == "SQL"
+    assert body["skills"][0]["attesters"] == ["Mo Manager"]
+    cred = body["credentials"][0]
+    assert cred["company"] == company.name
+    assert cred["programme"] == programme.title
+    assert cred["skills"] == ["SQL"]
+    assert cred["attesters"] == ["Mo Manager"]
+    assert cred["start_at"]
+    assert cred["ended_at"]
+    assert body["programmes_completed"] == 0
+
+
+def test_tags_that_were_never_promoted_still_show_on_home(
+    client, session, programme, manager, sat, skill
+):
+    """Tags written before promotion ran on every save still have to appear
+    the moment the participant opens home."""
+    team = ensure_team_for_participant(session, sat["sam"])
+    score = ensure_score(session, team, manager.id)
+    session.add(
+        ScoreSkillTag(
+            score_id=score.id,
+            participant_id=sat["sam"].id,
+            skill_id=skill.id,
+        )
+    )
+    session.flush()
+
+    sign_in_participant(client, session, sat["sam"])
+    body = client.get("/me/portfolio").json()
+    assert body["skills"][0]["name"] == "SQL"
+    assert body["skills"][0]["attesters"] == ["Mo Manager"]
+
+
+def test_clearing_a_tag_takes_it_off_the_portfolio(
+    client, session, programme, manager, sat, skill
+):
+    sign_in_company(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/score"
+    client.patch(url, json={"skill_ids": [str(skill.id)]})
+
+    sign_in_participant(client, session, sat["sam"])
+    assert client.get("/me/portfolio").json()["skills"][0]["name"] == "SQL"
+
+    sign_in_company(client, session, manager)
+    client.patch(url, json={"skill_ids": []})
+
+    sign_in_participant(client, session, sat["sam"])
+    assert client.get("/me/portfolio").json()["skills"] == []
 
 
 def test_the_portfolio_shows_attested_skills_with_the_attester(
@@ -241,14 +312,13 @@ def test_the_portfolio_shows_attested_skills_with_the_attester(
     body = portfolio.json()
 
     assert body["programmes_completed"] == 1
-    assert body["credentials"] == [
-        {
-            "company": company.name,
-            "programme": programme.title,
-            "skills": ["SQL"],
-            "attesters": ["Mo Manager"],
-        }
-    ]
+    cred = body["credentials"][0]
+    assert cred["company"] == company.name
+    assert cred["programme"] == programme.title
+    assert cred["skills"] == ["SQL"]
+    assert cred["attesters"] == ["Mo Manager"]
+    assert cred["start_at"]
+    assert cred["ended_at"]
 
     # Flat: one row per skill, no capability grouping to make one tag look
     # like two endorsements.

@@ -78,8 +78,9 @@ def test_a_public_profile_carries_no_score_or_ranking(client, session, participa
 
 
 def test_verified_and_self_declared_are_counted_apart(client, session, programme, participant_factory):
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    from tests._programme_finish import finish_programme
+
+    finish_programme(programme, session)
     participant = participant_factory()
     person = _make_public(session, participant)
     seed_from_participant(session, person.id, participant.id)

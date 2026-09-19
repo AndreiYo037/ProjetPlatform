@@ -33,6 +33,7 @@ from projet.services.profile import (
     attested_skills,
     endorsements_for,
     published_testimonials_for,
+    sync_person_skills_from_tags,
 )
 from projet.services.projects import entries_for
 from projet.storage import sign_key
@@ -72,6 +73,8 @@ class PublicCredential(BaseModel):
     programme: str
     skills: list[str]
     attesters: list[str]
+    start_at: datetime | None
+    ended_at: datetime | None
 
 
 class PublicTestimonial(BaseModel):
@@ -152,6 +155,8 @@ def get_public_profile(
     if person is None or not person.public:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No profile at that handle.")
 
+    sync_person_skills_from_tags(db, person.id)
+    db.commit()
     evidence = attested_skills(db, person.id)
     skills = [
         PublicAttestedSkill(
@@ -173,6 +178,8 @@ def get_public_profile(
             programme=row.programme,
             skills=row.skills,
             attesters=row.attesters,
+            start_at=row.start_at,
+            ended_at=row.ended_at,
         )
         for row in endorsements_for(db, person.id)
     ]

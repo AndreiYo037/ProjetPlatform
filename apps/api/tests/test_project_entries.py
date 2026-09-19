@@ -17,13 +17,13 @@ from projet.models import ProjectEntry, Skill
 from projet.models.enums import ArtifactVisibility, ProgrammeStatus, SkillType
 from projet.models.portfolio import ProjectSkill
 from projet.services.projects import ProjectError, entries_for, seed_from_participant
+from tests._programme_finish import finish_programme
 
 
 @pytest.fixture
 def completed(session, programme, participant_factory):
     programme.brief_url = "https://example.test/brief"
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    finish_programme(programme, session)
     return participant_factory()
 
 
@@ -81,8 +81,7 @@ def test_a_programme_still_running_has_nothing_to_show_yet(session, programme, p
 
 
 def test_you_cannot_seed_someone_elses_programme(session, programme, participant_factory):
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    finish_programme(programme, session)
     mine = participant_factory()
     theirs = participant_factory(name="Other Person")
 

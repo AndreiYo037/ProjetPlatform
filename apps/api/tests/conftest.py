@@ -40,17 +40,12 @@ CONTENT_DIR = Path(__file__).resolve().parents[3] / "content"
 
 
 def next_kickoff() -> datetime:
-    """A kickoff date a company would actually be offered.
+    """A start date far enough ahead that closing apps in two days is still before it."""
+    return datetime.now(UTC) + timedelta(days=14)
 
-    Every programme starts on a Wednesday (services/schedule.py), so tests must
-    pick one the same way the date picker does rather than counting days from
-    today and hoping.
-    """
-    from projet.services.schedule import next_kickoff_days
 
-    # The second offered Wednesday, so "applications close in two days" is
-    # always still before kickoff even when today is a Tuesday.
-    return next_kickoff_days(datetime.now(UTC), count=2)[1]
+def next_end(start: datetime | None = None) -> datetime:
+    return (start or next_kickoff()) + timedelta(days=7)
 
 
 @pytest.fixture(scope="session")

@@ -15,6 +15,7 @@ import {
   type ScoringCard,
   type TestimonialOut,
 } from "@/lib/api";
+import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
 const REFERRAL = [
@@ -247,6 +248,7 @@ function TestimonialBox({
 }) {
   const [existing, setExisting] = useState<TestimonialOut | null>(null);
   const [body, setBody] = useState("");
+  const [baseline, setBaseline] = useState("");
   const [busy, setBusy] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -256,10 +258,27 @@ function TestimonialBox({
     getTestimonial(programmeId, participantId)
       .then((found) => {
         setExisting(found);
-        setBody(found?.body ?? "");
+        const next = found?.body ?? "";
+        setBody(next);
+        setBaseline(next);
       })
       .catch(() => setExisting(null));
   }, [programmeId, participantId]);
+
+  const { status: draftStatus, error: draftError } = useAutosave(
+    body,
+    baseline,
+    async (next) => {
+      if (!next.trim() && !baseline.trim()) return;
+      const saved = await writeTestimonial(programmeId, participantId, {
+        body: next.trim(),
+        publish: false,
+      });
+      setExisting(saved);
+      setBaseline(saved.body);
+    },
+    900,
+  );
 
   async function draft() {
     setDrafting(true);
@@ -268,7 +287,9 @@ function TestimonialBox({
     try {
       const drafted = await draftTestimonial(programmeId, participantId);
       setBody(drafted.body);
-      setFlash("Drafted from the skills you tagged and this challenge's brief. Edit it, then publish.");
+      setFlash(
+        "Drafted from the skills you tagged and this challenge's brief. It saves as you edit — publish when you mean it.",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not draft that.");
     } finally {
@@ -276,19 +297,20 @@ function TestimonialBox({
     }
   }
 
-  async function save(publish: boolean) {
+  async function publish() {
     setBusy(true);
     setError(null);
     setFlash(null);
     try {
       const saved = await writeTestimonial(programmeId, participantId, {
         body: body.trim(),
-        publish,
+        publish: true,
       });
       setExisting(saved);
-      setFlash(saved.published_at ? "Published." : "Saved as a draft.");
+      setBaseline(saved.body);
+      setFlash("Published.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that.");
+      setError(err instanceof Error ? err.message : "Could not publish that.");
     } finally {
       setBusy(false);
     }
@@ -306,7 +328,7 @@ function TestimonialBox({
         was made to, and this is the part they will actually carry with them.
         {published
           ? " Published — they can download it as a PDF. You can still edit the wording."
-          : " A draft stays private. Publishing turns this into a PDF they can download."}
+          : " A draft stays private and saves as you type. Publishing turns this into a PDF they can download."}
         {" "}
         Drafting uses the skills you tagged above and this challenge's brief. It will
         not invent anything you did not tag.
@@ -331,22 +353,28 @@ function TestimonialBox({
       {hasPdf && existing?.pdf_url && (
         <p>
           <a href={assetUrl(existing.pdf_url)} target="_blank" rel="noreferrer">
-            Download the PDF
+            View PDF
           </a>
         </p>
       )}
-      {error && <div className="notice bad">{error}</div>}
+      {(error || draftError) && (
+        <div className="notice bad">{error ?? draftError}</div>
+      )}
       {flash && <div className="notice good">{flash}</div>}
-      <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
-        <button className="secondary" disabled={locked || !body.trim()} onClick={() => save(false)}>
-          {published ? "Save" : "Save draft"}
-        </button>
-        {!published && (
-          <button disabled={locked || !body.trim()} onClick={() => save(true)}>
+      <p className="small muted">
+        {autosaveLabel(draftStatus)
+          ? `Draft ${autosaveLabel(draftStatus)?.toLowerCase()}`
+          : "Draft saves as you type"}
+        {published ? " · live on their profile" : ""}.
+      </p>
+      {!published && (
+        <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
+          <button disabled={locked || !body.trim()} onClick={publish}>
             Publish to their profile
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }
+

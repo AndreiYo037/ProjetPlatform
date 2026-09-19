@@ -24,8 +24,9 @@ from projet.models import (
     ProjectLink,
     Skill,
 )
-from projet.models.enums import ArtifactVisibility, ProgrammeStatus
+from projet.models.enums import ArtifactVisibility
 from projet.models.portfolio import ProjectSkill
+from projet.services.schedule import programme_is_past
 from projet.storage import get_storage
 
 # What a participant may write on a verified entry: the description and the
@@ -82,10 +83,11 @@ def seed_from_participant(
     programme = session.get(Programme, participant.programme_id)
     if programme is None:
         raise ProjectError("That programme no longer exists.")
-    # Before the close-out there is nothing to show: no pitch happened, no
+    # Before the week is over there is nothing to show: no pitch happened, no
     # judge tagged anything, and an entry created now would claim a week that
-    # has not been finished.
-    if programme.status is not ProgrammeStatus.COMPLETE:
+    # has not finished. Status alone is not enough — the calendar end of the
+    # week is what decides.
+    if not programme_is_past(programme):
         raise ProjectError("This programme has not finished yet.")
 
     existing = session.scalars(

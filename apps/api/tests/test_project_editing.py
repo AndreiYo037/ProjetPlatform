@@ -12,7 +12,7 @@ import uuid
 import pytest
 
 from projet.models import ProjectEntry, Skill
-from projet.models.enums import ArtifactVisibility, ProgrammeStatus, SkillType
+from projet.models.enums import ArtifactVisibility, SkillType
 from projet.services.projects import (
     ProjectError,
     add_link,
@@ -25,14 +25,14 @@ from projet.services.projects import (
     update_entry,
 )
 from projet.storage import get_storage
+from tests._programme_finish import finish_programme
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"0" * 64
 
 
 @pytest.fixture
 def verified(session, programme, participant_factory):
-    programme.status = ProgrammeStatus.COMPLETE
-    session.flush()
+    finish_programme(programme, session)
     participant = participant_factory()
     return seed_from_participant(session, participant.person_id, participant.id)
 

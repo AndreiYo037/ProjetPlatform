@@ -113,6 +113,9 @@ header.bar {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 20;
+  background: var(--bg);
 }
 
 header.bar .brand {
@@ -120,6 +123,22 @@ header.bar .brand {
   letter-spacing: -0.01em;
   text-decoration: none;
   color: var(--fg);
+  position: relative;
+  z-index: 2;
+  flex: none;
+  display: inline-block;
+  padding: 0.2rem 0.15rem;
+}
+
+header.bar .bar-links {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* -- forms ----------------------------------------------------------------- */
@@ -434,6 +453,14 @@ a.challenge-card {
 
 a.challenge-card:hover {
   border-color: var(--accent);
+}
+
+.challenge-logo {
+  display: block;
+  height: 2rem;
+  width: auto;
+  max-width: 7rem;
+  object-fit: contain;
 }
 
 /* -- tables ---------------------------------------------------------------- */

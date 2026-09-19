@@ -112,7 +112,7 @@ def role_implications(
     return RoleImplications(
         role=RoleSummary.model_validate(role),
         default_deliverable=template.default_deliverable,
-        public_sources=[s.get("label", "") for s in template.public_sources or []],
+        public_sources=[],
         student_tools=template.student_tools or [],
         judging_criteria=criteria,
         company_asks_easy=template.asks_easy or [],

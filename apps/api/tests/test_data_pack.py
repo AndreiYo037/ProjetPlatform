@@ -1,11 +1,9 @@
 """Curating the data pack, and who gets to see it.
 
-Two things are being proved here. A company owns its pack: it can clear a
-seeded public source without losing it, add its own, upload a file, and mark
-anything of its own confidential. And the pack is released rather than
-advertised: the public listing names public sources only, a participant inside
-the programme gets the included list with signed links, and an excluded entry
-reaches nobody.
+The company owns its pack: it can add links and uploads, mark anything
+confidential, exclude a resource without deleting it, or remove it outright.
+Nothing in the pack is named on the public listing — participants only see
+included company-supplied resources after a seat is accepted.
 """
 
 from __future__ import annotations
@@ -25,7 +23,7 @@ from projet.models import DataPackResource, PlatformUser, Programme, Role
 from projet.models.enums import ActorType, Provenance
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import make_participant, next_kickoff
+from tests.conftest import make_participant, next_end, next_kickoff
 
 
 @pytest.fixture
@@ -78,6 +76,7 @@ def programme_id(client, session, admin, role_id) -> str:
             "deliverable_spec": "A dashboard with 3-4 views, plus a half-page memo.",
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
         },
     )
     assert created.status_code == 201, created.text
@@ -114,34 +113,25 @@ def upload(client, programme_id, **fields) -> dict:
     return response.json()
 
 
-def test_the_role_seeds_the_pack_and_everything_starts_included(client, programme_id):
-    entries = pack(client, programme_id)
-    assert entries, "the role's registry should have seeded some public sources"
-    assert all(entry["included"] for entry in entries)
-    assert all(entry["provenance"] == Provenance.PUBLIC.value for entry in entries)
-    assert all(entry["confidential"] is False for entry in entries)
+def test_a_new_programme_starts_with_an_empty_pack(client, programme_id):
+    assert pack(client, programme_id) == []
 
 
-def test_a_seeded_source_is_excluded_rather_than_deleted(client, programme_id):
-    seeded = pack(client, programme_id)[0]
-
-    refused = client.delete(f"/programmes/{programme_id}/data-pack/{seeded['id']}")
-    assert refused.status_code == 409
-    assert "Exclude it" in refused.json()["detail"]
+def test_a_company_resource_can_be_excluded_then_restored(client, programme_id):
+    own = add_link(client, programme_id)
 
     excluded = client.patch(
-        f"/programmes/{programme_id}/data-pack/{seeded['id']}",
+        f"/programmes/{programme_id}/data-pack/{own['id']}",
         json={"included": False},
     )
     assert excluded.status_code == 200, excluded.text
     assert excluded.json()["included"] is False
 
-    # Still on the company's own list, so it can come back.
     still_there = {entry["id"]: entry for entry in pack(client, programme_id)}
-    assert still_there[seeded["id"]]["included"] is False
+    assert still_there[own["id"]]["included"] is False
 
     restored = client.patch(
-        f"/programmes/{programme_id}/data-pack/{seeded['id']}",
+        f"/programmes/{programme_id}/data-pack/{own['id']}",
         json={"included": True},
     )
     assert restored.json()["included"] is True
@@ -211,26 +201,30 @@ def test_excluding_the_last_confidential_resource_lifts_the_acknowledgement(
     assert not client.get(f"/programmes/{programme_id}").json()["requires_confidentiality_ack"]
 
 
-def test_the_public_listing_never_names_what_the_company_supplied(client, programme_id):
+def test_the_public_listing_never_names_the_data_pack(client, programme_id):
     add_link(client, programme_id, label="Acme internal churn export")
     upload(client, programme_id, label="Q3 revenue by account", confidential="true")
 
     listing = client.get("/public/x/acme/churn")
     assert listing.status_code == 200, listing.text
-    preview = listing.json()["data_pack_preview"]
-    assert preview, "the role's public sources should still preview"
-    assert "Acme internal churn export" not in preview
-    assert "Q3 revenue by account" not in preview
+    assert listing.json()["data_pack_preview"] == []
 
 
-def test_an_excluded_public_source_drops_out_of_the_preview(client, programme_id):
-    seeded = pack(client, programme_id)[0]
-    client.patch(
-        f"/programmes/{programme_id}/data-pack/{seeded['id']}",
-        json={"included": False},
+def test_legacy_public_sources_are_hidden_from_the_company_pack(
+    client, session, programme_id
+):
+    programme = session.get(Programme, uuid.UUID(programme_id))
+    session.add(
+        DataPackResource(
+            programme_id=programme.id,
+            label="data.gov.sg",
+            provenance=Provenance.PUBLIC,
+            included=True,
+        )
     )
-    preview = client.get("/public/x/acme/churn").json()["data_pack_preview"]
-    assert seeded["label"] not in preview
+    session.flush()
+
+    assert pack(client, programme_id) == []
 
 
 def test_repointing_an_upload_is_refused(client, programme_id):
@@ -263,8 +257,18 @@ def test_the_participant_dashboard_gets_the_included_pack_with_links(
         f"/programmes/{programme_id}/data-pack/{dropped['id']}",
         json={"included": False},
     )
-
+    # Legacy public rows must not reach participants.
     programme = session.get(Programme, uuid.UUID(programme_id))
+    session.add(
+        DataPackResource(
+            programme_id=programme.id,
+            label="data.gov.sg",
+            provenance=Provenance.PUBLIC,
+            included=True,
+        )
+    )
+    session.flush()
+
     participant = make_participant(session, programme)
     _, raw = start_session(
         session, actor_type=ActorType.PARTICIPANT, subject_id=participant.person_id
@@ -274,6 +278,7 @@ def test_the_participant_dashboard_gets_the_included_pack_with_links(
     entries = client.get("/me/dashboard").json()["data_pack"]
     labels = {entry["label"]: entry for entry in entries}
     assert "Superseded extract" not in labels
+    assert "data.gov.sg" not in labels
     confidential = labels["Q3 churn extract"]
     assert confidential["confidential"] is True
     assert confidential["url"].startswith("/files/data-pack/")

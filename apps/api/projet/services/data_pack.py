@@ -1,22 +1,14 @@
 """The data pack: what a company hands over, and who gets to see it.
 
-Three rules shape this module.
-
-A source is excluded, not deleted. The seeded public sources come from the
-role's registry, and a company that clears one it does not want should be able
-to put it back without retyping a URL it never typed in the first place. So
-`included` is a toggle, and what the company sees is the whole list with its
-own choices visible in it.
+The pack is company-supplied only. Links and uploads the company adds are
+released after a seat is accepted — never named on the public listing.
 
 An upload is never a public link. A file the company supplies lives in storage
 and is served through an expiring signature, the same way a CV is, because the
 point of the confidentiality flag is that the file is not something anyone can
 forward.
 
-And the pack is released, not advertised. The public listing gets the labels of
-public sources only, so someone deciding whether to apply can see what kind of
-data the week runs on; everything the company added shows up after a seat is
-accepted, which is where the confidentiality acknowledgement bites.
+`included` is a toggle so a company can park a resource without deleting it.
 """
 
 from __future__ import annotations
@@ -72,31 +64,13 @@ def resource_url(value: str | None) -> str | None:
 
 
 def released_resources(db: Session, programme_id: uuid.UUID) -> list[DataPackResource]:
-    """What a participant inside the programme gets: the included list, whole."""
+    """What a participant inside the programme gets: company-supplied, included."""
     return list(
         db.scalars(
             select(DataPackResource)
             .where(DataPackResource.programme_id == programme_id)
             .where(DataPackResource.included.is_(True))
-            .order_by(DataPackResource.created_at)
-        )
-    )
-
-
-def public_preview(db: Session, programme_id: uuid.UUID) -> list[str]:
-    """Labels of the included public sources, and nothing else.
-
-    Company-supplied material stays out of the preview whether or not it is
-    flagged confidential: an applicant has not accepted anything yet, and the
-    name of an internal export is itself information about the company.
-    """
-    return list(
-        db.scalars(
-            select(DataPackResource.label)
-            .where(DataPackResource.programme_id == programme_id)
-            .where(DataPackResource.included.is_(True))
-            .where(DataPackResource.confidential.is_(False))
-            .where(DataPackResource.provenance == Provenance.PUBLIC)
+            .where(DataPackResource.provenance != Provenance.PUBLIC)
             .order_by(DataPackResource.created_at)
         )
     )
@@ -114,6 +88,7 @@ def sync_confidentiality_ack(db: Session, programme: Programme) -> None:
             .where(DataPackResource.programme_id == programme.id)
             .where(DataPackResource.included.is_(True))
             .where(DataPackResource.confidential.is_(True))
+            .where(DataPackResource.provenance != Provenance.PUBLIC)
             .limit(1)
         )
     )

@@ -22,7 +22,7 @@ from projet.models.enums import ActorType
 from projet.outbox.worker import run_once
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import next_kickoff
+from tests.conftest import next_end, next_kickoff
 
 
 @pytest.fixture
@@ -73,6 +73,7 @@ def test_publish_creates_kickoff_event(client, session, google, admin, seeded):
             "title": "Calendar test",
             "slug": "cal-test",
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "problem_statement": "Test problem",
             "deliverable_spec": "Test deliverable",
@@ -112,6 +113,7 @@ def test_accept_adds_participant_to_kickoff_event(
             "title": "Calendar accept test",
             "slug": "cal-accept",
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "problem_statement": "Test problem",
             "deliverable_spec": "Test deliverable",
@@ -198,6 +200,7 @@ def test_the_offer_carries_the_meet_link_and_a_calendar_invite(
             "title": "Offer invite test",
             "slug": "cal-offer",
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "problem_statement": "Test problem",
             "deliverable_spec": "Test deliverable",
@@ -268,6 +271,7 @@ def test_republish_does_not_create_duplicate_event(
             "title": "Idempotent test",
             "slug": "cal-idem",
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "problem_statement": "Test",
             "deliverable_spec": "Test",

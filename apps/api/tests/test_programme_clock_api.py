@@ -1,13 +1,13 @@
-"""The fixed week, over HTTP.
+"""The dates a company picks, over HTTP.
 
-services/schedule.py proves the arithmetic; these tests prove the API refuses
-to let a company out of the shape, because that promise is what the apply form
-and the pitch invite both rest on.
+services/schedule.py proves the arithmetic; these tests prove the API pins
+times of day and lets any calendar day through.
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,7 +20,10 @@ from projet.models import PlatformUser, Role
 from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import next_kickoff
+from projet.services.schedule import PROGRAMME_TZ
+from tests.conftest import next_end, next_kickoff
+
+SGT = ZoneInfo("Asia/Singapore")
 
 BRIEF = {
     "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
@@ -70,95 +73,115 @@ def company_id(client, session, admin) -> str:
 
 
 def create(client, company_id, role_id, **overrides) -> dict:
+    start = next_kickoff()
     payload = {
         "company_id": company_id,
         "role_id": role_id,
         "title": "Churn dashboard",
         "slug": "churn",
         "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-        "start_at": next_kickoff().isoformat(),
+        "start_at": start.isoformat(),
+        "submit_deadline_at": next_end(start).isoformat(),
         **BRIEF,
     }
     payload.update(overrides)
     return client.post("/programmes", json=payload)
 
 
-def test_the_deadline_and_pitch_day_follow_from_the_kickoff(client, company_id, role_id):
-    kickoff = next_kickoff()
-    body = create(client, company_id, role_id, start_at=kickoff.isoformat()).json()
+def test_start_is_midnight_and_end_is_end_of_day(client, company_id, role_id):
+    start = datetime(2026, 10, 8, 15, 30, tzinfo=SGT)  # Thursday afternoon
+    end = datetime(2026, 10, 25, 8, 0, tzinfo=SGT)
+    body = create(
+        client,
+        company_id,
+        role_id,
+        start_at=start.isoformat(),
+        submit_deadline_at=end.isoformat(),
+        applications_close_at=datetime(2026, 10, 7, tzinfo=SGT).isoformat(),
+    ).json()
 
-    submit = datetime.fromisoformat(body["submit_deadline_at"])
-    pitch = datetime.fromisoformat(body["pitch_at"])
-    assert (pitch - kickoff).days == 7
-    assert kickoff < submit < pitch
+    stored_start = datetime.fromisoformat(body["start_at"]).astimezone(PROGRAMME_TZ)
+    stored_end = datetime.fromisoformat(body["submit_deadline_at"]).astimezone(PROGRAMME_TZ)
+    assert stored_start.date() == start.date()
+    assert (stored_start.hour, stored_start.minute) == (0, 0)
+    assert stored_end.date() == end.date()
+    assert (stored_end.hour, stored_end.minute) == (23, 59)
+    assert datetime.fromisoformat(body["pitch_at"]) == datetime.fromisoformat(
+        body["submit_deadline_at"]
+    )
 
 
-def test_a_kickoff_on_any_other_day_is_refused(client, company_id, role_id):
-    thursday = next_kickoff() + timedelta(days=1)
-    response = create(client, company_id, role_id, start_at=thursday.isoformat())
-    assert response.status_code == 422
-    assert "Wednesday" in response.json()["detail"]
-
-
-def test_applications_cannot_close_after_the_programme_has_begun(client, company_id, role_id):
-    kickoff = next_kickoff()
+def test_a_thursday_is_as_good_as_any_other_day(client, company_id, role_id):
+    thursday = datetime(2026, 10, 8, tzinfo=SGT)
     response = create(
         client,
         company_id,
         role_id,
-        applications_close_at=(kickoff + timedelta(days=1)).isoformat(),
+        start_at=thursday.isoformat(),
+        submit_deadline_at=(thursday + timedelta(days=2)).isoformat(),
+        applications_close_at=(thursday - timedelta(days=1)).isoformat(),
+    )
+    assert response.status_code == 201, response.text
+
+
+def test_applications_cannot_close_after_the_programme_has_begun(client, company_id, role_id):
+    start = next_kickoff()
+    response = create(
+        client,
+        company_id,
+        role_id,
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
+        applications_close_at=(start + timedelta(days=1)).isoformat(),
     )
     assert response.status_code == 422
 
 
-def test_a_naive_applications_close_date_from_the_datetime_picker_is_accepted(
+def test_a_naive_applications_close_date_from_the_date_picker_is_accepted(
     client, company_id, role_id
 ):
-    """The company form's apps-close field is an HTML `datetime-local` input,
-    which submits no timezone offset at all — unlike start_at, which comes off
-    the kickoff-day picker as a full offset-aware timestamp. The two used to be
-    uncomparable and this crashed the whole request with a 500."""
-    kickoff = next_kickoff()
-    naive_the_day_before = kickoff.replace(tzinfo=None) - timedelta(days=1)
+    start = next_kickoff()
+    naive_the_day_before = start.replace(tzinfo=None) - timedelta(days=1)
     response = create(
         client,
         company_id,
         role_id,
-        start_at=kickoff.isoformat(),
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
         applications_close_at=naive_the_day_before.isoformat(),
     )
     assert response.status_code == 201, response.text
 
 
-def test_moving_the_kickoff_moves_the_deadline_with_it(client, company_id, role_id):
+def test_moving_the_start_does_not_move_the_end(client, company_id, role_id):
     programme = create(client, company_id, role_id).json()
-    later = datetime.fromisoformat(programme["start_at"]) + timedelta(days=7)
+    original_end = programme["submit_deadline_at"]
+    later = datetime.fromisoformat(programme["start_at"]) + timedelta(days=1)
 
     updated = client.patch(
         f"/programmes/{programme['id']}",
         json={"start_at": later.isoformat()},
     )
     assert updated.status_code == 200, updated.text
-    body = updated.json()
-    assert datetime.fromisoformat(body["submit_deadline_at"]) > datetime.fromisoformat(
-        programme["submit_deadline_at"]
-    )
-    assert (datetime.fromisoformat(body["pitch_at"]) - later).days == 7
+    assert updated.json()["submit_deadline_at"] == original_end
+    stored = datetime.fromisoformat(updated.json()["start_at"]).astimezone(PROGRAMME_TZ)
+    assert (stored.hour, stored.minute) == (0, 0)
 
 
-def test_the_submission_deadline_cannot_be_set_by_hand(client, company_id, role_id):
-    """It is derived, so an attempt to set it is ignored rather than obeyed."""
+def test_the_end_date_can_be_set_by_hand(client, company_id, role_id):
     programme = create(client, company_id, role_id).json()
-    derived = programme["submit_deadline_at"]
+    new_end = datetime(2026, 12, 1, tzinfo=SGT)
 
     updated = client.patch(
         f"/programmes/{programme['id']}",
-        json={"submit_deadline_at": (datetime.now(UTC) + timedelta(days=90)).isoformat()},
+        json={"submit_deadline_at": new_end.isoformat()},
     )
     assert updated.status_code == 200, updated.text
-    assert datetime.fromisoformat(updated.json()["submit_deadline_at"]) == (
-        datetime.fromisoformat(derived)
+    stored = datetime.fromisoformat(updated.json()["submit_deadline_at"]).astimezone(
+        PROGRAMME_TZ
     )
+    assert stored.date() == new_end.date()
+    assert (stored.hour, stored.minute) == (23, 59)
 
 
 def test_every_programme_is_individual(client, company_id, role_id):
@@ -167,23 +190,7 @@ def test_every_programme_is_individual(client, company_id, role_id):
     assert programme["team_size_max"] == 1
 
 
-def test_the_offered_kickoff_days_are_all_wednesdays(client, company_id, role_id):
-    days = client.get("/programmes/kickoff-days")
-    assert days.status_code == 200, days.text
-    options = days.json()
-    assert options
-    for option in options:
-        kickoff = datetime.fromisoformat(option["kickoff_at"])
-        pitch = datetime.fromisoformat(option["pitch_at"])
-        assert kickoff > datetime.now(UTC)
-        assert (pitch - kickoff).days == 7
-
-
-def test_publication_is_blocked_until_the_week_exists(client, company_id, role_id):
-    """The kickoff date is the one hard block: nothing else on the clock
-    (deadline, pitch day) can be computed without it. The brief is a warning,
-    not a refusal — a company can publish a shell to test the pipeline end to
-    end and write the brief before a real applicant sees it."""
+def test_publication_is_blocked_until_start_and_end_exist(client, company_id, role_id):
     bare = client.post(
         "/programmes",
         json={
@@ -198,17 +205,18 @@ def test_publication_is_blocked_until_the_week_exists(client, company_id, role_i
 
     check = client.get(f"/programmes/{programme_id}/publication-check").json()
     assert check["ready"] is False
-    assert any("kickoff" in problem for problem in check["problems"])
-    # Still surfaced as a nudge on the draft page, just not a blocker.
+    assert any("start date" in problem for problem in check["problems"])
+    assert any("end date" in problem for problem in check["problems"])
     assert any("problem statement" in problem for problem in check["problems"])
 
     refused = client.post(f"/programmes/{programme_id}/publish")
     assert refused.status_code == 409
 
 
-def test_a_kickoff_alone_is_enough_to_publish(client, company_id, role_id):
+def test_start_and_end_are_enough_to_publish(client, company_id, role_id):
     """A company can publish a bare-bones shell to test the flow end to end
     and write the real brief before an applicant ever sees the listing."""
+    start = next_kickoff()
     created = client.post(
         "/programmes",
         json={
@@ -216,7 +224,8 @@ def test_a_kickoff_alone_is_enough_to_publish(client, company_id, role_id):
             "role_id": role_id,
             "title": "Bare but scheduled",
             "slug": "bare-but-scheduled",
-            "start_at": next_kickoff().isoformat(),
+            "start_at": start.isoformat(),
+            "submit_deadline_at": next_end(start).isoformat(),
         },
     )
     assert created.status_code == 201, created.text

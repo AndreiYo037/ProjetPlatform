@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   assetUrl,
   deleteSubmissionSlot,
@@ -9,6 +9,7 @@ import {
   uploadSubmissionFile,
   type SubmissionOut,
 } from "@/lib/api";
+import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 
 const SLOT_LABELS: Record<string, string> = {
   artifact: "Your artifact",
@@ -37,7 +38,6 @@ export default function SubmissionPanel({
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [justSubmitted, setJustSubmitted] = useState(false);
@@ -48,22 +48,6 @@ export default function SubmissionPanel({
         Your submission slots are still being set up. Nothing is needed from you yet.
       </p>
     );
-  }
-
-  async function save(slot: string) {
-    const url = drafts[slot];
-    if (!url) return;
-    setBusy(slot);
-    setError(null);
-    setJustSubmitted(false);
-    try {
-      await putSubmissionLink(slot, url, programmeId);
-      onChange();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save that link.");
-    } finally {
-      setBusy(null);
-    }
   }
 
   async function upload(slot: string, file: File) {
@@ -191,22 +175,14 @@ export default function SubmissionPanel({
               </>
             ) : (
               <>
-                <div className="row">
-                  <input
-                    id={`slot-${slot.slot}`}
-                    type="url"
-                    placeholder="Paste a link"
-                    defaultValue={slot.drive_url ?? ""}
-                    disabled={submission.locked}
-                    onChange={(e) => setDrafts((d) => ({ ...d, [slot.slot]: e.target.value }))}
-                    style={{ flex: "1 1 18rem" }}
-                  />
-                  {!submission.locked && (
-                    <button onClick={() => save(slot.slot)} disabled={busy === slot.slot}>
-                      {busy === slot.slot ? "Saving…" : "Save"}
-                    </button>
-                  )}
-                </div>
+                <SlotLinkInput
+                  slot={slot.slot}
+                  initialUrl={slot.drive_url ?? ""}
+                  locked={Boolean(submission.locked)}
+                  programmeId={programmeId}
+                  onSaved={onChange}
+                  onError={setError}
+                />
                 {slot.access_status === "ok" && slot.drive_url && (
                   <div className="small" style={{ color: "var(--ok)", marginTop: "0.4rem" }}>
                     {slot.filename ? `We can open this — ${slot.filename}` : "Saved."}
@@ -256,4 +232,64 @@ function formatSubmittedAt(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function SlotLinkInput({
+  slot,
+  initialUrl,
+  locked,
+  programmeId,
+  onSaved,
+  onError,
+}: {
+  slot: string;
+  initialUrl: string;
+  locked: boolean;
+  programmeId?: string;
+  onSaved: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const [url, setUrl] = useState(initialUrl);
+  const [baseline, setBaseline] = useState(initialUrl);
+
+  useEffect(() => {
+    setUrl(initialUrl);
+    setBaseline(initialUrl);
+  }, [initialUrl]);
+
+  const { status, error } = useAutosave(
+    url.trim(),
+    baseline.trim(),
+    async (next) => {
+      if (!next) return;
+      onError(null);
+      await putSubmissionLink(slot, next, programmeId);
+      setBaseline(next);
+      onSaved();
+    },
+    800,
+  );
+
+  useEffect(() => {
+    if (error) onError(error);
+  }, [error, onError]);
+
+  return (
+    <div>
+      <input
+        id={`slot-${slot}`}
+        type="url"
+        placeholder="Paste a link"
+        value={url}
+        disabled={locked}
+        onChange={(e) => setUrl(e.target.value)}
+        style={{ flex: "1 1 18rem", width: "100%" }}
+      />
+      {!locked && (
+        <div className="small muted" style={{ marginTop: "0.35rem" }}>
+          {autosaveLabel(status) ?? "Saves when you pause typing"}
+        </div>
+      )}
+    </div>
+  );
 }

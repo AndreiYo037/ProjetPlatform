@@ -131,19 +131,23 @@ def test_a_card_carries_the_work_and_a_signed_snapshot(
     assert "sig=" in link["snapshot_url"]
 
 
-def test_someone_who_declined_sharing_is_not_on_the_company_list(
+def test_someone_who_declined_recruitment_sharing_still_appears_for_judging(
     client, session, programme, manager, cohort
 ):
+    """FR-020 is recruitment consent, not a judging gate.
+
+    Declining share-with-company keeps them out of the candidate pool later;
+    once they have a seat, the company still has to score the work.
+    """
     quiet = make_participant(session, programme, name="Quiet Quinn", consent_share=False)
     submitted(session, quiet)
     sign_in(client, session, manager)
 
     names = {c["name"] for c in client.get(f"/programmes/{programme.id}/submissions").json()}
-    assert "Quiet Quinn" not in names
+    assert "Quiet Quinn" in names
 
     card = client.get(f"/programmes/{programme.id}/participants/{quiet.id}/score")
-    assert card.status_code == 404
-
+    assert card.status_code == 200
 
 def test_the_scoring_card_carries_the_submission_and_the_anchors(
     client, session, programme, manager, cohort

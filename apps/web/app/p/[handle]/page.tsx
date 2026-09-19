@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { SkillTags, SkillsBlock, toTaggedSkills } from "@/components/SkillTags";
 import { API_BASE_URL, assetUrl, type PublicProfile } from "@/lib/api";
+import { formatDay, formatDayRange } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +66,11 @@ export default async function PublicProfilePage({
                 <strong>{credential.company}</strong>
                 <span className="small muted">{credential.programme}</span>
               </div>
+              {formatDayRange(credential.start_at, credential.ended_at) && (
+                <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
+                  {formatDayRange(credential.start_at, credential.ended_at)}
+                </p>
+              )}
               {credential.attesters.length > 0 && (
                 <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
                   Endorsed by {credential.attesters.join(", ")}
@@ -85,11 +91,12 @@ export default async function PublicProfilePage({
                 {testimonial.author_name}
                 {testimonial.author_title && `, ${testimonial.author_title}`} ·{" "}
                 {testimonial.company} · {testimonial.programme}
+                {formatDay(testimonial.published_at) && ` · ${formatDay(testimonial.published_at)}`}
               </div>
               {testimonial.pdf_url && (
                 <p style={{ marginBottom: 0 }}>
                   <a href={assetUrl(testimonial.pdf_url)} target="_blank" rel="noreferrer">
-                    Download PDF
+                    View PDF
                   </a>
                 </p>
               )}

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -114,6 +115,52 @@ def promote_score_skill_tags(session: Session, participant_id: uuid.UUID) -> int
     return created
 
 
+def sync_profile_skills_from_tags(session: Session, participant_id: uuid.UUID) -> int:
+    """Keep the profile in lockstep with what judges have tagged.
+
+    The scoring card says a tag is a claim on the profile. Waiting until
+    closeout left the home page empty after a company had already tagged
+    someone. Closeout still re-runs promotion for anything a late score added.
+    """
+    created = promote_score_skill_tags(session, participant_id)
+    participant = session.get(Participant, participant_id)
+    if participant is None:
+        return created
+
+    tagged = set(
+        session.scalars(
+            select(ScoreSkillTag.skill_id).where(
+                ScoreSkillTag.participant_id == participant_id
+            )
+        )
+    )
+    for row in session.scalars(
+        select(ProfileSkill).where(
+            ProfileSkill.person_id == participant.person_id,
+            ProfileSkill.programme_id == participant.programme_id,
+        )
+    ):
+        if row.skill_id not in tagged:
+            session.delete(row)
+    session.flush()
+    return created
+
+
+def sync_person_skills_from_tags(session: Session, person_id: uuid.UUID) -> int:
+    """Promote every judge tag this person has, across programmes.
+
+    Home and the public profile read ProfileSkill. Tags saved before that
+    promotion ran on every score write still live only on ScoreSkillTag;
+    opening the page has to catch them up or the participant sees nothing.
+    """
+    created = 0
+    for participant_id in session.scalars(
+        select(Participant.id).where(Participant.person_id == person_id)
+    ):
+        created += sync_profile_skills_from_tags(session, participant_id)
+    return created
+
+
 def attested_skills(
     session: Session, person_id: uuid.UUID, *, include_hidden: bool = False
 ) -> AttestedEvidence:
@@ -183,6 +230,8 @@ class ProgrammeEndorsement:
     programme: str
     skills: list[str]
     attesters: list[str]
+    start_at: datetime | None
+    ended_at: datetime | None
 
 
 def endorsements_for(
@@ -199,6 +248,8 @@ def endorsements_for(
             Company.name,
             Programme.title,
             Programme.id,
+            Programme.start_at,
+            Programme.submit_deadline_at,
             Skill.name,
             ProfileSkill.attested_by_name,
             ProfileSkill.created_at,
@@ -215,11 +266,25 @@ def endorsements_for(
 
     groups: dict[uuid.UUID, ProgrammeEndorsement] = {}
     order: list[uuid.UUID] = []
-    for company, title, programme_id, skill, attester, _created in session.execute(query):
+    for (
+        company,
+        title,
+        programme_id,
+        start_at,
+        ended_at,
+        skill,
+        attester,
+        _created,
+    ) in session.execute(query):
         card = groups.get(programme_id)
         if card is None:
             card = ProgrammeEndorsement(
-                company=company, programme=title, skills=[], attesters=[]
+                company=company,
+                programme=title,
+                skills=[],
+                attesters=[],
+                start_at=start_at,
+                ended_at=ended_at,
             )
             groups[programme_id] = card
             order.append(programme_id)

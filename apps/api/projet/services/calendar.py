@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from projet.integrations.google.client import EventSpec, get_google_client
 from projet.models import Company, Programme
+from projet.services.schedule import kickoff_meeting_at
 
 
 def ensure_kickoff_event(session: Session, programme: Programme) -> str | None:
@@ -28,12 +29,13 @@ def ensure_kickoff_event(session: Session, programme: Programme) -> str | None:
     company = session.get(Company, programme.company_id)
     company_name = company.name if company else "a company"
 
+    meeting = kickoff_meeting_at(programme.start_at)
     google = get_google_client()
     result = google.create_event(
         EventSpec(
             summary=f"Kickoff — {programme.title} ({company_name})",
-            starts_at=programme.start_at,
-            ends_at=programme.start_at + timedelta(hours=1),
+            starts_at=meeting,
+            ends_at=meeting + timedelta(hours=1),
             description=(
                 f"Kickoff call for {programme.title}.\n\n"
                 f"Company: {company_name}\n"

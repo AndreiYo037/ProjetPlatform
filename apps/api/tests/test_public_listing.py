@@ -21,7 +21,7 @@ from projet.models import PlatformUser, Role
 from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import next_kickoff
+from tests.conftest import next_end, next_kickoff
 
 
 @pytest.fixture
@@ -94,6 +94,7 @@ def make_programme(
             "capacity": capacity,
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
@@ -156,7 +157,7 @@ def test_an_unknown_company_slug_404s(client):
 # -- platform directory (FR-105) ---------------------------------------------
 
 
-def test_the_directory_only_lists_open_programmes_across_companies(
+def test_the_directory_lists_active_programmes_across_companies(
     client, session, admin, roles
 ):
     role_id = roles["data-analytics"].id
@@ -178,7 +179,33 @@ def test_the_directory_only_lists_open_programmes_across_companies(
     slugs = {(row["company_slug"], row["programme_slug"]) for row in body}
     assert ("acme3", "acme-open") in slugs
     assert ("beta", "beta-draft") not in slugs
-    assert all(row["state"] == "open" for row in body)
+    assert all(row["state"] in ("open", "closed") for row in body)
+
+
+def test_a_challenge_with_closed_applications_still_lists_as_active(
+    client, session, admin, roles
+):
+    """Apps shut, week not over → state closed, still in the directory."""
+    import uuid
+
+    from projet.models import Programme
+    from projet.models.base import utcnow
+
+    role_id = roles["data-analytics"].id
+    acme = make_company(client, session, admin, name="AcmeClosed", slug="acme-closed")
+    programme_id = make_programme(
+        client, session, admin, company_id=acme, role_id=role_id,
+        title="Apps closed", slug="apps-closed",
+    )
+    programme = session.get(Programme, uuid.UUID(programme_id))
+    assert programme is not None
+    programme.applications_close_at = utcnow() - timedelta(hours=1)
+    session.flush()
+
+    client.cookies.clear()
+    body = client.get("/public/challenges").json()
+    row = next(r for r in body if r["programme_slug"] == "apps-closed")
+    assert row["state"] == "closed"
 
 
 def test_the_directory_filters_by_role_slug(client, session, admin, roles):

@@ -52,14 +52,8 @@ from projet.services.rubric import (
     validate_for_publication,
 )
 from projet.services.schedule import (
-    KICKOFF_WEEKDAY_NAME,
-    Schedule,
     ScheduleError,
-    next_kickoff_days,
-    validate_applications_close,
-)
-from projet.services.schedule import (
-    derive as derive_schedule,
+    bind_dates,
 )
 from projet.storage import get_storage
 
@@ -78,7 +72,11 @@ class ProgrammeCreate(BaseModel):
     applications_close_at: datetime | None = None
     start_at: datetime | None = Field(
         default=None,
-        description="Kickoff. Must be a Wednesday; the deadline and pitch day derive from it.",
+        description="First day. Stored as 00:00 in the programme timezone.",
+    )
+    submit_deadline_at: datetime | None = Field(
+        default=None,
+        description="Last day. Stored as 23:59 in the programme timezone.",
     )
     # Usually filled in later, from a draft the company accepts and edits. They
     # are accepted here so a caller who already knows the brief is not forced
@@ -89,12 +87,7 @@ class ProgrammeCreate(BaseModel):
 
 
 class ProgrammeUpdate(BaseModel):
-    """The submission deadline and pitch day are not settable.
-
-    They derive from kickoff (see services/schedule.py), so letting either be
-    edited independently would let a programme drift out of the shape every
-    participant was promised at application time.
-    """
+    """The company picks the days; times of day are pinned on the server."""
 
     title: str | None = None
     brief_url: str | None = None
@@ -104,6 +97,7 @@ class ProgrammeUpdate(BaseModel):
     applications_open_at: datetime | None = None
     applications_close_at: datetime | None = None
     start_at: datetime | None = None
+    submit_deadline_at: datetime | None = None
     winners_count: int | None = None
 
 
@@ -155,8 +149,6 @@ def _resource_out(resource: DataPackResource) -> dict:
         "licence": resource.licence,
         "included": resource.included,
         "confidential": resource.confidential,
-        # Seeded public sources are the role's, not the company's, so the UI
-        # offers them a toggle where an upload also gets a delete.
         "uploaded": resource.provenance is not Provenance.PUBLIC,
         "verification_status": resource.verification_status.value,
         "last_verified_at": (
@@ -249,7 +241,9 @@ def create_programme(
         raise HTTPException(status.HTTP_409_CONFLICT, "That slug is taken for this company.")
 
     try:
-        clock = _clock(payload.start_at, payload.applications_close_at)
+        start_at, end_at, close_at = bind_dates(
+            payload.start_at, payload.submit_deadline_at, payload.applications_close_at
+        )
     except ScheduleError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
@@ -263,9 +257,9 @@ def create_programme(
         # Individuals only: one submission, one pitch, one verdict per person.
         team_size_max=1,
         applications_open_at=payload.applications_open_at,
-        applications_close_at=payload.applications_close_at,
-        start_at=payload.start_at,
-        submit_deadline_at=clock.submit_deadline_at if clock else None,
+        applications_close_at=close_at,
+        start_at=start_at,
+        submit_deadline_at=end_at,
         problem_statement=payload.problem_statement,
         deliverable_spec=payload.deliverable_spec,
         winners_count=payload.winners_count,
@@ -279,78 +273,8 @@ def create_programme(
     except RubricError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
-    _seed_data_pack_from_role(db, programme)
     db.commit()
     return _detail(db, programme)
-
-
-def _clock(start_at: datetime | None, close_at: datetime | None) -> Schedule | None:
-    """Validate and expand the kickoff date, where one has been set.
-
-    A draft is allowed to exist without dates — a company often picks the role
-    and writes the brief before it knows which Wednesday it wants. Publication
-    is where the date becomes mandatory.
-    """
-    if start_at is None:
-        return None
-    clock = derive_schedule(start_at)
-    validate_applications_close(close_at, clock.kickoff_at)
-    return clock
-
-
-def _seed_data_pack_from_role(db: Session, programme: Programme) -> None:
-    """FR-055/FR-057 — the role's validated public sources become the starting
-    data pack. Unverified entries stay unverified; provenance is visible."""
-    registry = db.scalars(
-        select(DataPackResource).where(DataPackResource.role_id == programme.role_id)
-    )
-    for source in registry:
-        db.add(
-            DataPackResource(
-                programme_id=programme.id,
-                label=source.label,
-                url_or_storage_key=source.url_or_storage_key,
-                provenance=Provenance.PUBLIC,
-                licence=source.licence,
-                verification_status=source.verification_status,
-                last_verified_at=source.last_verified_at,
-            )
-        )
-
-
-class KickoffOption(BaseModel):
-    """One choosable week, expanded server-side.
-
-    The company picks a kickoff and the other two dates follow. Sending all
-    three means the picker can show a participant-facing promise ("pitches on
-    the 22nd") without the browser re-deriving a rule that lives on the server.
-    """
-
-    kickoff_at: datetime
-    submit_deadline_at: datetime
-    pitch_at: datetime
-
-
-@router.get("/programmes/kickoff-days", response_model=list[KickoffOption])
-def kickoff_days(
-    actor: Actor = Depends(require_company_manager),
-) -> list[KickoffOption]:
-    """The Wednesdays a company may choose from.
-
-    Offering the list is what makes the weekday rule invisible: nobody types a
-    date that is then rejected.
-    """
-    options: list[KickoffOption] = []
-    for day in next_kickoff_days(utcnow()):
-        clock = derive_schedule(day)
-        options.append(
-            KickoffOption(
-                kickoff_at=clock.kickoff_at,
-                submit_deadline_at=clock.submit_deadline_at,
-                pitch_at=clock.pitch_at,
-            )
-        )
-    return options
 
 
 @router.get("/programmes/{programme_id}", response_model=ProgrammeDetail)
@@ -372,15 +296,20 @@ def update_programme(
     for field, value in changes.items():
         setattr(programme, field, value)
 
-    # Re-derive whenever either end of the clock moves, so the deadline can
-    # never be left pointing at the previous kickoff week.
-    if "start_at" in changes or "applications_close_at" in changes:
+    if {"start_at", "submit_deadline_at", "applications_close_at"} & changes.keys():
         try:
-            clock = _clock(programme.start_at, programme.applications_close_at)
+            start_at, end_at, close_at = bind_dates(
+                programme.start_at,
+                programme.submit_deadline_at,
+                programme.applications_close_at,
+            )
         except ScheduleError as error:
             db.rollback()
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
-        programme.submit_deadline_at = clock.submit_deadline_at if clock else None
+        programme.start_at = start_at
+        programme.submit_deadline_at = end_at
+        if programme.applications_close_at is not None:
+            programme.applications_close_at = close_at
 
     db.commit()
     return _detail(db, programme)
@@ -438,9 +367,8 @@ def publication_check(
 def _setup_problems(programme: Programme) -> list[str]:
     """What blocks this from going live.
 
-    Only the kickoff date is a hard block: nothing else on the programme's
-    clock (deadline, pitch day) can be computed without it, and the apply
-    form's commitment checkbox has no dates to name. The problem statement,
+    Start and end dates are the hard block: the apply form's commitment
+    checkbox has no days to name without them. The problem statement,
     deliverable and applications-close date are left to the company's
     judgement instead of enforced here — a company can publish a bare-bones
     shell to test the pipeline end to end and fill in the brief before a real
@@ -449,7 +377,9 @@ def _setup_problems(programme: Programme) -> list[str]:
     """
     problems: list[str] = []
     if programme.start_at is None:
-        problems.append(f"No kickoff {KICKOFF_WEEKDAY_NAME} has been picked.")
+        problems.append("No start date has been picked.")
+    if programme.submit_deadline_at is None:
+        problems.append("No end date has been picked.")
     return problems
 
 
@@ -474,9 +404,9 @@ def publish_programme(
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
     """FR-075 — validation blocks publication with an incomplete rubric, and
-    the one hard setup requirement (a kickoff date) runs again here, because
-    the company is not the only caller. The brief and applications-close date
-    are the company's judgement call, not a gate — see _setup_problems.
+    the start and end dates run again here, because the company is not the
+    only caller. The brief and applications-close date are the company's
+    judgement call, not a gate — see _setup_problems.
     """
     setup = _setup_problems(programme)
     if setup:
@@ -535,6 +465,7 @@ def get_data_pack(
     resources = db.scalars(
         select(DataPackResource)
         .where(DataPackResource.programme_id == programme.id)
+        .where(DataPackResource.provenance != Provenance.PUBLIC)
         .order_by(DataPackResource.created_at)
     )
     return [_resource_out(r) for r in resources]
@@ -547,8 +478,7 @@ def add_data_pack_resource(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_company_manager),
 ) -> dict:
-    """FR-066 — the public-data pack is the default, not the constraint.
-    A company that will share real data produces a better challenge."""
+    """Add a link the company wants participants to work from."""
     resource = DataPackResource(
         programme_id=programme.id,
         label=payload.label,
@@ -654,18 +584,8 @@ def delete_data_pack_resource(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_company_manager),
 ) -> Response:
-    """Only what the company put there.
-
-    A seeded public source belongs to the role's registry; deleting it here
-    would lose it for this programme with no way back, so it is excluded
-    instead and the message says so.
-    """
+    """Remove a resource the company put on this programme."""
     resource = _resource_or_404(db, programme, resource_id)
-    if resource.provenance is Provenance.PUBLIC:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            "That is one of the role's public sources. Exclude it instead of deleting it.",
-        )
     if is_storage_key(resource.url_or_storage_key):
         get_storage().delete(resource.url_or_storage_key)
     db.delete(resource)

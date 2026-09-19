@@ -94,7 +94,7 @@ export default function JudgingPage({
       <h1 style={{ marginTop: "0.5rem" }}>Judging</h1>
       <p className="lede">
         {programme?.title}
-        {programme?.pitch_at && ` · pitches ${new Date(programme.pitch_at).toLocaleString()}`}
+        {programme?.submit_deadline_at && ` · ends ${new Date(programme.submit_deadline_at).toLocaleDateString()}`}
       </p>
 
       {cards.length === 0 ? (

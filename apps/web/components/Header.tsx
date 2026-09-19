@@ -53,7 +53,7 @@ export default function Header() {
       <Link href="/" className="brand">
         Projet
       </Link>
-      <div className="row">
+      <nav className="bar-links">
         {!checked ? null : actor ? (
           <>
             <span className="small muted">
@@ -94,7 +94,7 @@ export default function Header() {
             Sign in
           </Link>
         )}
-      </div>
+      </nav>
     </header>
   );
 }

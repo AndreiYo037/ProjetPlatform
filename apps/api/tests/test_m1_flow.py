@@ -23,7 +23,7 @@ from projet.models.enums import ActorType
 from projet.outbox.worker import run_once
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import next_kickoff
+from tests.conftest import next_end, next_kickoff
 
 
 @pytest.fixture
@@ -99,6 +99,7 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
             "capacity": 1,
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
@@ -113,9 +114,9 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
     assert criteria[1]["name"] == "Data handling"
     assert all(c["anchor_5"] for c in criteria)
 
-    # The data pack is seeded from the role's registry, provenance visible.
+    # The data pack starts empty — the company adds what participants need.
     data_pack = client.get(f"/programmes/{programme_id}/data-pack").json()
-    assert data_pack and all(r["provenance"] == "public" for r in data_pack)
+    assert data_pack == []
 
     check = client.get(f"/programmes/{programme_id}/publication-check").json()
     assert check["ready"] is True, check["problems"]
@@ -314,6 +315,7 @@ def test_the_writeup_has_no_word_range(client, session, admin, seeded):
             "slug": "words-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
@@ -362,6 +364,7 @@ def test_an_application_can_decline_both_consents(client, session, admin, seeded
             "slug": "consent-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
@@ -416,6 +419,7 @@ def test_a_non_google_address_warns_without_blocking(client, session, admin, see
             "slug": "warn-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
             "start_at": next_kickoff().isoformat(),
+            "submit_deadline_at": next_end().isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },

@@ -34,7 +34,6 @@ from projet.models.enums import (
     CompanyUserRole,
     CompanyUserStatus,
     OutboxSubjectType,
-    ProgrammeStatus,
 )
 from projet.models.people import normalise_email
 from projet.outbox.account_effects import SET_PASSWORD_EMAIL
@@ -52,23 +51,10 @@ from projet.services.branding import (
     new_logo_key,
 )
 from projet.services.people import looks_like_email
+from projet.services.schedule import programme_is_past
 from projet.storage import StorageError, get_storage
 
 router = APIRouter(tags=["companies"])
-
-
-def _programme_is_past(programme: Programme, now) -> bool:
-    """Past only once the week is over.
-
-    Status alone does not bury a programme: a company can run several at once,
-    and a closed-out challenge whose pitch is still ahead stays under Active.
-    Prefer the pitch day; fall back to the submit deadline when kickoff was
-    never set. With neither date, only an already-complete row is past.
-    """
-    end = programme.pitch_at or programme.submit_deadline_at
-    if end is not None:
-        return end <= now
-    return programme.status == ProgrammeStatus.COMPLETE
 
 
 class CompanyCreate(BaseModel):
@@ -294,8 +280,8 @@ def company_home(
         else {}
     )
     now = utcnow()
-    active = [p for p in programmes if not _programme_is_past(p, now)]
-    past = [p for p in programmes if _programme_is_past(p, now)]
+    active = [p for p in programmes if not programme_is_past(p, now)]
+    past = [p for p in programmes if programme_is_past(p, now)]
     # Newest work first on Active; most recently finished first on Past.
     active.sort(key=lambda p: p.created_at, reverse=True)
     past.sort(
