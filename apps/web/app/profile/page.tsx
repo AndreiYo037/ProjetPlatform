@@ -6,9 +6,9 @@ import ParticipantProfile from "@/components/ParticipantProfile";
 import { useActor } from "@/lib/useActor";
 
 /**
- * The details you maintain about yourself — name, school, title.
+ * The details you maintain about yourself — name, emails, CV, school or role.
  *
- * Separate from Home (the portfolio) so editing a CV field is never mixed
+ * Separate from Home (the portfolio) so editing account fields is never mixed
  * with evidence a judge put there.
  */
 export default function UpdateProfilePage() {

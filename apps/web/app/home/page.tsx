@@ -15,11 +15,11 @@ import {
 import { useActor } from "@/lib/useActor";
 
 /**
- * Home is the portfolio: skills, credentials, and what they said — and the
- * open challenges they can still apply to.
+ * Home is the portfolio first (skills, credentials, testimonials), then open
+ * challenges to apply to at the bottom.
  *
- * Details you maintain (name, school) sit behind Update profile. The programme
- * you are on sits behind My programme.
+ * Details you maintain (name, school) sit behind Update profile. The
+ * programme(s) you are on sit behind My programmes.
  *
  * No scores, ever. FR-1004 keeps them out of the schema.
  */
@@ -69,20 +69,6 @@ export default function ParticipantHomePage() {
             } completed.`}
       </p>
 
-      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-        <h2 style={{ marginBottom: 0 }}>Open challenges</h2>
-        <Link className="small" href="/challenges">
-          Browse all
-        </Link>
-      </div>
-      {openChallenges === null ? (
-        <p className="muted">Loading challenges…</p>
-      ) : openChallenges.length === 0 ? (
-        <p className="muted">No open challenges right now — check back soon.</p>
-      ) : (
-        <ChallengeCards items={openChallenges} />
-      )}
-
       {empty && (
         <div className="notice">
           Skills and credentials fill in after you pitch.
@@ -131,6 +117,20 @@ export default function ParticipantHomePage() {
             </div>
           ))}
         </>
+      )}
+
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+        <h2 style={{ marginBottom: 0 }}>Open challenges</h2>
+        <Link className="small" href="/challenges">
+          Browse all
+        </Link>
+      </div>
+      {openChallenges === null ? (
+        <p className="muted">Loading challenges…</p>
+      ) : openChallenges.length === 0 ? (
+        <p className="muted">No open challenges right now — check back soon.</p>
+      ) : (
+        <ChallengeCards items={openChallenges} />
       )}
     </main>
   );

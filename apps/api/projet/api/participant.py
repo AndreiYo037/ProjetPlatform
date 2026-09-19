@@ -10,14 +10,15 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from projet.api.deps import require_participant
 from projet.db import get_session
 from projet.models import (
+    Company,
     JudgingSession,
     Participant,
     Person,
@@ -32,7 +33,8 @@ from projet.models import (
     Thread,
 )
 from projet.models.base import utcnow
-from projet.models.enums import ArtifactVisibility, ProgrammeStatus, SubmissionSlot
+from projet.models.enums import ArtifactVisibility, OrgType, ProgrammeStatus, SubmissionSlot
+from projet.models.people import normalise_email
 from projet.services.auth import Actor
 from projet.services.closeout import credentials_for
 from projet.services.data_pack import released_resources, resource_url
@@ -42,6 +44,7 @@ from projet.services.messaging import (
     unread_counts,
     visible_threads,
 )
+from projet.services.people import looks_like_email
 from projet.services.profile import (
     attested_skills,
     endorsements_for,
@@ -69,29 +72,39 @@ from projet.services.submission import (
     set_upload,
     submission_for_participant,
 )
-from projet.storage import sign_key
+from projet.storage import get_storage, sign_key
 
 router = APIRouter(prefix="/me", tags=["participant"])
 
 MAX_SUBMISSION_UPLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_SUBMISSION_UPLOAD_TYPES = {"application/pdf"}
+MAX_CV_BYTES = 5 * 1024 * 1024
+ALLOWED_CV_TYPES = {"application/pdf"}
 
 
 class ProfileOut(BaseModel):
     name: str
+    # Contact inbox — what we email you on. Kept as `email` for existing clients.
     email: str
+    google_email: str | None = None
     organisation: str | None = None
+    # school → student, company → professional, association → other on the form.
+    org_type: str | None = None
     year_course: str | None = None
     job_title: str | None = None
-    phone: str | None = None
+    linkedin_url: str | None = None
+    cv_url: str | None = None
 
 
 class ProfileUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=200)
+    email: str | None = Field(default=None, max_length=320)
+    google_email: str | None = Field(default=None, max_length=320)
     organisation: str | None = Field(default=None, max_length=300)
+    org_type: str | None = Field(default=None, max_length=40)
     year_course: str | None = Field(default=None, max_length=300)
     job_title: str | None = Field(default=None, max_length=200)
-    phone: str | None = Field(default=None, max_length=60)
+    linkedin_url: str | None = Field(default=None, max_length=400)
 
 
 def _person(db: Session, actor: Actor) -> Person:
@@ -101,14 +114,53 @@ def _person(db: Session, actor: Actor) -> Person:
     return person
 
 
+def _signed_cv_url(key: str | None) -> str | None:
+    if not key:
+        return None
+    return f"/files/{key}?sig={sign_key(key)}"
+
+
+def _looks_like_linkedin(url: str) -> bool:
+    lowered = url.strip().lower()
+    if not lowered.startswith(("http://", "https://", "linkedin.com", "www.linkedin.com")):
+        return False
+    return "linkedin.com/" in lowered
+
+
+def _parse_org_type(value: str | None) -> OrgType | None:
+    if value is None:
+        return None
+    cleaned = value.strip().lower()
+    if not cleaned:
+        return None
+    aliases = {
+        "student": OrgType.SCHOOL,
+        "school": OrgType.SCHOOL,
+        "professional": OrgType.COMPANY,
+        "company": OrgType.COMPANY,
+        "other": OrgType.ASSOCIATION,
+        "association": OrgType.ASSOCIATION,
+    }
+    mapped = aliases.get(cleaned)
+    if mapped is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Type must be student, professional, or other.",
+        )
+    return mapped
+
+
 def _profile_out(person: Person) -> ProfileOut:
     return ProfileOut(
         name=person.name,
         email=person.contact_email,
+        google_email=person.google_email,
         organisation=person.organisation,
+        org_type=person.org_type.value if person.org_type else None,
         year_course=person.year_course,
         job_title=person.job_title,
-        phone=person.phone,
+        linkedin_url=person.linkedin_url,
+        cv_url=_signed_cv_url(person.cv_url),
     )
 
 
@@ -616,36 +668,112 @@ def update_profile(
     person = _person(db, actor)
     before = (
         person.name,
+        person.contact_email,
+        person.google_email,
         person.organisation,
+        person.org_type,
         person.year_course,
         person.job_title,
-        person.phone,
+        person.linkedin_url,
+        person.cv_url,
     )
     if payload.name is not None:
         name = payload.name.strip()
         if not name:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Name is required.")
         person.name = name
+    if payload.email is not None:
+        email = normalise_email(payload.email)
+        if not email or not looks_like_email(email):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Contact email is invalid.")
+        taken = db.scalar(
+            select(Person.id).where(
+                func.lower(Person.contact_email) == email,
+                Person.id != person.id,
+            )
+        )
+        if taken is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "That contact email is already on another account.",
+            )
+        person.contact_email = email
+    if payload.google_email is not None:
+        google = normalise_email(payload.google_email)
+        if google and not looks_like_email(google):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Google account email is invalid.",
+            )
+        person.google_email = google or None
     if payload.organisation is not None:
         person.organisation = payload.organisation.strip() or None
-    if payload.year_course is not None:
-        person.year_course = payload.year_course.strip() or None
-    if payload.job_title is not None:
-        person.job_title = payload.job_title.strip() or None
-    if payload.phone is not None:
-        person.phone = payload.phone.strip() or None
+    if payload.org_type is not None:
+        person.org_type = _parse_org_type(payload.org_type)
+    if payload.linkedin_url is not None:
+        linkedin = payload.linkedin_url.strip() or None
+        if linkedin is not None and not _looks_like_linkedin(linkedin):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "That does not look like a LinkedIn profile URL.",
+            )
+        person.linkedin_url = linkedin
+
+    # Type decides which of year/course and job title is kept.
+    org_type = person.org_type
+    if payload.year_course is not None or payload.job_title is not None or payload.org_type is not None:
+        if org_type == OrgType.SCHOOL:
+            if payload.year_course is not None:
+                person.year_course = payload.year_course.strip() or None
+            person.job_title = None
+        else:
+            if payload.job_title is not None:
+                person.job_title = payload.job_title.strip() or None
+            person.year_course = None
+
     after = (
         person.name,
+        person.contact_email,
+        person.google_email,
         person.organisation,
+        person.org_type,
         person.year_course,
         person.job_title,
-        person.phone,
+        person.linkedin_url,
+        person.cv_url,
     )
     if before != after:
         from projet.outbox.profile_effects import notify_watchers_candidate_edited
 
         notify_watchers_candidate_edited(db, person=person)
     db.commit()
+    db.refresh(person)
+    return _profile_out(person)
+
+
+@router.post("/profile/cv", response_model=ProfileOut)
+async def upload_profile_cv(
+    file: UploadFile = File(),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> ProfileOut:
+    """Replace the CV on the person record. PDF only, under 5MB."""
+    person = _person(db, actor)
+    if file.content_type not in ALLOWED_CV_TYPES:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "CV must be a PDF.")
+    content = await file.read()
+    if len(content) > MAX_CV_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "CV must be under 5MB.")
+    previous = person.cv_url
+    key = f"cvs/people/{person.id}/{uuid.uuid4().hex}.pdf"
+    get_storage().put(key, content, "application/pdf")
+    person.cv_url = key
+    from projet.outbox.profile_effects import notify_watchers_candidate_edited
+
+    notify_watchers_candidate_edited(db, person=person)
+    db.commit()
+    if previous and previous != key:
+        get_storage().delete(previous)
     db.refresh(person)
     return _profile_out(person)
 
@@ -716,11 +844,24 @@ class JudgingSlot(BaseModel):
     run_order: int | None
 
 
+class ProgrammeChoice(BaseModel):
+    """One programme the signed-in person is on — for switching when several
+    are active at once."""
+
+    id: uuid.UUID
+    title: str
+    company: str
+    role: str
+    status: str
+
+
 class Dashboard(BaseModel):
     """FR-501 to FR-507 — what do I do, by when, and where."""
 
     provisioning: bool
     programme: ProgrammeCard
+    active_programmes: list[ProgrammeChoice]
+    past_programmes: list[ProgrammeChoice]
     submission: SubmissionOut | None
     judging: JudgingSlot | None
     criteria: list[CriterionPublic]
@@ -729,30 +870,77 @@ class Dashboard(BaseModel):
     blocking_acknowledgements: list[ThreadSummary]
 
 
-def _participant(db: Session, actor: Actor) -> Participant:
-    """The signed-in person's current participation.
+def _programme_is_past(programme: Programme, now) -> bool:
+    """Same rule as company home: past only once the week is over."""
+    end = programme.pitch_at or programme.submit_deadline_at
+    if end is not None:
+        return end <= now
+    return programme.status == ProgrammeStatus.COMPLETE
 
-    A person can have several across cohorts; the live one wins, and the most
-    recent otherwise, so a returning participant lands on what they are doing
-    now rather than something from last year.
-    """
-    live = (
-        select(Participant)
-        .join(Programme, Participant.programme_id == Programme.id)
-        .where(Participant.person_id == actor.id)
-        .where(Programme.status.not_in([ProgrammeStatus.COMPLETE]))
-        .order_by(Programme.start_at.desc().nullslast())
+
+def _participations_for(db: Session, person_id: uuid.UUID) -> list[tuple[Participant, Programme]]:
+    return list(
+        db.execute(
+            select(Participant, Programme)
+            .join(Programme, Participant.programme_id == Programme.id)
+            .where(Participant.person_id == person_id)
+            .order_by(Programme.start_at.desc().nullslast(), Participant.created_at.desc())
+        ).all()
     )
-    participant = db.scalars(live).first()
-    if participant is None:
-        participant = db.scalars(
-            select(Participant)
-            .where(Participant.person_id == actor.id)
-            .order_by(Participant.created_at.desc())
-        ).first()
-    if participant is None:
+
+
+def _programme_choice(db: Session, programme: Programme) -> ProgrammeChoice:
+    role = db.get(Role, programme.role_id)
+    company = db.get(Company, programme.company_id)
+    return ProgrammeChoice(
+        id=programme.id,
+        title=programme.title,
+        company=company.name if company else "",
+        role=role.name if role else "",
+        status=programme.status.value,
+    )
+
+
+def _participant(
+    db: Session,
+    actor: Actor,
+    programme_id: uuid.UUID | None = None,
+) -> Participant:
+    """The signed-in person's participation for a programme.
+
+    A person can be on several programmes at once. When no programme_id is
+    given, prefer the most recent still-active one (deadline not yet passed);
+    fall back to the most recent overall so a returning participant still
+    lands somewhere after everything ends.
+    """
+    rows = _participations_for(db, actor.id)
+    if not rows:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "You are not on a programme yet.")
-    return participant
+    if programme_id is not None:
+        for participant, programme in rows:
+            if programme.id == programme_id:
+                return participant
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "You are not on that programme.")
+    now = utcnow()
+    for participant, programme in rows:
+        if not _programme_is_past(programme, now):
+            return participant
+    return rows[0][0]
+
+
+def _programme_lists(
+    db: Session, person_id: uuid.UUID
+) -> tuple[list[ProgrammeChoice], list[ProgrammeChoice]]:
+    now = utcnow()
+    active: list[ProgrammeChoice] = []
+    past: list[ProgrammeChoice] = []
+    for _, programme in _participations_for(db, person_id):
+        choice = _programme_choice(db, programme)
+        if _programme_is_past(programme, now):
+            past.append(choice)
+        else:
+            active.append(choice)
+    return active, past
 
 
 def _thread_summary(db: Session, thread: Thread, unread: int, acknowledged: bool) -> ThreadSummary:
@@ -816,18 +1004,18 @@ def _require_submission_out(db: Session, participant: Participant) -> Submission
 
 @router.get("/dashboard", response_model=Dashboard)
 def dashboard(
+    programme_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_participant),
 ) -> Dashboard:
-    participant = _participant(db, actor)
+    participant = _participant(db, actor, programme_id)
     programme = db.get(Programme, participant.programme_id)
     if programme is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That programme no longer exists.")
     role = db.get(Role, programme.role_id)
     template = db.get(RoleTemplate, programme.role_id)
-    from projet.models import Company
-
     company = db.get(Company, programme.company_id)
+    active_programmes, past_programmes = _programme_lists(db, actor.id)
 
     submission = _submission_out(db, participant)
     # FR-506 — a fresh acceptance must never see a half-configured dashboard.
@@ -884,6 +1072,8 @@ def dashboard(
             # FR-501/FR-1602 — stored UTC, rendered in their timezone.
             timezone=participant.person.timezone,
         ),
+        active_programmes=active_programmes,
+        past_programmes=past_programmes,
         submission=submission,
         judging=judging,
         criteria=[
@@ -919,11 +1109,12 @@ class LinkRequest(BaseModel):
 @router.put("/submission/link", response_model=SubmissionOut)
 def put_link(
     payload: LinkRequest,
+    programme_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_participant),
 ) -> SubmissionOut:
     """FR-802 — checked the moment it is pasted, with the answer inline."""
-    participant = _participant(db, actor)
+    participant = _participant(db, actor, programme_id)
     submission = submission_for_participant(db, participant)
     if submission is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
@@ -939,12 +1130,13 @@ def put_link(
 async def upload_slot(
     slot: str = Form(pattern="^(artifact|memo|extra)$"),
     file: UploadFile = File(),
+    programme_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_participant),
 ) -> SubmissionOut:
     """A slot filled by upload rather than a Drive link — a memo is one static
     document, not something worth keeping live and editable."""
-    participant = _participant(db, actor)
+    participant = _participant(db, actor, programme_id)
     submission = submission_for_participant(db, participant)
     if submission is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
@@ -973,10 +1165,11 @@ async def upload_slot(
 @router.delete("/submission/link/{slot}", response_model=SubmissionOut)
 def delete_link(
     slot: str,
+    programme_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_participant),
 ) -> SubmissionOut:
-    participant = _participant(db, actor)
+    participant = _participant(db, actor, programme_id)
     submission = submission_for_participant(db, participant)
     if submission is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No submission yet.")
@@ -990,11 +1183,12 @@ def delete_link(
 
 @router.post("/submission/recheck", response_model=SubmissionOut)
 def recheck_links(
+    programme_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_participant),
 ) -> SubmissionOut:
     """ "I've fixed the sharing setting" — check again without re-pasting."""
-    participant = _participant(db, actor)
+    participant = _participant(db, actor, programme_id)
     submission = submission_for_participant(db, participant)
     if submission is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No submission yet.")
@@ -1007,10 +1201,11 @@ def recheck_links(
 def read_thread(
     thread_id: uuid.UUID,
     acknowledge: bool = False,
+    programme_id: uuid.UUID | None = Query(default=None),
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_participant),
 ) -> None:
-    participant = _participant(db, actor)
+    participant = _participant(db, actor, programme_id)
     thread = db.get(Thread, thread_id)
     if thread is None or thread.programme_id != participant.programme_id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Thread not found.")

@@ -357,10 +357,36 @@ def test_a_participant_can_edit_their_profile_after_signup(client):
         "/auth/signup",
         json={"actor_type": "participant", "email": "ada@school.test", "password": "hunter22"},
     )
-    response = client.patch("/me/profile", json={"name": "Ada Lovelace", "organisation": "NUS"})
-    assert response.status_code == 200
-    assert response.json()["name"] == "Ada Lovelace"
-    assert response.json()["organisation"] == "NUS"
+    response = client.patch(
+        "/me/profile",
+        json={
+            "name": "Ada Lovelace",
+            "organisation": "NUS",
+            "org_type": "student",
+            "year_course": "Year 2, Computing",
+            "google_email": "ada@gmail.com",
+            "linkedin_url": "https://www.linkedin.com/in/ada",
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["name"] == "Ada Lovelace"
+    assert body["organisation"] == "NUS"
+    assert body["org_type"] == "school"
+    assert body["year_course"] == "Year 2, Computing"
+    assert body["job_title"] is None
+    assert body["google_email"] == "ada@gmail.com"
+    assert body["linkedin_url"] == "https://www.linkedin.com/in/ada"
+    assert body["email"] == "ada@school.test"
+
+    professional = client.patch(
+        "/me/profile",
+        json={"org_type": "professional", "job_title": "Analyst"},
+    )
+    assert professional.status_code == 200, professional.text
+    assert professional.json()["org_type"] == "company"
+    assert professional.json()["job_title"] == "Analyst"
+    assert professional.json()["year_course"] is None
 
 
 def test_a_company_can_edit_its_profile_after_signup(client):

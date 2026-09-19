@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import Channel from "@/components/Channel";
 import Countdown from "@/components/Countdown";
@@ -17,6 +18,9 @@ import { useActor } from "@/lib/useActor";
  * three. The brief and the rubric matter, but they are read once and consulted
  * after, so they sit behind a button rather than above the conversation.
  *
+ * A person can be on several programmes at once. When they are, the switcher
+ * above the title picks which one this page is about.
+ *
  * The participant's own details are not here — they belong to the person, not
  * the programme, and live on Home.
  */
@@ -31,6 +35,16 @@ const SECTIONS = [
 type SectionKey = (typeof SECTIONS)[number]["key"];
 
 export default function ProgrammePage() {
+  return (
+    <Suspense fallback={<main><p className="muted">Loading…</p></main>}>
+      <ProgrammePageInner />
+    </Suspense>
+  );
+}
+
+function ProgrammePageInner() {
+  const searchParams = useSearchParams();
+  const programmeId = searchParams.get("programme") ?? undefined;
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<SectionKey>("messages");
@@ -40,11 +54,12 @@ export default function ProgrammePage() {
   const load = useCallback(async () => {
     if (!ready) return;
     try {
-      setData(await getDashboard());
+      setError(null);
+      setData(await getDashboard(programmeId));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load your programme.");
     }
-  }, [ready]);
+  }, [ready, programmeId]);
 
   useEffect(() => {
     load();
@@ -80,9 +95,19 @@ export default function ProgrammePage() {
 
   if (!data) return <main><p className="muted">Loading…</p></main>;
 
+  const allProgrammes = [...data.active_programmes, ...data.past_programmes];
+  const showSwitcher = allProgrammes.length > 1;
+
   if (data.provisioning) {
     return (
       <main className="narrow">
+        {showSwitcher && (
+          <ProgrammeSwitcher
+            active={data.active_programmes}
+            past={data.past_programmes}
+            currentId={data.programme.id}
+          />
+        )}
         <h1>{data.programme.title}</h1>
         <div className="notice">
           <strong>Setting up your place.</strong>
@@ -101,6 +126,14 @@ export default function ProgrammePage() {
         ← Home
       </Link>
 
+      {showSwitcher && (
+        <ProgrammeSwitcher
+          active={data.active_programmes}
+          past={data.past_programmes}
+          currentId={data.programme.id}
+        />
+      )}
+
       <h1 style={{ marginTop: "0.4rem" }}>{data.programme.title}</h1>
       <p className="lede">
         {data.programme.company} · {data.programme.role}
@@ -116,7 +149,7 @@ export default function ProgrammePage() {
           </p>
           <button
             onClick={async () => {
-              await markThreadRead(thread.id, true);
+              await markThreadRead(thread.id, true, data.programme.id);
               load();
             }}
           >
@@ -149,7 +182,11 @@ export default function ProgrammePage() {
 
       {section === "submission" && (
         <>
-          <SubmissionPanel submission={data.submission} onChange={load} />
+          <SubmissionPanel
+            submission={data.submission}
+            programmeId={data.programme.id}
+            onChange={load}
+          />
           {data.judging && (
             <>
               <h2>Your pitch</h2>
@@ -255,5 +292,58 @@ export default function ProgrammePage() {
         </>
       )}
     </main>
+  );
+}
+
+function ProgrammeSwitcher({
+  active,
+  past,
+  currentId,
+}: {
+  active: Dashboard["active_programmes"];
+  past: Dashboard["past_programmes"];
+  currentId: string;
+}) {
+  return (
+    <div style={{ margin: "0.75rem 0 0.25rem" }}>
+      {active.length > 0 && (
+        <>
+          <p className="small muted" style={{ marginBottom: "0.35rem" }}>
+            Active programmes
+          </p>
+          <nav className="row" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
+            {active.map((programme) => (
+              <Link
+                key={programme.id}
+                className={`btn small ${programme.id === currentId ? "" : "secondary"}`}
+                href={`/dashboard?programme=${programme.id}`}
+                aria-current={programme.id === currentId ? "page" : undefined}
+              >
+                {programme.title}
+              </Link>
+            ))}
+          </nav>
+        </>
+      )}
+      {past.length > 0 && (
+        <>
+          <p className="small muted" style={{ margin: "0.75rem 0 0.35rem" }}>
+            Past programmes
+          </p>
+          <nav className="row" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
+            {past.map((programme) => (
+              <Link
+                key={programme.id}
+                className={`btn small ${programme.id === currentId ? "" : "secondary"}`}
+                href={`/dashboard?programme=${programme.id}`}
+                aria-current={programme.id === currentId ? "page" : undefined}
+              >
+                {programme.title}
+              </Link>
+            ))}
+          </nav>
+        </>
+      )}
+    </div>
   );
 }

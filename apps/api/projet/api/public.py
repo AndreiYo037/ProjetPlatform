@@ -28,7 +28,6 @@ from projet.models import (
 )
 from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
-from projet.services.auth import hash_password, validate_password
 from projet.services.branding import logo_url
 from projet.services.data_pack import public_preview
 from projet.services.people import google_email_warning, looks_like_email, resolve_person
@@ -317,7 +316,8 @@ def _commitment_refusal(programme: Programme) -> str:
 def _readable(value: datetime | None) -> str | None:
     if value is None:
         return None
-    return value.strftime("%a %-d %b, %H:%M UTC")
+    # Avoid %-d / %#d — neither is portable across Windows and Unix.
+    return value.strftime(f"%a {value.day} %b, %H:%M UTC")
 
 
 class ApplicationAccepted(BaseModel):
@@ -351,14 +351,15 @@ async def apply(
     availability_note: str | None = Form(default=None, max_length=2000),
     consent_share_company: bool = Form(default=False),
     consent_recording: bool = Form(default=False),
-    password: str = Form(min_length=1, max_length=200),
-    cv: UploadFile = File(),
+    cv: UploadFile | None = File(default=None),
     db: Session = Depends(get_session),
 ) -> ApplicationAccepted:
     """FR-201 to FR-208.
 
     Submission is allowed with either consent declined (FR-202): declining is a
-    real choice, not a soft block.
+    real choice, not a soft block. No password here — applicants sign in later
+    via the offer / set-password path once they have a reason to. A signed-in
+    applicant may reuse the CV already on their profile.
     """
     company = db.scalar(select(Company).where(Company.slug == company_slug))
     programme = (
@@ -380,9 +381,6 @@ async def apply(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid contact email.")
     if not looks_like_email(google_email):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email.")
-    password_error = validate_password(password)
-    if password_error:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, password_error)
 
     if not availability_confirmed:
         raise HTTPException(
@@ -397,13 +395,7 @@ async def apply(
             "That does not look like a LinkedIn profile URL.",
         )
 
-    content = await cv.read()
-    if len(content) > MAX_CV_BYTES:
-        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "CV must be under 5MB.")
-    if cv.content_type not in ALLOWED_CV_TYPES:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "CV must be a PDF.")
-
-    person, created = resolve_person(
+    person, _created = resolve_person(
         db,
         name=name,
         contact_email=contact_email,
@@ -415,10 +407,6 @@ async def apply(
         job_title=job_title,
         timezone=timezone,
     )
-    # A returning applicant already has a password; do not overwrite it with
-    # whatever they typed into a different programme's form.
-    if created or not person.password_hash:
-        person.password_hash = hash_password(password)
 
     existing = db.scalar(
         select(Application)
@@ -428,8 +416,27 @@ async def apply(
     if existing is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "You have already applied to this programme.")
 
-    key = f"cvs/{programme.id}/{person.id}/{secrets.token_hex(8)}.pdf"
-    get_storage().put(key, content, "application/pdf")
+    uploaded = cv is not None and bool(cv.filename)
+    if uploaded:
+        assert cv is not None
+        content = await cv.read()
+        if len(content) > MAX_CV_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "CV must be under 5MB.")
+        if cv.content_type not in ALLOWED_CV_TYPES:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "CV must be a PDF.")
+        key = f"cvs/{programme.id}/{person.id}/{secrets.token_hex(8)}.pdf"
+        get_storage().put(key, content, "application/pdf")
+        person.cv_url = key
+    elif not person.cv_url:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Please attach your CV as a PDF.",
+        )
+    else:
+        key = person.cv_url
+
+    if linkedin:
+        person.linkedin_url = linkedin
 
     application = Application(
         programme_id=programme.id,

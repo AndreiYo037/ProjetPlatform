@@ -81,7 +81,7 @@ export default function Header() {
                   Update profile
                 </Link>
                 <Link className="btn secondary small" href="/dashboard">
-                  My programme
+                  My programmes
                 </Link>
               </>
             )}

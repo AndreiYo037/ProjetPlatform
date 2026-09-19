@@ -29,9 +29,11 @@ const UPLOAD_SLOTS = new Set(["memo"]);
 
 export default function SubmissionPanel({
   submission,
+  programmeId,
   onChange,
 }: {
   submission: SubmissionOut | null;
+  programmeId?: string;
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -55,7 +57,7 @@ export default function SubmissionPanel({
     setError(null);
     setJustSubmitted(false);
     try {
-      await putSubmissionLink(slot, url);
+      await putSubmissionLink(slot, url, programmeId);
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that link.");
@@ -69,7 +71,7 @@ export default function SubmissionPanel({
     setError(null);
     setJustSubmitted(false);
     try {
-      await uploadSubmissionFile(slot, file);
+      await uploadSubmissionFile(slot, file, programmeId);
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not upload that file.");
@@ -83,7 +85,7 @@ export default function SubmissionPanel({
     setError(null);
     setJustSubmitted(false);
     try {
-      await deleteSubmissionSlot(slot);
+      await deleteSubmissionSlot(slot, programmeId);
       onChange();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not remove that file.");
@@ -101,7 +103,7 @@ export default function SubmissionPanel({
       // catches a link that was revoked minutes ago — the one failure this
       // whole area exists to prevent, and worth one more look at the moment
       // the participant is declaring themselves done.
-      const result = await recheckSubmission();
+      const result = await recheckSubmission(programmeId);
       if (result.status === "complete") {
         setJustSubmitted(true);
       } else {

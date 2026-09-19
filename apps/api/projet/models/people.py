@@ -46,6 +46,10 @@ class Person(Base):
     org_type: Mapped[OrgType | None] = mapped_column(enum_column(OrgType))
     year_course: Mapped[str | None] = mapped_column(String(300))
     job_title: Mapped[str | None] = mapped_column(String(200))
+    # Durable copy of what companies ask for on apply — kept on the person so
+    # Update profile can refresh them without touching a past application.
+    cv_url: Mapped[str | None] = mapped_column(Text)
+    linkedin_url: Mapped[str | None] = mapped_column(Text)
     timezone: Mapped[str] = mapped_column(String(60), default="Asia/Singapore")
     # FR-1201 — the public profile lives at /p/{handle}. Scheme still open
     # (PRD section 12 question 1); the column existing now keeps it out of a migration.

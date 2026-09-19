@@ -162,10 +162,13 @@ export const setInitialPassword = (token: string, password: string) =>
 export type PersonProfile = {
   name: string;
   email: string;
+  google_email: string | null;
   organisation: string | null;
+  org_type: string | null;
   year_course: string | null;
   job_title: string | null;
-  phone: string | null;
+  linkedin_url: string | null;
+  cv_url: string | null;
 };
 
 export const getCompanyHome = (companyId: string) =>
@@ -196,8 +199,22 @@ export async function uploadCompanyLogo(
 }
 
 export const getMyProfile = () => api.get<PersonProfile>("/me/profile");
-export const updateMyProfile = (body: Partial<Omit<PersonProfile, "email">>) =>
-  api.patch<PersonProfile>("/me/profile", body);
+export const updateMyProfile = (
+  body: Partial<Omit<PersonProfile, "cv_url">>,
+) => api.patch<PersonProfile>("/me/profile", body);
+
+export async function uploadMyCv(file: File): Promise<PersonProfile> {
+  const form = new FormData();
+  form.set("file", file);
+  const response = await fetch(apiUrl("/me/profile/cv"), {
+    method: "POST",
+    body: form,
+    credentials: "include",
+  });
+  const body = await response.json();
+  if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not upload that CV.");
+  return body as PersonProfile;
+}
 export const getProgramme = (id: string) => api.get<ProgrammeDetail>(`/programmes/${id}`);
 export const listProgrammes = () => api.get<ProgrammeOut[]>("/programmes");
 
@@ -503,20 +520,35 @@ export const draftTestimonial = (programmeId: string, participantId: string) =>
 export const closeProgramme = (programmeId: string) =>
   api.post<CloseoutOut>(`/programmes/${programmeId}/close`);
 
-export const getDashboard = () => api.get<Dashboard>("/me/dashboard");
-export const putSubmissionLink = (slot: string, driveUrl: string) =>
-  api.put<SubmissionOut>("/me/submission/link", { slot, drive_url: driveUrl });
-export const deleteSubmissionSlot = (slot: string) =>
-  api.del<SubmissionOut>(`/me/submission/link/${slot}`);
-export const recheckSubmission = () => api.post<SubmissionOut>("/me/submission/recheck");
+function withProgramme(path: string, programmeId?: string): string {
+  if (!programmeId) return path;
+  const join = path.includes("?") ? "&" : "?";
+  return `${path}${join}programme_id=${encodeURIComponent(programmeId)}`;
+}
+
+export const getDashboard = (programmeId?: string) =>
+  api.get<Dashboard>(withProgramme("/me/dashboard", programmeId));
+export const putSubmissionLink = (slot: string, driveUrl: string, programmeId?: string) =>
+  api.put<SubmissionOut>(withProgramme("/me/submission/link", programmeId), {
+    slot,
+    drive_url: driveUrl,
+  });
+export const deleteSubmissionSlot = (slot: string, programmeId?: string) =>
+  api.del<SubmissionOut>(withProgramme(`/me/submission/link/${slot}`, programmeId));
+export const recheckSubmission = (programmeId?: string) =>
+  api.post<SubmissionOut>(withProgramme("/me/submission/recheck", programmeId));
 
 /** Multipart, so it goes round the JSON helper. A slot filled this way is
  *  already the frozen copy — there is no accessibility check to run. */
-export async function uploadSubmissionFile(slot: string, file: File): Promise<SubmissionOut> {
+export async function uploadSubmissionFile(
+  slot: string,
+  file: File,
+  programmeId?: string,
+): Promise<SubmissionOut> {
   const form = new FormData();
   form.set("slot", slot);
   form.set("file", file);
-  const response = await fetch(apiUrl("/me/submission/upload"), {
+  const response = await fetch(apiUrl(withProgramme("/me/submission/upload", programmeId)), {
     method: "PUT",
     body: form,
     credentials: "include",
@@ -525,8 +557,10 @@ export async function uploadSubmissionFile(slot: string, file: File): Promise<Su
   if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not upload that file.");
   return body as SubmissionOut;
 }
-export const markThreadRead = (threadId: string, acknowledge = false) =>
-  api.post<void>(`/me/threads/${threadId}/read?acknowledge=${acknowledge}`);
+export const markThreadRead = (threadId: string, acknowledge = false, programmeId?: string) =>
+  api.post<void>(
+    withProgramme(`/me/threads/${threadId}/read?acknowledge=${acknowledge}`, programmeId),
+  );
 
 export const listThreads = (programmeId: string) =>
   api.get<ThreadOut[]>(`/programmes/${programmeId}/threads`);

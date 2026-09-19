@@ -305,19 +305,11 @@ button:disabled {
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.2;
-  padding: 0.2rem 0.85rem 0.2rem 0.4rem;
+  padding: 0.2rem 0.75rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
   color: var(--fg);
-}
-
-.skill-stamp {
-  width: 3.25rem;
-  height: 3.25rem;
-  margin: -0.85rem 0;
-  object-fit: contain;
-  flex-shrink: 0;
 }
 
 /* Weight is strength, not a ×N stamp. One bar per repeat, capped at four. */

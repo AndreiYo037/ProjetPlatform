@@ -1,5 +1,3 @@
-import ProjetVerifiedStamp from "@/components/ProjetVerifiedStamp";
-
 /**
  * Attested skills as a flat list — one chip per skill, never grouped onto a
  * capability axis. The API already returns them this way (`attested_skills`
@@ -63,7 +61,6 @@ export function SkillTags({
           key={skill.id ?? skill.name}
           title={skillTitle(skill)}
         >
-          <ProjetVerifiedStamp />
           {skill.name}
           <SkillMeter weight={skill.weight} />
         </span>

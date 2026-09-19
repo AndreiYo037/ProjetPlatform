@@ -1,7 +1,16 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { apiUrl, getListing, type PublicListing } from "@/lib/api";
+import {
+  ApiError,
+  apiUrl,
+  assetUrl,
+  getMyProfile,
+  getListing,
+  getSession,
+  type PersonProfile,
+  type PublicListing,
+} from "@/lib/api";
 
 /**
  * The day and the time, both. A date alone is not a commitment: the pitch is a
@@ -18,6 +27,10 @@ function formatMoment(value: string | null | undefined) {
   });
 }
 
+/**
+ * Prefill from the signed-in participant profile when there is one. A stranger
+ * still fills the form blank. Everything stays editable either way.
+ */
 export default function ApplyPage({
   params,
 }: {
@@ -25,6 +38,16 @@ export default function ApplyPage({
 }) {
   const { company, programme } = use(params);
   const [listing, setListing] = useState<PublicListing | null>(null);
+  const [profile, setProfile] = useState<PersonProfile | null>(null);
+  const [name, setName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [googleEmail, setGoogleEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [organisation, setOrganisation] = useState("");
+  const [orgType, setOrgType] = useState("school");
+  const [yearCourse, setYearCourse] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [linkedinUrl, setLinkedinUrl] = useState("");
   const [writeup, setWriteup] = useState("");
   const [cv, setCv] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -37,12 +60,41 @@ export default function ApplyPage({
       .catch(() => setListing(null));
   }, [company, programme]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await getSession();
+        if (!session || session.actor_type !== "participant") return;
+        const mine = await getMyProfile();
+        if (cancelled) return;
+        setProfile(mine);
+        setName(mine.name || "");
+        setContactEmail(mine.email || "");
+        setGoogleEmail(mine.google_email || "");
+        setOrganisation(mine.organisation || "");
+        setOrgType(mine.org_type || "school");
+        setYearCourse(mine.year_course || "");
+        setJobTitle(mine.job_title || "");
+        setLinkedinUrl(mine.linkedin_url || "");
+      } catch (err) {
+        // Signed out, or profile not ready — leave the form blank.
+        if (err instanceof ApiError && err.status === 401) return;
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const kickoff = formatMoment(listing?.start_at);
   const pitch = formatMoment(listing?.pitch_at);
+  const isStudent = orgType === "school";
+  const hasProfileCv = Boolean(profile?.cv_url);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!cv) {
+    if (!cv && !hasProfileCv) {
       setError("Please attach your CV as a PDF.");
       return;
     }
@@ -50,7 +102,19 @@ export default function ApplyPage({
     setError(null);
 
     const form = new FormData(event.currentTarget);
-    form.set("cv", cv);
+    form.set("name", name);
+    form.set("contact_email", contactEmail);
+    form.set("google_email", googleEmail);
+    form.set("phone", phone);
+    form.set("organisation", organisation);
+    form.set("org_type", orgType);
+    form.set("year_course", isStudent ? yearCourse : "");
+    form.set("job_title", isStudent ? "" : jobTitle);
+    form.set("linkedin_url", linkedinUrl);
+    form.set("writeup", writeup);
+    if (cv) form.set("cv", cv);
+    else form.delete("cv");
+
     try {
       const response = await fetch(
         apiUrl(`/public/x/${company}/${programme}/apply`),
@@ -82,12 +146,24 @@ export default function ApplyPage({
   return (
     <main className="narrow">
       <h1>Apply</h1>
-      <p className="lede">Takes about ten minutes. You need a CV and a short writeup.</p>
+      <p className="lede">
+        {profile
+          ? "Filled from your profile — change anything that should be different for this challenge."
+          : "Takes about ten minutes. You need a CV and a short writeup."}
+      </p>
 
       <form onSubmit={submit}>
         <div className="field">
           <label htmlFor="name">Full name</label>
-          <input id="name" name="name" type="text" required autoComplete="name" />
+          <input
+            id="name"
+            name="name"
+            type="text"
+            required
+            autoComplete="name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
 
         <div className="field">
@@ -98,6 +174,8 @@ export default function ApplyPage({
             type="email"
             required
             autoComplete="email"
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
           />
           <div className="hint">
             Where we email you — your application confirmation, the decision, and
@@ -107,54 +185,83 @@ export default function ApplyPage({
 
         <div className="field">
           <label htmlFor="google_email">Google account email</label>
-          <input id="google_email" name="google_email" type="email" required />
-          <div className="hint">
-            Only used for Calendar invites and Meet links if you're accepted, so it needs
-            to be a real Google account, not just any inbox. A school or work address
-            running on Google is fine — it can be the same as your contact email above, or
-            different.
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="password">Choose a keycode</label>
           <input
-            id="password"
-            name="password"
-            type="password"
+            id="google_email"
+            name="google_email"
+            type="email"
             required
-            minLength={8}
-            autoComplete="new-password"
+            value={googleEmail}
+            onChange={(e) => setGoogleEmail(e.target.value)}
           />
           <div className="hint">
-            At least 8 characters. This is your account for checking your status and
-            signing back in, instead of a fresh emailed link every time.
+            Only used for Calendar invites and Meet links if you&apos;re accepted, so it
+            needs to be a real Google account, not just any inbox. A school or work
+            address running on Google is fine — it can be the same as your contact email
+            above, or different.
           </div>
         </div>
 
         <div className="field">
           <label htmlFor="phone">Phone (optional)</label>
-          <input id="phone" name="phone" type="tel" autoComplete="tel" />
+          <input
+            id="phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
         </div>
 
         <div className="field">
           <label htmlFor="organisation">School or organisation</label>
-          <input id="organisation" name="organisation" type="text" />
+          <input
+            id="organisation"
+            name="organisation"
+            type="text"
+            value={organisation}
+            onChange={(e) => setOrganisation(e.target.value)}
+          />
         </div>
 
         <div className="field">
           <label htmlFor="org_type">Type</label>
-          <select id="org_type" name="org_type" defaultValue="school">
-            <option value="school">School or university</option>
-            <option value="company">Company</option>
-            <option value="association">Association</option>
+          <select
+            id="org_type"
+            name="org_type"
+            value={orgType}
+            onChange={(e) => setOrgType(e.target.value)}
+          >
+            <option value="school">Student</option>
+            <option value="company">Professional</option>
+            <option value="association">Other</option>
           </select>
         </div>
 
-        <div className="field">
-          <label htmlFor="year_course">Year and course, or job title</label>
-          <input id="year_course" name="year_course" type="text" />
-        </div>
+        {isStudent ? (
+          <div className="field">
+            <label htmlFor="year_course">Year and course</label>
+            <input
+              id="year_course"
+              name="year_course"
+              type="text"
+              value={yearCourse}
+              onChange={(e) => setYearCourse(e.target.value)}
+              placeholder="Year 3, Computer Science"
+            />
+          </div>
+        ) : (
+          <div className="field">
+            <label htmlFor="job_title">Job title</label>
+            <input
+              id="job_title"
+              name="job_title"
+              type="text"
+              value={jobTitle}
+              onChange={(e) => setJobTitle(e.target.value)}
+            />
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="linkedin_url">LinkedIn (optional)</label>
@@ -163,6 +270,8 @@ export default function ApplyPage({
             name="linkedin_url"
             type="url"
             placeholder="https://www.linkedin.com/in/yourname"
+            value={linkedinUrl}
+            onChange={(e) => setLinkedinUrl(e.target.value)}
           />
         </div>
 
@@ -173,9 +282,18 @@ export default function ApplyPage({
             name="cv"
             type="file"
             accept="application/pdf"
-            required
+            required={!hasProfileCv}
             onChange={(e) => setCv(e.target.files?.[0] ?? null)}
           />
+          {hasProfileCv && !cv && profile?.cv_url && (
+            <div className="hint">
+              Using the CV on your profile.{" "}
+              <a href={assetUrl(profile.cv_url)} target="_blank" rel="noreferrer">
+                View it
+              </a>
+              , or pick a file above to replace it for this application.
+            </div>
+          )}
         </div>
 
         <div className="field">

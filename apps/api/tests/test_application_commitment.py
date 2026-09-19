@@ -93,7 +93,6 @@ def application(**overrides) -> dict:
         "google_email": "sam@gmail.com",
         "writeup": " ".join(["analysis"] * 220),
         "availability_confirmed": "true",
-        "password": "hunter22",
     }
     payload.update(overrides)
     return {k: v for k, v in payload.items() if v is not None}

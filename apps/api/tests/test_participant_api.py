@@ -8,6 +8,7 @@ this is where that gets checked.
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -16,9 +17,15 @@ from fastapi.testclient import TestClient
 from projet.db import get_session
 from projet.integrations.google.client import set_google_client
 from projet.main import create_app
-from projet.models import ProjectEntry
+from projet.models import Application, Participant, Programme, ProjectEntry
 from projet.models.base import utcnow
-from projet.models.enums import ActorType, AuthorRole, ProgrammeStatus, ThreadType
+from projet.models.enums import (
+    ActorType,
+    ApplicationStatus,
+    AuthorRole,
+    ProgrammeStatus,
+    ThreadType,
+)
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.messaging import open_thread
 from projet.services.teams import ensure_submission, ensure_team_for_participant
@@ -57,6 +64,66 @@ def test_the_dashboard_answers_what_by_when_and_where(client, signed_in, program
     assert body["programme"]["timezone"]
     assert body["submission"]["status"] == "draft"
     assert {slot["slot"] for slot in body["submission"]["slots"]} == {"artifact", "memo"}
+    assert body["active_programmes"][0]["id"] == str(programme.id)
+    assert body["past_programmes"] == []
+
+
+def test_a_participant_can_switch_between_active_programmes(
+    client, signed_in, session, programme, company, role
+):
+    """Several live programmes at once — pick which dashboard to open."""
+    other = Programme(
+        company_id=company.id,
+        role_id=role.id,
+        title="Pricing model",
+        slug=f"pricing-{uuid.uuid4().hex[:6]}",
+        start_at=programme.start_at,
+        submit_deadline_at=programme.submit_deadline_at,
+        status=ProgrammeStatus.RUNNING,
+    )
+    session.add(other)
+    session.flush()
+    application = Application(
+        programme_id=other.id,
+        person_id=signed_in.person_id,
+        consent_share_company=True,
+        consent_recording=True,
+        consent_captured_at=utcnow(),
+        status=ApplicationStatus.ACCEPTED,
+    )
+    session.add(application)
+    session.flush()
+    session.add(
+        Participant(
+            programme_id=other.id,
+            person_id=signed_in.person_id,
+            application_id=application.id,
+        )
+    )
+    session.flush()
+
+    body = client.get("/me/dashboard").json()
+    active_ids = {row["id"] for row in body["active_programmes"]}
+    assert active_ids == {str(programme.id), str(other.id)}
+    assert body["past_programmes"] == []
+
+    selected = client.get(f"/me/dashboard?programme_id={other.id}").json()
+    assert selected["programme"]["id"] == str(other.id)
+    assert selected["programme"]["title"] == "Pricing model"
+
+
+def test_a_programme_moves_to_past_once_its_deadline_passes(
+    client, signed_in, session, programme
+):
+    # No kickoff → past is decided by the submit deadline alone.
+    programme.start_at = None
+    programme.submit_deadline_at = utcnow() - timedelta(days=1)
+    session.flush()
+
+    body = client.get("/me/dashboard").json()
+    assert body["active_programmes"] == []
+    assert body["past_programmes"][0]["id"] == str(programme.id)
+    assert body["programme"]["id"] == str(programme.id)
 
 
 def test_the_dashboard_never_carries_a_score_or_ranking(client, signed_in):

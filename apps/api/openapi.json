@@ -3512,7 +3512,7 @@
           "public"
         ],
         "summary": "Apply",
-        "description": "FR-201 to FR-208.\n\nSubmission is allowed with either consent declined (FR-202): declining is a\nreal choice, not a soft block.",
+        "description": "FR-201 to FR-208.\n\nSubmission is allowed with either consent declined (FR-202): declining is a\nreal choice, not a soft block. No password here \u2014 applicants sign in later\nvia the offer / set-password path once they have a reason to. A signed-in\napplicant may reuse the CV already on their profile.",
         "operationId": "apply_public_x__company_slug___programme_slug__apply_post",
         "parameters": [
           {
@@ -4452,6 +4452,66 @@
         }
       }
     },
+    "/me/profile/cv": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Upload Profile Cv",
+        "description": "Replace the CV on the person record. PDF only, under 5MB.",
+        "operationId": "upload_profile_cv_me_profile_cv_post",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_profile_cv_me_profile_cv_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/dashboard": {
       "get": {
         "tags": [
@@ -4460,6 +4520,23 @@
         "summary": "Dashboard",
         "operationId": "dashboard_me_dashboard_get",
         "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
           {
             "name": "projet_session",
             "in": "cookie",
@@ -4510,6 +4587,23 @@
         "description": "FR-802 \u2014 checked the moment it is pasted, with the answer inline.",
         "operationId": "put_link_me_submission_link_put",
         "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
           {
             "name": "projet_session",
             "in": "cookie",
@@ -4570,6 +4664,23 @@
         "description": "A slot filled by upload rather than a Drive link \u2014 a memo is one static\ndocument, not something worth keeping live and editable.",
         "operationId": "upload_slot_me_submission_upload_put",
         "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
           {
             "name": "projet_session",
             "in": "cookie",
@@ -4639,6 +4750,23 @@
             }
           },
           {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
+          {
             "name": "projet_session",
             "in": "cookie",
             "required": false,
@@ -4688,6 +4816,23 @@
         "description": "\"I've fixed the sharing setting\" \u2014 check again without re-pasting.",
         "operationId": "recheck_links_me_submission_recheck_post",
         "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
           {
             "name": "projet_session",
             "in": "cookie",
@@ -4755,6 +4900,23 @@
               "type": "boolean",
               "default": false,
               "title": "Acknowledge"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
             }
           },
           {
@@ -6340,15 +6502,16 @@
             "title": "Consent Recording",
             "default": false
           },
-          "password": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Password"
-          },
           "cv": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Cv"
           }
         },
@@ -6357,9 +6520,7 @@
           "name",
           "contact_email",
           "google_email",
-          "writeup",
-          "password",
-          "cv"
+          "writeup"
         ],
         "title": "Body_apply_public_x__company_slug___programme_slug__apply_post"
       },
@@ -6447,6 +6608,20 @@
           "file"
         ],
         "title": "Body_upload_data_pack_resource_programmes__programme_id__data_pack_upload_post"
+      },
+      "Body_upload_profile_cv_me_profile_cv_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_profile_cv_me_profile_cv_post"
       },
       "Body_upload_project_file_me_projects__entry_id__files_post": {
         "properties": {
@@ -7104,6 +7279,20 @@
           "programme": {
             "$ref": "#/components/schemas/ProgrammeCard"
           },
+          "active_programmes": {
+            "items": {
+              "$ref": "#/components/schemas/ProgrammeChoice"
+            },
+            "type": "array",
+            "title": "Active Programmes"
+          },
+          "past_programmes": {
+            "items": {
+              "$ref": "#/components/schemas/ProgrammeChoice"
+            },
+            "type": "array",
+            "title": "Past Programmes"
+          },
           "submission": {
             "anyOf": [
               {
@@ -7157,6 +7346,8 @@
         "required": [
           "provisioning",
           "programme",
+          "active_programmes",
+          "past_programmes",
           "submission",
           "judging",
           "criteria",
@@ -8009,6 +8200,17 @@
             "type": "string",
             "title": "Email"
           },
+          "google_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Email"
+          },
           "organisation": {
             "anyOf": [
               {
@@ -8019,6 +8221,17 @@
               }
             ],
             "title": "Organisation"
+          },
+          "org_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Type"
           },
           "year_course": {
             "anyOf": [
@@ -8042,7 +8255,7 @@
             ],
             "title": "Job Title"
           },
-          "phone": {
+          "linkedin_url": {
             "anyOf": [
               {
                 "type": "string"
@@ -8051,7 +8264,18 @@
                 "type": "null"
               }
             ],
-            "title": "Phone"
+            "title": "Linkedin Url"
+          },
+          "cv_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cv Url"
           }
         },
         "type": "object",
@@ -8075,6 +8299,30 @@
             ],
             "title": "Name"
           },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "google_email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Email"
+          },
           "organisation": {
             "anyOf": [
               {
@@ -8086,6 +8334,18 @@
               }
             ],
             "title": "Organisation"
+          },
+          "org_type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org Type"
           },
           "year_course": {
             "anyOf": [
@@ -8111,17 +8371,17 @@
             ],
             "title": "Job Title"
           },
-          "phone": {
+          "linkedin_url": {
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 60
+                "maxLength": 400
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Phone"
+            "title": "Linkedin Url"
           }
         },
         "type": "object",
@@ -8208,6 +8468,41 @@
           "timezone"
         ],
         "title": "ProgrammeCard"
+      },
+      "ProgrammeChoice": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "company",
+          "role",
+          "status"
+        ],
+        "title": "ProgrammeChoice",
+        "description": "One programme the signed-in person is on \u2014 for switching when several\nare active at once."
       },
       "ProgrammeCreate": {
         "properties": {

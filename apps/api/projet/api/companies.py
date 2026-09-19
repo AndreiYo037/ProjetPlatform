@@ -29,6 +29,7 @@ from projet.api.schemas import (
 )
 from projet.db import get_session
 from projet.models import Company, CompanyUser, Programme, ProgrammeAssignment, Role
+from projet.models.base import utcnow
 from projet.models.enums import (
     CompanyUserRole,
     CompanyUserStatus,
@@ -55,15 +56,19 @@ from projet.storage import StorageError, get_storage
 
 router = APIRouter(tags=["companies"])
 
-ACTIVE_STATUSES = (
-    ProgrammeStatus.OPEN,
-    ProgrammeStatus.CLOSED,
-    ProgrammeStatus.SELECTING,
-    ProgrammeStatus.CONFIRMED,
-    ProgrammeStatus.RUNNING,
-    ProgrammeStatus.SUBMITTED,
-    ProgrammeStatus.JUDGING,
-)
+
+def _programme_is_past(programme: Programme, now) -> bool:
+    """Past only once the week is over.
+
+    Status alone does not bury a programme: a company can run several at once,
+    and a closed-out challenge whose pitch is still ahead stays under Active.
+    Prefer the pitch day; fall back to the submit deadline when kickoff was
+    never set. With neither date, only an already-complete row is past.
+    """
+    end = programme.pitch_at or programme.submit_deadline_at
+    if end is not None:
+        return end <= now
+    return programme.status == ProgrammeStatus.COMPLETE
 
 
 class CompanyCreate(BaseModel):
@@ -288,8 +293,15 @@ def company_home(
         if programmes
         else {}
     )
-    active = [p for p in programmes if p.status in ACTIVE_STATUSES]
-    past = [p for p in programmes if p.status == ProgrammeStatus.COMPLETE]
+    now = utcnow()
+    active = [p for p in programmes if not _programme_is_past(p, now)]
+    past = [p for p in programmes if _programme_is_past(p, now)]
+    # Newest work first on Active; most recently finished first on Past.
+    active.sort(key=lambda p: p.created_at, reverse=True)
+    past.sort(
+        key=lambda p: p.pitch_at or p.submit_deadline_at or p.created_at,
+        reverse=True,
+    )
 
     team: list[CompanyUser] = []
     if actor.is_platform or actor.role in {
