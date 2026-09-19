@@ -192,3 +192,24 @@ def test_a_role_with_no_template_still_gets_a_prompt(role):
     """Never a blank box: an unseeded role falls back to the generic four asks."""
     prompt = writeup_prompt_for(role, None)
     assert "1." in prompt and "4." in prompt
+
+
+def test_the_prompt_says_a_job_is_not_required(session, role, content_dir):
+    """Most applicants are students. A question that reads as "list your
+    professional experience" loses the people this platform exists to reach,
+    before anyone has seen what they can do."""
+    template = session.get(RoleTemplate, role.id)
+
+    for prompt in (derive_writeup_prompt(role, template), writeup_prompt_for(role, None)):
+        assert "does not have to be a job" in prompt
+        assert "class project" in prompt
+
+
+def test_the_deliverable_reads_as_a_sentence(session, role, content_dir):
+    """The deliverable is a noun phrase across all 75 roles, so it gets its own
+    clause — "approach 4-page PRD" is not English."""
+    template = session.get(RoleTemplate, role.id)
+    prompt = derive_writeup_prompt(role, template)
+
+    assert "The deliverable this week is:" in prompt
+    assert f"approach {template.default_deliverable[:12]}" not in prompt
