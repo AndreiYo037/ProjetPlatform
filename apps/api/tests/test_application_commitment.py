@@ -24,7 +24,7 @@ from projet.models import PlatformUser, Role, RoleTemplate
 from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from projet.services.writeup import derive_writeup_prompt, writeup_prompt_for
+from projet.services.writeup import _first_sentence, derive_writeup_prompt, writeup_prompt_for
 from tests.conftest import next_end, next_kickoff
 
 
@@ -171,6 +171,7 @@ def test_the_listing_carries_the_dates_and_the_prompt(client, listing):
     assert body["start_at"] and body["pitch_at"]
     assert body["writeup_prompt"]
     assert "Data Analytics" in body["writeup_prompt"]
+    assert "A dashboard with 3-4 views, plus a half-page memo." in body["writeup_prompt"]
 
 
 def test_the_prompt_asks_in_the_words_of_the_rubric(session, role, content_dir):
@@ -212,6 +213,21 @@ def test_the_deliverable_reads_as_a_sentence(session, role, content_dir):
 
     assert "The deliverable this week is:" in prompt
     assert f"approach {template.default_deliverable[:12]}" not in prompt
+
+
+def test_point_3_uses_the_company_deliverable_not_the_role_default(session, role):
+    """Applicants should answer the deliverable the company wrote, not the
+    seed default that came with the role."""
+    template = session.get(RoleTemplate, role.id)
+    company_spec = (
+        "- A live deck of three churn views\n"
+        "- A half-page memo on which lever to pull first"
+    )
+    prompt = derive_writeup_prompt(role, template, deliverable=company_spec)
+
+    assert "A live deck of three churn views" in prompt
+    assert "which lever to pull first" in prompt
+    assert _first_sentence(template.default_deliverable) not in prompt
 
 def test_a_second_application_from_the_same_person_is_refused(client, listing):
     first = apply(client)

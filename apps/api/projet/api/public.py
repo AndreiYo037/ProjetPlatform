@@ -314,7 +314,9 @@ def listing(
             for c in criteria
         ],
         data_pack_preview=[],
-        writeup_prompt=writeup_prompt_for(role, template),
+        writeup_prompt=writeup_prompt_for(
+            role, template, deliverable=programme.deliverable_spec
+        ),
         already_applied=already_applied,
     )
 

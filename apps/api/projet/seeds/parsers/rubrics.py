@@ -21,7 +21,7 @@ from projet.seeds.parsers.common import (
     strip_markdown,
 )
 
-# '| Slot 2 — *System honesty* |' -> slot number and criterion name
+# '| Slot 2 — *What worked and what didn't* |' -> slot number and criterion name
 _SLOT_HEADER = re.compile(r"Slot\s*(\d)\s*[—–-]\s*\*?(.+?)\*?\s*$")
 # '**5** Eval set includes...' -> band and anchor text
 _ANCHOR = re.compile(r"^\*\*([531])\*\*\s*(.*)$", re.DOTALL)

@@ -29,7 +29,7 @@ Four criteria, 1–5 each, 20 total. Slots 1 and 4 are fixed. Slots 2 and 3 are 
 # AI & Data
 
 ### AI / AI Engineering
-| Slot 2 — *System honesty* | Slot 3 — *Production judgement* |
+| Slot 2 — *What worked and what didn't* | Slot 3 — *Production judgement* |
 |---|---|
 | **5** Eval set includes cases designed to break it, and they report the failures plainly | **5** Named the cost, latency and failure mode at our real volume, and what they'd cut to fix it |
 | **3** Working prototype with a real eval set and honest pass rates | **3** Sensible architecture with stated trade-offs |
