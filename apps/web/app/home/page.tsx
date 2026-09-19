@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import ChallengeCards from "@/components/ChallengeCards";
-import { SkillTags, SkillsBlock, toTaggedSkills } from "@/components/SkillTags";
+import { SkillTags, toTaggedSkills } from "@/components/SkillTags";
 import {
   assetUrl,
   getPortfolio,
@@ -54,11 +54,6 @@ export default function ParticipantHomePage() {
 
   const attested = toTaggedSkills(portfolio.skills);
 
-  const empty =
-    attested.length === 0 &&
-    portfolio.credentials.length === 0 &&
-    portfolio.testimonials.length === 0;
-
   return (
     <main>
       <h1 style={{ marginTop: 0 }}>{portfolio.name}</h1>
@@ -70,60 +65,65 @@ export default function ParticipantHomePage() {
             } completed.`}
       </p>
 
-      {empty && (
-        <div className="notice">
-          Skills and credentials appear when a company closes the challenge.
-        </div>
+      <h2>Skills</h2>
+      {attested.length === 0 ? (
+        <p className="muted small">
+          Skills appear here when a company closes the challenge.
+        </p>
+      ) : (
+        <SkillTags skills={attested} />
       )}
 
-      <SkillsBlock attested={attested} />
-
-      {portfolio.credentials.length > 0 && (
-        <>
-          <h2>Credentials</h2>
-          {portfolio.credentials.map((credential) => (
-            <div className="panel" key={`${credential.company}-${credential.programme}`}>
-              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
-                <strong>{credential.company}</strong>
-                <span className="small muted">{credential.programme}</span>
-              </div>
-              {formatDayRange(credential.start_at, credential.ended_at) && (
-                <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
-                  {formatDayRange(credential.start_at, credential.ended_at)}
-                </p>
-              )}
-              {credential.attesters.length > 0 && (
-                <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
-                  Endorsed by {credential.attesters.join(", ")}
-                </p>
-              )}
-              <SkillTags skills={credential.skills.map((name) => ({ name }))} />
+      <h2>Credentials</h2>
+      {portfolio.credentials.length === 0 ? (
+        <p className="muted small">
+          A credential appears here when a company closes the challenge.
+        </p>
+      ) : (
+        portfolio.credentials.map((credential) => (
+          <div className="panel" key={`${credential.company}-${credential.programme}`}>
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+              <strong>{credential.company}</strong>
+              <span className="small muted">{credential.programme}</span>
             </div>
-          ))}
-        </>
+            {formatDayRange(credential.start_at, credential.ended_at) && (
+              <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
+                {formatDayRange(credential.start_at, credential.ended_at)}
+              </p>
+            )}
+            {credential.attesters.length > 0 && (
+              <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
+                Endorsed by {credential.attesters.join(", ")}
+              </p>
+            )}
+            <SkillTags skills={credential.skills.map((name) => ({ name }))} />
+          </div>
+        ))
       )}
 
-      {portfolio.testimonials.length > 0 && (
-        <>
-          <h2>What they said</h2>
-          {portfolio.testimonials.map((testimonial, index) => (
-            <div className="card" key={index}>
-              <div className="small muted">
-                {testimonial.author_name}
-                {testimonial.author_title && `, ${testimonial.author_title}`} ·{" "}
-                {testimonial.company} · {testimonial.programme}
-                {formatDay(testimonial.published_at) && ` · ${formatDay(testimonial.published_at)}`}
-              </div>
-              {testimonial.pdf_url && (
-                <p style={{ marginBottom: 0 }}>
-                  <a href={assetUrl(testimonial.pdf_url)} target="_blank" rel="noreferrer">
-                    View PDF
-                  </a>
-                </p>
-              )}
+      <h2>What they said</h2>
+      {portfolio.testimonials.length === 0 ? (
+        <p className="muted small">
+          A company testimonial appears here when they close the challenge.
+        </p>
+      ) : (
+        portfolio.testimonials.map((testimonial, index) => (
+          <div className="card" key={index}>
+            <div className="small muted">
+              {testimonial.author_name}
+              {testimonial.author_title && `, ${testimonial.author_title}`} ·{" "}
+              {testimonial.company} · {testimonial.programme}
+              {formatDay(testimonial.published_at) && ` · ${formatDay(testimonial.published_at)}`}
             </div>
-          ))}
-        </>
+            {testimonial.pdf_url && (
+              <p style={{ marginBottom: 0 }}>
+                <a href={assetUrl(testimonial.pdf_url)} target="_blank" rel="noreferrer">
+                  View PDF
+                </a>
+              </p>
+            )}
+          </div>
+        ))
       )}
 
       <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
@@ -133,9 +133,9 @@ export default function ParticipantHomePage() {
         </Link>
       </div>
       {openChallenges === null ? (
-        <p className="muted">Loading challenges…</p>
+        <p className="muted small">Loading challenges…</p>
       ) : openChallenges.length === 0 ? (
-        <p className="muted">No active challenges right now — check back soon.</p>
+        <p className="muted small">No active challenges right now — check back soon.</p>
       ) : (
         <ChallengeCards items={openChallenges} />
       )}

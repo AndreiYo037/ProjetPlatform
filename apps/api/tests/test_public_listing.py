@@ -208,6 +208,30 @@ def test_a_challenge_with_closed_applications_still_lists_as_active(
     assert row["state"] == "closed"
 
 
+def test_a_closed_programme_drops_off_the_directory(client, session, admin, roles):
+    """Close and issue removes it from Home and /challenges even if the week
+    dates are still ahead."""
+    import uuid
+
+    from projet.models import Programme
+    from projet.models.enums import ProgrammeStatus
+
+    role_id = roles["data-analytics"].id
+    acme = make_company(client, session, admin, name="AcmeDone", slug="acme-done")
+    programme_id = make_programme(
+        client, session, admin, company_id=acme, role_id=role_id,
+        title="Closed out", slug="closed-out",
+    )
+    programme = session.get(Programme, uuid.UUID(programme_id))
+    assert programme is not None
+    programme.status = ProgrammeStatus.COMPLETE
+    session.flush()
+
+    client.cookies.clear()
+    slugs = [row["programme_slug"] for row in client.get("/public/challenges").json()]
+    assert "closed-out" not in slugs
+
+
 def test_the_directory_filters_by_role_slug(client, session, admin, roles):
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="Acme4", slug="acme4")

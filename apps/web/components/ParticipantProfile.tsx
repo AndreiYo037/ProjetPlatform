@@ -54,8 +54,6 @@ export default function ParticipantProfile() {
       .catch(() => setProfile(null));
   }, []);
 
-  if (!profile) return null;
-
   const isStudent = orgType === "school";
 
   const draft = {
@@ -68,19 +66,21 @@ export default function ParticipantProfile() {
     jobTitle: jobTitle.trim(),
     linkedinUrl: linkedinUrl.trim(),
   };
-  const baseline = {
-    name: profile.name,
-    email: profile.email,
-    googleEmail: profile.google_email ?? "",
-    organisation: profile.organisation ?? "",
-    orgType: profile.org_type ?? "school",
-    yearCourse: profile.year_course ?? "",
-    jobTitle: profile.job_title ?? "",
-    linkedinUrl: profile.linkedin_url ?? "",
-  };
+  const baseline = profile
+    ? {
+        name: profile.name,
+        email: profile.email,
+        googleEmail: profile.google_email ?? "",
+        organisation: profile.organisation ?? "",
+        orgType: profile.org_type ?? "school",
+        yearCourse: profile.year_course ?? "",
+        jobTitle: profile.job_title ?? "",
+        linkedinUrl: profile.linkedin_url ?? "",
+      }
+    : draft;
 
   const { status, error: saveError } = useAutosave(draft, baseline, async (next) => {
-    if (!next.name || !next.email) return;
+    if (!profile || !next.name || !next.email) return;
     const updated = await updateMyProfile({
       name: next.name,
       email: next.email,
@@ -93,6 +93,8 @@ export default function ParticipantProfile() {
     });
     setProfile(updated);
   });
+
+  if (!profile) return null;
 
   async function onCv(file: File) {
     setBusy(true);

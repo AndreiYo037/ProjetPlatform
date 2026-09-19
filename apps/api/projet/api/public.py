@@ -95,14 +95,13 @@ def _state(programme: Programme) -> str:
     Active week (deadline not yet passed):
       - `open`   — applications still accepted
       - `closed` — applications window shut, challenge still running
-    After the pitch/submit deadline:
+    After Close and issue, or after the pitch/submit deadline:
       - `complete`
-
-    Status alone never decides this. A row marked complete early stays
-    open/closed until the calendar says the week is over.
     """
     if programme.status == ProgrammeStatus.DRAFT:
         return "closed"
+    if programme.status == ProgrammeStatus.COMPLETE:
+        return "complete"
     now = utcnow()
     if programme_is_past(programme, now):
         return "complete"
@@ -208,11 +207,16 @@ def platform_directory(
     """FR-105 — every active programme across companies, for a browse page.
 
     Active means the week is not over yet: both accepting applications (`open`)
-    and still running with applications shut (`closed`). Complete programmes
-    drop off. The single-company listing above also shows complete ones, since
-    a company's own careers page is a different audience.
+    and still running with applications shut (`closed`). A programme the company
+    has closed out, or whose week is over, drops off. The single-company
+    listing above also shows complete ones, since a company's own careers page
+    is a different audience.
     """
-    query = select(Programme).where(Programme.status != ProgrammeStatus.DRAFT)
+    query = (
+        select(Programme)
+        .where(Programme.status != ProgrammeStatus.DRAFT)
+        .where(Programme.status != ProgrammeStatus.COMPLETE)
+    )
     if role_slug is not None:
         role = db.scalar(select(Role).where(Role.slug == role_slug))
         if role is None:

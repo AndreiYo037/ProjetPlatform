@@ -1,7 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
+import Channel from "@/components/Channel";
+import DataPackPanel from "@/components/DataPackPanel";
+import JudgingPanel from "@/components/JudgingPanel";
+import PitchingSection from "@/components/PitchingSection";
 import {
   disposition,
   getApplication,
@@ -14,6 +19,7 @@ import {
   type ProgrammeDetail,
   type SeatsOut,
 } from "@/lib/api";
+import { formatSlot } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 const CRITERIA = ["relevance", "specificity", "capability", "followthrough"] as const;
@@ -31,6 +37,33 @@ const STATUSES = [
   "expired",
 ];
 
+type SectionKey = "messages" | "applicants" | "judging" | "brief" | "rubric" | "schedule";
+
+function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
+  const setup: { key: SectionKey; label: string }[] = [
+    { key: "brief", label: "Brief & data pack" },
+    { key: "rubric", label: "Rubric" },
+    { key: "schedule", label: "Schedule" },
+  ];
+  if (isDraft) return setup;
+  return [
+    { key: "messages", label: "Messages" },
+    { key: "applicants", label: "Applicants" },
+    { key: "judging", label: "Judging" },
+    ...setup,
+  ];
+}
+
+function formatDay(iso: string | null | undefined, time: string) {
+  if (!iso) return "Not set";
+  const day = new Date(iso).toLocaleDateString(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  return `${day} · ${time}`;
+}
+
 export default function ProgrammePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [programme, setProgramme] = useState<ProgrammeDetail | null>(null);
@@ -41,6 +74,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [section, setSection] = useState<SectionKey | null>(null);
   const gate = useActor("platform");
   const ready = gate.status === "ready";
 
@@ -49,7 +83,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
     try {
       const [p, apps, s] = await Promise.all([
         getProgramme(id),
-        listApplications(id, filter || undefined),
+        listApplications(id, filter || undefined).catch(() => []),
         getSeats(id).catch(() => null),
       ]);
       setProgramme(p);
@@ -68,7 +102,6 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
     const value = raw === "" ? null : Number(raw);
     if (value !== null && (value < 1 || value > 5)) return;
     try {
-      // Auto-saving: the list is the work surface, not a form you submit.
       const updated = await scoreApplication(id, applicationId, { [criterion]: value });
       setApplications((rows) =>
         rows.map((row) => (row.id === applicationId ? updated : row)),
@@ -111,14 +144,23 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
   if (error && !programme) return <main><div className="notice bad">{error}</div></main>;
   if (!programme) return <main><p className="muted">Loading…</p></main>;
 
+  const isDraft = programme.status === "draft";
+  const isOpen = programme.status === "open";
+  const sections = sectionsFor(isDraft);
+  const active: SectionKey = section ?? (isDraft ? "schedule" : "applicants");
+
   return (
-    <main>
-      <h1>{programme.title}</h1>
+    <main className={active === "messages" ? "wide" : undefined}>
+      <Link href="/admin" className="small muted" style={{ textDecoration: "none" }}>
+        &larr; Back to programmes
+      </Link>
+
+      <div className="row" style={{ justifyContent: "space-between", marginTop: "0.5rem" }}>
+        <h1 style={{ margin: 0 }}>{programme.title}</h1>
+        <span className={`tag ${isOpen ? "open" : "closed"}`}>{programme.status}</span>
+      </div>
       <p className="lede">
-        {programme.company?.name} · {programme.role?.name} ·{" "}
-        <span className={`tag ${programme.status === "open" ? "open" : "closed"}`}>
-          {programme.status}
-        </span>
+        {programme.company?.name} · {programme.role?.name}
       </p>
 
       {seats && (
@@ -144,168 +186,265 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
       {flash && <div className="notice good">{flash}</div>}
       {error && <div className="notice bad">{error}</div>}
 
-      <h2>Applicants</h2>
-      <div className="row" style={{ marginBottom: "0.75rem" }}>
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          style={{ width: "auto" }}
-          aria-label="Filter by status"
-        >
-          {STATUSES.map((status) => (
-            <option key={status} value={status}>
-              {status === "" ? "All statuses" : status}
-            </option>
-          ))}
-        </select>
-        <span className="small muted">
-          {selected.size > 0 ? `${selected.size} selected` : `${applications.length} shown`}
-        </span>
-        {selected.size > 0 && (
-          <>
-            <button onClick={() => act("offer")}>Offer</button>
-            <button className="secondary" onClick={() => act("waitlist")}>
-              Waitlist
-            </button>
-            <button className="danger" onClick={() => act("reject")}>
-              Reject
-            </button>
-          </>
-        )}
-      </div>
+      <nav className="row" style={{ margin: "1.25rem 0" }}>
+        {sections.map((s) => (
+          <button
+            key={s.key}
+            className={active === s.key ? "" : "secondary"}
+            aria-current={active === s.key ? "page" : undefined}
+            onClick={() => setSection(s.key)}
+          >
+            {s.label}
+          </button>
+        ))}
+      </nav>
 
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th />
-              <th>Name</th>
-              <th>Organisation</th>
-              <th>Rel</th>
-              <th>Spec</th>
-              <th>Cap</th>
-              <th>Foll</th>
-              <th>Total</th>
-              <th>Status</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {applications.map((application) => (
-              <tr key={application.id} data-selected={selected.has(application.id)}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(application.id)}
-                    onChange={() => toggle(application.id)}
-                    aria-label={`Select ${application.name}`}
-                  />
-                </td>
-                <td>{application.name}</td>
-                <td className="muted">{application.organisation ?? "—"}</td>
-                {CRITERIA.map((criterion) => (
-                  <td key={criterion}>
-                    <input
-                      type="number"
-                      min={1}
-                      max={5}
-                      defaultValue={application[`score_${criterion}`] ?? ""}
-                      onBlur={(e) => saveScore(application.id, criterion, e.target.value)}
-                      aria-label={`${criterion} for ${application.name}`}
-                    />
-                  </td>
-                ))}
-                <td>
-                  <strong>{application.score_total ?? "—"}</strong>
-                </td>
-                <td className="muted">{application.status}</td>
-                <td>
-                  <button
-                    className="secondary small"
-                    onClick={() =>
-                      getApplication(id, application.id).then(setDetail).catch(() => undefined)
-                    }
-                  >
-                    View
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="small muted" style={{ marginTop: "0.6rem" }}>
-        Scores save when you leave the box. Tab moves through the row.
-      </p>
+      {active === "messages" && (
+        <Channel
+          programmeId={programme.id}
+          variant="company"
+          kickoffMeetLink={programme.kickoff_meet_link}
+        />
+      )}
 
-      {detail && (
+      {active === "applicants" && (
         <>
-          <h2>{detail.name}</h2>
-          <div className="row small muted" style={{ marginBottom: "0.75rem" }}>
-            <span>{detail.contact_email}</span>
-            {detail.organisation && <span>· {detail.organisation}</span>}
-            {detail.year_course && <span>· {detail.year_course}</span>}
-            {detail.linkedin_url && (
-              <a href={detail.linkedin_url} target="_blank" rel="noreferrer">
-                · LinkedIn
-              </a>
+          <h2>Applicants</h2>
+          <div className="row" style={{ marginBottom: "0.75rem" }}>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              style={{ width: "auto" }}
+              aria-label="Filter by status"
+            >
+              {STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status === "" ? "All statuses" : status}
+                </option>
+              ))}
+            </select>
+            <span className="small muted">
+              {selected.size > 0 ? `${selected.size} selected` : `${applications.length} shown`}
+            </span>
+            {selected.size > 0 && (
+              <>
+                <button onClick={() => act("offer")}>Offer</button>
+                <button className="secondary" onClick={() => act("waitlist")}>
+                  Waitlist
+                </button>
+                <button className="danger" onClick={() => act("reject")}>
+                  Reject
+                </button>
+              </>
             )}
-            <button className="secondary small" onClick={() => setDetail(null)}>
-              Close
-            </button>
           </div>
-          <div className="panel">
-            <h3 style={{ marginTop: 0 }}>Writeup</h3>
-            <p style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>{detail.writeup}</p>
-          </div>
-          {detail.availability_note && (
-            <div className="notice warn">
-              <strong>Heads up for the week:</strong> {detail.availability_note}
+
+          {applications.length === 0 ? (
+            <p className="muted small">No applications yet.</p>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th />
+                    <th>Name</th>
+                    <th>Organisation</th>
+                    <th>Rel</th>
+                    <th>Spec</th>
+                    <th>Cap</th>
+                    <th>Foll</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.map((application) => (
+                    <tr key={application.id} data-selected={selected.has(application.id)}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(application.id)}
+                          onChange={() => toggle(application.id)}
+                          aria-label={`Select ${application.name}`}
+                        />
+                      </td>
+                      <td>{application.name}</td>
+                      <td className="muted">{application.organisation ?? "—"}</td>
+                      {CRITERIA.map((criterion) => (
+                        <td key={criterion}>
+                          <input
+                            type="number"
+                            min={1}
+                            max={5}
+                            defaultValue={application[`score_${criterion}`] ?? ""}
+                            onBlur={(e) => saveScore(application.id, criterion, e.target.value)}
+                            aria-label={`${criterion} for ${application.name}`}
+                          />
+                        </td>
+                      ))}
+                      <td>
+                        <strong>{application.score_total ?? "—"}</strong>
+                      </td>
+                      <td className="muted">{application.status}</td>
+                      <td>
+                        <button
+                          className="secondary small"
+                          onClick={() =>
+                            getApplication(id, application.id).then(setDetail).catch(() => undefined)
+                          }
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
-          {detail.cv_url && (
-            <p>
-              <a
-                className="btn secondary"
-                href={detail.cv_url.startsWith("http") ? detail.cv_url : `/backend${detail.cv_url}`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                Open CV
-              </a>
-            </p>
+          <p className="small muted" style={{ marginTop: "0.6rem" }}>
+            Prescreen scores are platform-only. They save when you leave the box.
+          </p>
+
+          {detail && (
+            <>
+              <h2>{detail.name}</h2>
+              <div className="row small muted" style={{ marginBottom: "0.75rem" }}>
+                <span>{detail.contact_email}</span>
+                {detail.organisation && <span>· {detail.organisation}</span>}
+                {detail.year_course && <span>· {detail.year_course}</span>}
+                {detail.linkedin_url && (
+                  <a href={detail.linkedin_url} target="_blank" rel="noreferrer">
+                    · LinkedIn
+                  </a>
+                )}
+                <button className="secondary small" onClick={() => setDetail(null)}>
+                  Close
+                </button>
+              </div>
+              <div className="panel">
+                <h3 style={{ marginTop: 0 }}>Writeup</h3>
+                <p style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>{detail.writeup}</p>
+              </div>
+              {detail.availability_note && (
+                <div className="notice warn">
+                  <strong>Heads up for the week:</strong> {detail.availability_note}
+                </div>
+              )}
+              {detail.cv_url && (
+                <p>
+                  <a
+                    className="btn secondary"
+                    href={detail.cv_url.startsWith("http") ? detail.cv_url : `/backend${detail.cv_url}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open CV
+                  </a>
+                </p>
+              )}
+            </>
           )}
         </>
       )}
 
-      <h2>Rubric</h2>
-      <p className="small muted">
-        Published to applicants. Slots 1 and 4 are fixed so cohorts stay comparable.
-      </p>
-      {programme.criteria.map((criterion) => (
-        <div className="rubric" key={criterion.id}>
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <strong>
-              {criterion.slot}. {criterion.name}
-            </strong>
-            {criterion.is_universal && <span className="tag">universal</span>}
+      {active === "judging" && (
+        <JudgingPanel
+          programmeId={programme.id}
+          issued={programme.status === "complete"}
+          meetLink={programme.pitch_meet_link}
+          onIssued={reload}
+        />
+      )}
+
+      {active === "brief" && (
+        <>
+          <h2>Problem</h2>
+          {programme.problem_statement ? (
+            <p style={{ whiteSpace: "pre-wrap" }}>{programme.problem_statement}</p>
+          ) : (
+            <p className="muted small">No problem statement yet.</p>
+          )}
+          <h2>Deliverable</h2>
+          {programme.deliverable_spec ? (
+            <p style={{ whiteSpace: "pre-wrap" }}>{programme.deliverable_spec}</p>
+          ) : (
+            <p className="muted small">No deliverable written yet.</p>
+          )}
+          <DataPackPanel programmeId={programme.id} />
+        </>
+      )}
+
+      {active === "rubric" && (
+        <>
+          <p className="small muted">
+            Published to applicants. Slots 1 and 4 are fixed so cohorts stay comparable.
+            Slot 2 is the prior-work question; slot 3 is named in question 4 of the
+            apply form.
+          </p>
+          {programme.criteria.length === 0 ? (
+            <p className="muted small">No rubric on this programme yet.</p>
+          ) : (
+            programme.criteria.map((criterion) => (
+              <div className="rubric" key={criterion.id}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <strong>
+                    {criterion.slot}. {criterion.name}
+                  </strong>
+                  {criterion.is_universal && <span className="tag">universal</span>}
+                </div>
+                <div className="anchors">
+                  <div>
+                    <b>5</b>
+                    <span>{criterion.anchor_5}</span>
+                  </div>
+                  <div>
+                    <b>3</b>
+                    <span>{criterion.anchor_3}</span>
+                  </div>
+                  <div>
+                    <b>1</b>
+                    <span>{criterion.anchor_1}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </>
+      )}
+
+      {active === "schedule" && (
+        <>
+          <div className="panel">
+            <dl className="facts">
+              <dt>Slug</dt>
+              <dd>{programme.slug}</dd>
+              <dt>Capacity</dt>
+              <dd>{programme.capacity ?? "Uncapped"}</dd>
+              <dt>Apps close</dt>
+              <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
+              <dt>Starts</dt>
+              <dd>{formatDay(programme.start_at, "00:00")}</dd>
+              <dt>Ends</dt>
+              <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
+              {programme.kickoff_meet_link && (
+                <>
+                  <dt>Kick-off</dt>
+                  <dd>{programme.kickoff_meet_link}</dd>
+                </>
+              )}
+              {programme.pitch_starts_at && (
+                <>
+                  <dt>First pitch</dt>
+                  <dd>{formatSlot(programme.pitch_starts_at)} SGT</dd>
+                </>
+              )}
+            </dl>
           </div>
-          <div className="anchors">
-            <div>
-              <b>5</b>
-              <span>{criterion.anchor_5}</span>
-            </div>
-            <div>
-              <b>3</b>
-              <span>{criterion.anchor_3}</span>
-            </div>
-            <div>
-              <b>1</b>
-              <span>{criterion.anchor_1}</span>
-            </div>
-          </div>
-        </div>
-      ))}
+          <PitchingSection programme={programme} onSaved={reload} />
+        </>
+      )}
     </main>
   );
 }
