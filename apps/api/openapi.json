@@ -4334,7 +4334,7 @@
           "participant"
         ],
         "summary": "Set Project Skills",
-        "description": "Tag what a self-declared project used.\n\nNever reachable for a verified entry: what it demonstrated is for a judge\nto attest, not for the participant to claim, and this is the boundary\nthat keeps the two apart.",
+        "description": "Tag unverified skills on a project.\n\nProjectSkill is a claim, ProfileSkill is an attestation \u2014 separate tables,\nso tagging a verified project here never impersonates a judge.",
         "operationId": "set_project_skills_me_projects__entry_id__skills_put",
         "parameters": [
           {
@@ -6545,47 +6545,6 @@
         ],
         "title": "CandidateOut"
       },
-      "CapabilityOut": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "slug": {
-            "type": "string",
-            "title": "Slug"
-          },
-          "summary": {
-            "type": "string",
-            "title": "Summary"
-          },
-          "skills": {
-            "items": {
-              "$ref": "#/components/schemas/AttestedSkill"
-            },
-            "type": "array",
-            "title": "Skills"
-          },
-          "programme_count": {
-            "type": "integer",
-            "title": "Programme Count"
-          },
-          "attester_count": {
-            "type": "integer",
-            "title": "Attester Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "slug",
-          "summary",
-          "skills",
-          "programme_count",
-          "attester_count"
-        ],
-        "title": "CapabilityOut"
-      },
       "CloseoutOut": {
         "properties": {
           "status": {
@@ -7895,12 +7854,20 @@
             ],
             "title": "Handle"
           },
-          "capabilities": {
+          "skills": {
             "items": {
-              "$ref": "#/components/schemas/CapabilityOut"
+              "$ref": "#/components/schemas/AttestedSkill"
             },
             "type": "array",
-            "title": "Capabilities"
+            "title": "Skills"
+          },
+          "attester_count": {
+            "type": "integer",
+            "title": "Attester Count"
+          },
+          "programme_count": {
+            "type": "integer",
+            "title": "Programme Count"
           },
           "credentials": {
             "items": {
@@ -7925,7 +7892,9 @@
         "required": [
           "name",
           "handle",
-          "capabilities",
+          "skills",
+          "attester_count",
+          "programme_count",
           "credentials",
           "testimonials",
           "programmes_completed"
@@ -9216,47 +9185,6 @@
         ],
         "title": "PublicAttestedSkill"
       },
-      "PublicCapability": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "slug": {
-            "type": "string",
-            "title": "Slug"
-          },
-          "summary": {
-            "type": "string",
-            "title": "Summary"
-          },
-          "skills": {
-            "items": {
-              "$ref": "#/components/schemas/PublicAttestedSkill"
-            },
-            "type": "array",
-            "title": "Skills"
-          },
-          "programme_count": {
-            "type": "integer",
-            "title": "Programme Count"
-          },
-          "attester_count": {
-            "type": "integer",
-            "title": "Attester Count"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "slug",
-          "summary",
-          "skills",
-          "programme_count",
-          "attester_count"
-        ],
-        "title": "PublicCapability"
-      },
       "PublicCredential": {
         "properties": {
           "company": {
@@ -9659,12 +9587,20 @@
             ],
             "title": "Location"
           },
-          "capabilities": {
+          "skills": {
             "items": {
-              "$ref": "#/components/schemas/PublicCapability"
+              "$ref": "#/components/schemas/PublicAttestedSkill"
             },
             "type": "array",
-            "title": "Capabilities"
+            "title": "Skills"
+          },
+          "attester_count": {
+            "type": "integer",
+            "title": "Attester Count"
+          },
+          "programme_count": {
+            "type": "integer",
+            "title": "Programme Count"
           },
           "projects": {
             "items": {
@@ -9707,7 +9643,9 @@
           "headline",
           "bio",
           "location",
-          "capabilities",
+          "skills",
+          "attester_count",
+          "programme_count",
           "projects",
           "credentials",
           "testimonials",
@@ -10949,8 +10887,8 @@
           "body": {
             "type": "string",
             "maxLength": 4000,
-            "minLength": 1,
-            "title": "Body"
+            "title": "Body",
+            "default": ""
           },
           "publish": {
             "type": "boolean",
@@ -10959,9 +10897,6 @@
           }
         },
         "type": "object",
-        "required": [
-          "body"
-        ],
         "title": "TestimonialWrite"
       },
       "ThreadCreate": {

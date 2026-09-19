@@ -250,12 +250,13 @@ def test_the_portfolio_shows_attested_skills_with_the_attester(
         }
     ]
 
-    capability = body["capabilities"][0]
-    assert capability["name"] == "Working with data"
-    assert capability["skills"][0]["name"] == "SQL"
+    # Flat: one row per skill, no capability grouping to make one tag look
+    # like two endorsements.
+    assert body["skills"][0]["name"] == "SQL"
     # The whole point: a named practitioner, not a self-declaration.
-    assert capability["skills"][0]["attesters"] == ["Mo Manager"]
-    assert capability["attester_count"] == 1
+    assert body["skills"][0]["attesters"] == ["Mo Manager"]
+    assert body["attester_count"] == 1
+    assert body["programme_count"] == 1
 
 
 def test_the_portfolio_never_carries_a_score(

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import ChallengeCards from "@/components/ChallengeCards";
-import { SkillTags, SkillsBlock, flattenAttestedSkills } from "@/components/SkillTags";
+import { SkillTags, SkillsBlock, toTaggedSkills } from "@/components/SkillTags";
 import {
   assetUrl,
   getPortfolio,
@@ -51,7 +51,7 @@ export default function ParticipantHomePage() {
   if (error) return <main><div className="notice bad">{error}</div></main>;
   if (!portfolio) return <main><p className="muted">Loading…</p></main>;
 
-  const attested = flattenAttestedSkills(portfolio.capabilities);
+  const attested = toTaggedSkills(portfolio.skills);
 
   const empty =
     attested.length === 0 &&

@@ -26,11 +26,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.db import get_session
-from projet.models import Company, Person, Programme
+from projet.models import Person
 from projet.models.enums import ArtifactVisibility
 from projet.services.closeout import credentials_for
 from projet.services.profile import (
-    capability_rollup,
+    attested_skills,
     endorsements_for,
     published_testimonials_for,
 )
@@ -45,15 +45,6 @@ class PublicAttestedSkill(BaseModel):
     type: str
     attesters: list[str]
     programme_count: int
-
-
-class PublicCapability(BaseModel):
-    name: str
-    slug: str
-    summary: str
-    skills: list[PublicAttestedSkill]
-    programme_count: int
-    attester_count: int
 
 
 class PublicProjectLink(BaseModel):
@@ -99,7 +90,11 @@ class PublicProfile(BaseModel):
     headline: str | None
     bio: str | None
     location: str | None
-    capabilities: list[PublicCapability]
+    # Flat, one row per skill: grouping onto capability axes made one judge's
+    # single tag appear under two headings and read as two endorsements.
+    skills: list[PublicAttestedSkill]
+    attester_count: int
+    programme_count: int
     projects: list[PublicProjectEntry]
     credentials: list[PublicCredential]
     testimonials: list[PublicTestimonial]
@@ -157,24 +152,15 @@ def get_public_profile(
     if person is None or not person.public:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No profile at that handle.")
 
-    capabilities = [
-        PublicCapability(
-            name=rollup.name,
-            slug=rollup.slug,
-            summary=rollup.summary,
-            skills=[
-                PublicAttestedSkill(
-                    name=item.name,
-                    type=item.type.value,
-                    attesters=item.attesters,
-                    programme_count=len(item.programme_ids),
-                )
-                for item in rollup.skills
-            ],
-            programme_count=rollup.programme_count,
-            attester_count=rollup.attester_count,
+    evidence = attested_skills(db, person.id)
+    skills = [
+        PublicAttestedSkill(
+            name=item.name,
+            type=item.type.value,
+            attesters=item.attesters,
+            programme_count=len(item.programme_ids),
         )
-        for rollup in capability_rollup(db, person.id)
+        for item in evidence.skills
     ]
 
     entries = entries_for(db, person.id)
@@ -214,7 +200,9 @@ def get_public_profile(
         headline=person.headline,
         bio=person.bio,
         location=person.location,
-        capabilities=capabilities,
+        skills=skills,
+        attester_count=evidence.attester_count,
+        programme_count=evidence.programme_count,
         projects=projects,
         credentials=credentials,
         testimonials=testimonials,

@@ -1,16 +1,17 @@
-"""The profile side of FR-903: judge tags become attested skills, and attested
-skills roll up onto capabilities.
+"""The profile side of FR-903: judge tags become attested skills.
 
-Two steps, deliberately separate:
+    ScoreSkillTag  ->  ProfileSkill
+    (what a judge     (what the
+     observed)         profile says)
 
-    ScoreSkillTag  ->  ProfileSkill  ->  Capability
-    (what a judge     (what the        (the axis it is
-     observed)         profile says)    comparable on)
+The promotion carries an attester, which is the whole difference between this
+and a skill somebody typed about themselves.
 
-The first step is a promotion with an attester attached — it is what makes a
-profile skill materially different from a self-declared one. The second is a
-pure query, not a stored table: per person the volume is tiny (tens of rows),
-and a denormalised rollup would drift the moment capabilities.md is edited.
+The profile lists those skills flat, one row per skill. It deliberately does
+not group them onto capability axes: a skill mapping onto two capabilities
+would then appear under both headings, and one judge's single tag would read
+as two endorsements. The Capability/SkillCapability tables still exist for the
+taxonomy and its seeding — they are simply not what a profile is built out of.
 """
 
 from __future__ import annotations
@@ -22,7 +23,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.models import (
-    Capability,
     Company,
     CompanyUser,
     Participant,
@@ -31,7 +31,6 @@ from projet.models import (
     Score,
     ScoreSkillTag,
     Skill,
-    SkillCapability,
     Testimonial,
 )
 from projet.models.enums import SkillType
@@ -49,14 +48,17 @@ class SkillEvidence:
 
 
 @dataclass
-class CapabilityRollup:
-    name: str
-    slug: str
-    summary: str
-    sort_order: int
+class AttestedEvidence:
+    """Everything a profile says about what practitioners saw.
+
+    Counts are of distinct attesters and distinct programmes, never of rows:
+    one judge tagging four skills is one attester, and a profile that inflates
+    is worse than no profile.
+    """
+
     skills: list[SkillEvidence]
-    programme_count: int
     attester_count: int
+    programme_count: int
 
 
 def promote_score_skill_tags(session: Session, participant_id: uuid.UUID) -> int:
@@ -112,25 +114,17 @@ def promote_score_skill_tags(session: Session, participant_id: uuid.UUID) -> int
     return created
 
 
-def capability_rollup(
+def attested_skills(
     session: Session, person_id: uuid.UUID, *, include_hidden: bool = False
-) -> list[CapabilityRollup]:
-    """A person's attested skills, grouped onto the universal capabilities.
+) -> AttestedEvidence:
+    """A person's attested skills, one row per skill.
 
-    Counts are of **distinct programmes and distinct attesters**, never of rows.
-    A skill mapping onto two capabilities would otherwise make one attestation
-    look like two, and a profile that inflates is worse than no profile.
-
-    Capabilities with no evidence are omitted: an empty axis on a profile reads
-    as a weakness the platform never measured.
+    Strongest evidence first — most attesters, then most programmes, then
+    alphabetically — because a reader scanning this stops after a few lines and
+    the ones with the most people behind them are the ones worth reading.
     """
     query = (
         select(
-            Capability.id,
-            Capability.name,
-            Capability.slug,
-            Capability.summary,
-            Capability.sort_order,
             Skill.id,
             Skill.name,
             Skill.type,
@@ -139,67 +133,46 @@ def capability_rollup(
             ProfileSkill.attested_by_company,
         )
         .join(Skill, Skill.id == ProfileSkill.skill_id)
-        .join(SkillCapability, SkillCapability.skill_id == Skill.id)
-        .join(Capability, Capability.id == SkillCapability.capability_id)
         .where(ProfileSkill.person_id == person_id)
-        .order_by(Capability.sort_order, Skill.name)
+        .order_by(Skill.name)
     )
     if not include_hidden:
         query = query.where(ProfileSkill.visible.is_(True))
 
-    rollups: dict[uuid.UUID, CapabilityRollup] = {}
-    evidence: dict[tuple[uuid.UUID, uuid.UUID], SkillEvidence] = {}
-    attesters: dict[uuid.UUID, set[tuple[str | None, str | None]]] = {}
+    evidence: dict[uuid.UUID, SkillEvidence] = {}
+    # An attester is a person at a company. Two judges of the same name at
+    # different companies are two attesters; the same judge across two
+    # programmes is one.
+    attesters: set[tuple[str | None, str | None]] = set()
+    programmes: set[uuid.UUID] = set()
 
-    for row in session.execute(query):
-        (
-            capability_id,
-            capability_name,
-            slug,
-            summary,
-            sort_order,
-            skill_id,
-            skill_name,
-            skill_type,
-            programme_id,
-            attested_by_name,
-            attested_by_company,
-        ) = row
-
-        rollup = rollups.get(capability_id)
-        if rollup is None:
-            rollup = CapabilityRollup(
-                name=capability_name,
-                slug=slug,
-                summary=summary,
-                sort_order=sort_order,
-                skills=[],
-                programme_count=0,
-                attester_count=0,
-            )
-            rollups[capability_id] = rollup
-            attesters[capability_id] = set()
-
-        key = (capability_id, skill_id)
-        item = evidence.get(key)
+    for skill_id, name, skill_type, programme_id, attested_by, company in session.execute(query):
+        item = evidence.get(skill_id)
         if item is None:
-            item = SkillEvidence(skill_id=skill_id, name=skill_name, type=skill_type)
-            evidence[key] = item
-            rollup.skills.append(item)
+            item = SkillEvidence(skill_id=skill_id, name=name, type=skill_type)
+            evidence[skill_id] = item
         item.programme_ids.add(programme_id)
+        if attested_by and attested_by not in item.attesters:
+            item.attesters.append(attested_by)
 
-        if attested_by_name and attested_by_name not in item.attesters:
-            item.attesters.append(attested_by_name)
-        # An attester is a person at a company. Two judges of the same name at
-        # different companies are two attesters; the same judge across two
-        # programmes is one.
-        attesters[capability_id].add((attested_by_name, attested_by_company))
+        programmes.add(programme_id)
+        if attested_by:
+            attesters.add((attested_by, company))
 
-    for capability_id, rollup in rollups.items():
-        rollup.programme_count = len({pid for item in rollup.skills for pid in item.programme_ids})
-        rollup.attester_count = len({a for a in attesters[capability_id] if a[0]})
+    # Attester order otherwise comes out of the join, which is not stable
+    # between requests — the same profile would reorder its own names.
+    for item in evidence.values():
+        item.attesters.sort()
 
-    return sorted(rollups.values(), key=lambda r: r.sort_order)
+    skills = sorted(
+        evidence.values(),
+        key=lambda item: (-len(item.attesters), -len(item.programme_ids), item.name),
+    )
+    return AttestedEvidence(
+        skills=skills,
+        attester_count=len(attesters),
+        programme_count=len(programmes),
+    )
 
 
 @dataclass

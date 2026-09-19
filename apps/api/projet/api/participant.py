@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 from projet.api.deps import require_participant
 from projet.db import get_session
 from projet.models import (
-    Company,
     JudgingSession,
     Participant,
     Person,
@@ -44,7 +43,7 @@ from projet.services.messaging import (
     visible_threads,
 )
 from projet.services.profile import (
-    capability_rollup,
+    attested_skills,
     endorsements_for,
     published_testimonials_for,
 )
@@ -130,15 +129,6 @@ class AttestedSkill(BaseModel):
     programme_count: int
 
 
-class CapabilityOut(BaseModel):
-    name: str
-    slug: str
-    summary: str
-    skills: list[AttestedSkill]
-    programme_count: int
-    attester_count: int
-
-
 class CredentialOut(BaseModel):
     """Who stood behind which skills, on which programme.
 
@@ -172,7 +162,12 @@ class Portfolio(BaseModel):
 
     name: str
     handle: str | None
-    capabilities: list[CapabilityOut]
+    # Flat, one row per skill. Grouping these onto capability axes made a
+    # single judge's tag appear under two headings and read as two
+    # endorsements, which is the one thing a hiring signal cannot afford.
+    skills: list[AttestedSkill]
+    attester_count: int
+    programme_count: int
     credentials: list[CredentialOut]
     testimonials: list[TestimonialCard]
     programmes_completed: int
@@ -194,24 +189,15 @@ def get_portfolio(
 
 
 def _portfolio(db: Session, person: Person) -> Portfolio:
-    capabilities = [
-        CapabilityOut(
-            name=rollup.name,
-            slug=rollup.slug,
-            summary=rollup.summary,
-            skills=[
-                AttestedSkill(
-                    name=item.name,
-                    type=item.type.value,
-                    attesters=item.attesters,
-                    programme_count=len(item.programme_ids),
-                )
-                for item in rollup.skills
-            ],
-            programme_count=rollup.programme_count,
-            attester_count=rollup.attester_count,
+    evidence = attested_skills(db, person.id)
+    skills = [
+        AttestedSkill(
+            name=item.name,
+            type=item.type.value,
+            attesters=item.attesters,
+            programme_count=len(item.programme_ids),
         )
-        for rollup in capability_rollup(db, person.id)
+        for item in evidence.skills
     ]
 
     credentials = [
@@ -245,7 +231,9 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
     return Portfolio(
         name=person.name,
         handle=person.handle,
-        capabilities=capabilities,
+        skills=skills,
+        attester_count=evidence.attester_count,
+        programme_count=evidence.programme_count,
         credentials=credentials,
         testimonials=testimonials,
         programmes_completed=len(

@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { SkillTags, SkillsBlock, flattenAttestedSkills } from "@/components/SkillTags";
+import { SkillTags, SkillsBlock, toTaggedSkills } from "@/components/SkillTags";
 import { API_BASE_URL, assetUrl, type PublicProfile } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +32,7 @@ export default async function PublicProfilePage({
   const profile = await fetchProfile(handle);
   if (!profile) notFound();
 
-  const attested = flattenAttestedSkills(profile.capabilities);
+  const attested = toTaggedSkills(profile.skills);
 
   const empty =
     attested.length === 0 &&

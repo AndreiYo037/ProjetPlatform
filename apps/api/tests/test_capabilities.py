@@ -37,7 +37,7 @@ from projet.models.enums import (
 from projet.seeds.loader import SeedError, _assert_capabilities_cover, load_content, seed_all
 from projet.seeds.parsers import ContentError, parse_capabilities
 from projet.seeds.parsers.capabilities import SkillCapabilities
-from projet.services.profile import capability_rollup, endorsements_for, promote_score_skill_tags
+from projet.services.profile import attested_skills, endorsements_for, promote_score_skill_tags
 from projet.services.teams import ensure_team_for_participant
 
 EXPECTED_CAPABILITIES = 7
@@ -316,32 +316,28 @@ def test_promotion_is_idempotent_and_two_judges_make_one_line(session, participa
     assert rows[0].attested_by_name == "Priya Judge"
 
 
-def test_the_rollup_groups_skills_onto_their_axes(session, participant_factory):
+def test_the_profile_lists_attested_skills_flat(session, participant_factory):
+    """No axes, no groups: one row per skill, each carrying who tagged it."""
     participant = participant_factory()
     judge = _judge(session, "Acme", "Priya Judge")
-    craft = _capability(session, "Technical craft", order=1)
-    communication = _capability(session, "Communication", order=2)
-
     sql = _skill(session, "SQL")
     writing = _skill(session, "Writing", SkillType.SOFT)
-    session.add_all(
-        [
-            SkillCapability(skill_id=sql.id, capability_id=craft.id),
-            SkillCapability(skill_id=writing.id, capability_id=communication.id),
-        ]
-    )
     _score(session, participant, judge, [sql, writing])
     promote_score_skill_tags(session, participant.id)
 
-    rollup = capability_rollup(session, participant.person_id)
-    assert [c.name for c in rollup] == [craft.name, communication.name]
-    assert [s.name for s in rollup[0].skills] == [sql.name]
-    assert rollup[0].skills[0].attesters == ["Priya Judge"]
+    evidence = attested_skills(session, participant.person_id)
+
+    assert {item.name for item in evidence.skills} == {sql.name, writing.name}
+    assert evidence.skills[0].attesters == ["Priya Judge"]
+    assert evidence.attester_count == 1
+    assert evidence.programme_count == 1
 
 
-def test_a_skill_on_two_axes_is_not_counted_twice(session, participant_factory):
-    """One attestation must not look like two. A profile that inflates is worse
-    than no profile — it is the one claim a hiring signal cannot afford."""
+def test_one_tag_is_one_row_however_many_capabilities_the_skill_maps_to(
+    session, participant_factory
+):
+    """The reason the grouping went. A skill on two axes used to appear under
+    both, so one judge's single tag read as two endorsements."""
     participant = participant_factory()
     judge = _judge(session, "Acme", "Priya Judge")
     craft = _capability(session, "Technical craft", order=1)
@@ -357,37 +353,46 @@ def test_a_skill_on_two_axes_is_not_counted_twice(session, participant_factory):
     _score(session, participant, judge, [sql])
     promote_score_skill_tags(session, participant.id)
 
-    rollup = capability_rollup(session, participant.person_id)
-    assert len(rollup) == 2
-    for entry in rollup:
-        assert entry.programme_count == 1
-        assert entry.attester_count == 1
+    evidence = attested_skills(session, participant.person_id)
+
+    assert [item.name for item in evidence.skills] == [sql.name]
+    assert evidence.attester_count == 1
+    assert evidence.programme_count == 1
 
 
-def test_capabilities_with_no_evidence_are_omitted(session, participant_factory):
-    """An empty axis on a profile reads as a weakness the platform never
-    measured."""
+def test_a_skill_with_nothing_behind_it_never_appears(session, participant_factory):
+    """Only tagged skills are listed; the taxonomy is not the profile."""
     participant = participant_factory()
     judge = _judge(session, "Acme", "Priya Judge")
-    craft = _capability(session, "Technical craft", order=1)
-    _capability(session, "Judgement", order=2)
-
     sql = _skill(session, "SQL")
-    session.add(SkillCapability(skill_id=sql.id, capability_id=craft.id))
+    _skill(session, "Never tagged")
     _score(session, participant, judge, [sql])
     promote_score_skill_tags(session, participant.id)
 
-    assert [c.name for c in capability_rollup(session, participant.person_id)] == [craft.name]
+    listed = attested_skills(session, participant.person_id).skills
+    assert [item.name for item in listed] == [sql.name]
 
 
-def test_a_hidden_profile_skill_leaves_the_rollup(session, participant_factory):
-    """FR-903d lets a participant hide an attested skill. Hiding it on the
-    profile but leaving it counted on the axis above would defeat the control."""
+def test_equal_evidence_is_listed_alphabetically(session, participant_factory):
+    """With nothing to separate them, the order has to be stable and boring
+    rather than whatever the database happened to return."""
     participant = participant_factory()
     judge = _judge(session, "Acme", "Priya Judge")
-    craft = _capability(session, "Technical craft")
+    zebra = _skill(session, "Zebra wrangling")
+    apples = _skill(session, "Apple grading")
+    _score(session, participant, judge, [zebra, apples])
+    promote_score_skill_tags(session, participant.id)
+
+    listed = attested_skills(session, participant.person_id).skills
+    assert [item.name for item in listed] == [apples.name, zebra.name]
+
+
+def test_a_hidden_profile_skill_leaves_the_list(session, participant_factory):
+    """FR-903d lets a participant hide an attested skill. Hiding it from the
+    list but leaving it in the counts would defeat the control."""
+    participant = participant_factory()
+    judge = _judge(session, "Acme", "Priya Judge")
     sql = _skill(session, "SQL")
-    session.add(SkillCapability(skill_id=sql.id, capability_id=craft.id))
     _score(session, participant, judge, [sql])
     promote_score_skill_tags(session, participant.id)
 
@@ -395,26 +400,19 @@ def test_a_hidden_profile_skill_leaves_the_rollup(session, participant_factory):
     row.visible = False
     session.flush()
 
-    assert capability_rollup(session, participant.person_id) == []
-    assert len(capability_rollup(session, participant.person_id, include_hidden=True)) == 1
+    assert attested_skills(session, participant.person_id).skills == []
+    assert attested_skills(session, participant.person_id).attester_count == 0
+    assert len(attested_skills(session, participant.person_id, include_hidden=True).skills) == 1
 
 
-def test_a_second_programme_compounds_onto_the_same_axis(
+def test_a_second_programme_compounds_onto_the_same_profile(
     session, company, role, participant_factory
 ):
-    """The whole point of the rollup. Two programmes in different roles tag
-    different specific skills; the profile has to show one axis with two
-    programmes behind it, not two unrelated lists."""
-    craft = _capability(session, "Technical craft")
+    """Two programmes tag different skills; the profile shows one list with
+    both behind it, and counts each programme and attester once."""
     first_participant = participant_factory()
     sql = _skill(session, "SQL")
     solidity = _skill(session, "Solidity")
-    session.add_all(
-        [
-            SkillCapability(skill_id=sql.id, capability_id=craft.id),
-            SkillCapability(skill_id=solidity.id, capability_id=craft.id),
-        ]
-    )
     _score(session, first_participant, _judge(session, "Acme", "Priya Judge"), [sql])
     promote_score_skill_tags(session, first_participant.id)
 
@@ -446,14 +444,20 @@ def test_a_second_programme_compounds_onto_the_same_axis(
     )
     session.add(second_participant)
     session.flush()
-    _score(session, second_participant, _judge(session, "Beta", "Wei Judge"), [solidity])
+    # SQL again, plus something new: the skill two companies both saw should
+    # end up ahead of the one only a single company saw.
+    _score(session, second_participant, _judge(session, "Beta", "Wei Judge"), [sql, solidity])
     promote_score_skill_tags(session, second_participant.id)
 
-    rollup = capability_rollup(session, first_participant.person_id)
-    assert len(rollup) == 1
-    assert {s.name for s in rollup[0].skills} == {sql.name, solidity.name}
-    assert rollup[0].programme_count == 2
-    assert rollup[0].attester_count == 2
+    evidence = attested_skills(session, first_participant.person_id)
+    assert {item.name for item in evidence.skills} == {sql.name, solidity.name}
+    assert evidence.programme_count == 2
+    assert evidence.attester_count == 2
+
+    strongest = evidence.skills[0]
+    assert strongest.name == sql.name
+    assert strongest.attesters == ["Priya Judge", "Wei Judge"]
+    assert len(strongest.programme_ids) == 2
 
 
 def test_endorsements_are_the_company_programme_and_skills(

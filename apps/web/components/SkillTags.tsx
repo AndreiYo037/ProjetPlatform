@@ -1,11 +1,10 @@
 import ProjetVerifiedStamp from "@/components/ProjetVerifiedStamp";
 
 /**
- * Attested skills as a flat list. One skill that maps onto two capabilities
- * is still one chip — the grouping is a taxonomy concern, not a profile one.
- *
- * Profile Skills are Projet-attested only. Claims live on a project if they
- * live anywhere; they do not appear here.
+ * Attested skills as a flat list — one chip per skill, never grouped onto a
+ * capability axis. The API already returns them this way (`attested_skills`
+ * in profile.py): a skill that maps to two capabilities used to render under
+ * both headings, and one judge's single tag read as two endorsements.
  */
 
 export type TaggedSkill = {
@@ -15,33 +14,16 @@ export type TaggedSkill = {
   weight: number;
 };
 
-function byWeight(a: TaggedSkill, b: TaggedSkill) {
-  return b.weight - a.weight || a.name.localeCompare(b.name);
-}
-
-export function flattenAttestedSkills(
-  groups: { skills: { name: string; attesters: string[]; programme_count?: number }[] }[],
+/** Portfolio.skills / PublicProfile.skills, as sent by the API, in the shape
+ * SkillTags renders. The API already sorts by strength and dedupes. */
+export function toTaggedSkills(
+  skills: { name: string; attesters: string[]; programme_count: number }[],
 ): TaggedSkill[] {
-  const byName = new Map<string, TaggedSkill>();
-  for (const group of groups) {
-    for (const skill of group.skills) {
-      const existing = byName.get(skill.name);
-      const weight = skill.programme_count ?? 1;
-      if (!existing) {
-        byName.set(skill.name, {
-          name: skill.name,
-          attesters: [...skill.attesters],
-          weight,
-        });
-        continue;
-      }
-      existing.weight = Math.max(existing.weight, weight);
-      for (const attester of skill.attesters) {
-        if (!existing.attesters?.includes(attester)) existing.attesters?.push(attester);
-      }
-    }
-  }
-  return [...byName.values()].sort(byWeight);
+  return skills.map((skill) => ({
+    name: skill.name,
+    attesters: skill.attesters,
+    weight: skill.programme_count,
+  }));
 }
 
 function skillTitle(skill: { attesters?: string[]; weight?: number }) {
