@@ -114,6 +114,10 @@ class ProgrammeOut(BaseModel):
     # Same instant as submit_deadline_at (end of the last day). Carried on the
     # wire so the apply form can name both dates a participant is committing to.
     pitch_at: datetime | None = None
+    pitch_starts_at: datetime | None = None
+    pitch_duration_minutes: int | None = None
+    kickoff_meet_link: str | None = None
+    pitch_meet_link: str | None = None
     company: CompanySummary | None = None
     role: RoleSummary | None = None
 

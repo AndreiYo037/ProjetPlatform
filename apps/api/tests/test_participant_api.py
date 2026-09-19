@@ -62,6 +62,8 @@ def test_the_dashboard_answers_what_by_when_and_where(client, signed_in, program
     assert body["programme"]["title"] == programme.title
     assert body["programme"]["submit_deadline_at"]
     assert body["programme"]["timezone"]
+    assert "kickoff_meet_link" in body["programme"]
+    assert body["programme"]["pitch_booking_open"] is True
     assert body["submission"]["status"] == "draft"
     assert {slot["slot"] for slot in body["submission"]["slots"]} == {"artifact", "memo"}
     assert body["active_programmes"][0]["id"] == str(programme.id)

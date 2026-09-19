@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import {
   assetUrl,
+  deleteProgramme,
   getCompanyHome,
   removeCompanyLogo,
   updateCompanyProfile,
@@ -88,6 +89,8 @@ export default function CompanyHomePage() {
         ))
       )}
 
+      <DraftsList drafts={home.draft_programmes} onChanged={load} />
+
       {home.past_programmes.length > 0 && (
         <>
           <h2>Past programmes</h2>
@@ -107,6 +110,92 @@ export default function CompanyHomePage() {
         </>
       )}
     </main>
+  );
+}
+
+function DraftsList({
+  drafts,
+  onChanged,
+}: {
+  drafts: CompanyHome["draft_programmes"];
+  onChanged: () => void;
+}) {
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function remove(id: string) {
+    if (confirmId !== id) {
+      setConfirmId(id);
+      setError(null);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteProgramme(id);
+      setConfirmId(null);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete that draft.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <h2>Drafts</h2>
+      {error && <div className="notice bad">{error}</div>}
+      {drafts.length === 0 ? (
+        <p className="muted small">No unpublished challenges.</p>
+      ) : (
+        drafts.map((programme) => (
+          <div className="card" key={programme.id}>
+            <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <strong>{programme.title}</strong>
+                <div className="small muted">{programme.role?.name ?? "Draft"}</div>
+              </div>
+              <div className="row" style={{ gap: "0.5rem" }}>
+                {confirmId === programme.id ? (
+                  <>
+                    <button
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => setConfirmId(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button disabled={busy} onClick={() => remove(programme.id)}>
+                      {busy ? "Deleting…" : "Yes, delete"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
+                      Open
+                    </Link>
+                    <button
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => remove(programme.id)}
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+            {confirmId === programme.id && (
+              <p className="small muted" style={{ margin: "0.5rem 0 0" }}>
+                This cannot be undone. Delete this draft?
+              </p>
+            )}
+          </div>
+        ))
+      )}
+    </>
   );
 }
 

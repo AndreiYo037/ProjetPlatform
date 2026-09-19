@@ -7,7 +7,7 @@ under the company and programme that stood behind them.
 
 The rules worth proving are the ones that keep it honest. A credential is not
 issued for turning up. A score never reaches the person scored. A draft
-testimonial is not a promise. And closing twice does not double anything.
+testimonial is not a promise. And closing is once.
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ from projet.models import (
     Credential,
     Outbox,
     PlatformUser,
-    ScoreSkillTag,
     Skill,
     SkillCapability,
     SubmissionLink,
@@ -41,9 +40,9 @@ from projet.models.enums import (
     ProgrammeStatus,
     SkillType,
 )
+from projet.outbox.worker import run_once
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.rubric import compose_rubric
-from projet.services.scoring import ensure_score
 from projet.services.teams import ensure_submission, ensure_team_for_participant
 from tests.conftest import make_participant
 
@@ -155,10 +154,31 @@ def test_closing_promotes_the_tags_and_issues_the_credentials(
     assert body["status"] == "complete"
     assert body["participants_closed"] == 2
     assert body["credentials_issued"] == 2
-    # Tags land on the profile when the judge saves them, so closeout has
-    # nothing left to promote unless a late score arrives afterwards.
-    assert body["skills_promoted"] == 0
+    assert body["skills_promoted"] == 2
     assert body["unscored"] == 0
+
+
+def test_close_emails_when_skills_land_on_a_scored_profile(
+    client, session, programme, manager, sat, skill, google
+):
+    """Close and issue is when the profile becomes real — tell them then."""
+    sign_in_company(client, session, manager)
+    score_fully(client, programme, sat["sam"], skill)
+    score_fully(client, programme, sat["ada"])
+
+    assert client.post(f"/programmes/{programme.id}/close").status_code == 200
+    run_once(session, google)
+
+    notes = [
+        call
+        for call in google.calls_of("send_email")
+        if call.payload["subject"] == "Your Projet profile was updated"
+    ]
+    assert len(notes) == 1
+    assert notes[0].payload["to"] == sat["sam"].person.contact_email
+    assert programme.title in notes[0].payload["html_body"]
+    assert "skill" in notes[0].payload["html_body"]
+    assert sat["ada"].person.contact_email not in [call.payload["to"] for call in notes]
 
 
 def test_a_participant_no_judge_scored_gets_no_credential(
@@ -189,29 +209,39 @@ def test_a_half_scored_card_does_not_earn_a_credential(
     assert client.post(f"/programmes/{programme.id}/close").json()["credentials_issued"] == 0
 
 
-def test_closing_twice_doubles_nothing(client, session, programme, manager, sat, skill):
+def test_closing_twice_is_refused(client, session, programme, manager, sat, skill):
     sign_in_company(client, session, manager)
     score_fully(client, programme, sat["sam"], skill)
-    first = client.post(f"/programmes/{programme.id}/close").json()
-    assert first["credentials_issued"] == 1
+    first = client.post(f"/programmes/{programme.id}/close")
+    assert first.status_code == 200
+    assert first.json()["credentials_issued"] == 1
 
-    second = client.post(f"/programmes/{programme.id}/close").json()
-    assert second["credentials_issued"] == 0
-    assert second["skills_promoted"] == 0
+    second = client.post(f"/programmes/{programme.id}/close")
+    assert second.status_code == 409
+    assert "Already closed" in second.json()["detail"]
 
 
-def test_a_late_judge_still_reaches_the_profile(
+def test_a_late_score_does_not_reach_the_profile_after_close(
     client, session, programme, manager, sat, skill
 ):
-    """Re-running is the point: scoring does not always finish on the night."""
+    """Close is once. A card finished afterwards stays on the card."""
     sign_in_company(client, session, manager)
     score_fully(client, programme, sat["sam"], skill)
-    client.post(f"/programmes/{programme.id}/close")
+    assert client.post(f"/programmes/{programme.id}/close").status_code == 200
 
     score_fully(client, programme, sat["ada"], skill)
-    again = client.post(f"/programmes/{programme.id}/close").json()
-    assert again["credentials_issued"] == 1
-    assert again["skills_promoted"] == 0
+    again = client.post(f"/programmes/{programme.id}/close")
+    assert again.status_code == 409
+
+    sign_in_participant(client, session, sat["ada"])
+    late = client.get("/me/portfolio").json()
+    assert late["skills"] == []
+    assert late["credentials"] == []
+
+    sign_in_participant(client, session, sat["sam"])
+    kept = client.get("/me/portfolio").json()
+    assert kept["skills"][0]["name"] == "SQL"
+    assert kept["programmes_completed"] == 1
 
 
 def test_an_open_programme_cannot_close_while_the_week_is_running(
@@ -238,62 +268,39 @@ def test_a_draft_cannot_close(client, session, programme, manager, sat):
     assert "Publish" in refused.json()["detail"]
 
 
-def test_judge_tags_reach_the_portfolio_before_the_programme_closes(
-    client, session, programme, company, manager, sat, skill
+def test_judge_tags_do_not_reach_the_portfolio_until_close(
+    client, session, programme, manager, sat, skill
 ):
-    """The scoring card says a tag is a claim on the profile. It has to show
-    up as soon as the judge saves it, not after an extra close click."""
+    """The scoring card is a working note. The profile is a claim, and that
+    claim is made when the company closes and issues — not when a tag is saved."""
     sign_in_company(client, session, manager)
     score_fully(client, programme, sat["sam"], skill)
 
     sign_in_participant(client, session, sat["sam"])
     body = client.get("/me/portfolio").json()
-    assert body["skills"][0]["name"] == "SQL"
-    assert body["skills"][0]["attesters"] == ["Mo Manager"]
-    cred = body["credentials"][0]
-    assert cred["company"] == company.name
-    assert cred["programme"] == programme.title
-    assert cred["skills"] == ["SQL"]
-    assert cred["attesters"] == ["Mo Manager"]
-    assert cred["start_at"]
-    assert cred["ended_at"]
+    assert body["skills"] == []
+    assert body["credentials"] == []
     assert body["programmes_completed"] == 0
 
-
-def test_tags_that_were_never_promoted_still_show_on_home(
-    client, session, programme, manager, sat, skill
-):
-    """Tags written before promotion ran on every save still have to appear
-    the moment the participant opens home."""
-    team = ensure_team_for_participant(session, sat["sam"])
-    score = ensure_score(session, team, manager.id)
-    session.add(
-        ScoreSkillTag(
-            score_id=score.id,
-            participant_id=sat["sam"].id,
-            skill_id=skill.id,
-        )
-    )
-    session.flush()
+    sign_in_company(client, session, manager)
+    client.post(f"/programmes/{programme.id}/close")
 
     sign_in_participant(client, session, sat["sam"])
-    body = client.get("/me/portfolio").json()
-    assert body["skills"][0]["name"] == "SQL"
-    assert body["skills"][0]["attesters"] == ["Mo Manager"]
+    kept = client.get("/me/portfolio").json()
+    assert kept["skills"][0]["name"] == "SQL"
+    assert kept["skills"][0]["attesters"] == ["Mo Manager"]
+    assert kept["credentials"][0]["skills"] == ["SQL"]
+    assert kept["programmes_completed"] == 1
 
 
-def test_clearing_a_tag_takes_it_off_the_portfolio(
+def test_tags_cleared_before_close_never_reach_the_portfolio(
     client, session, programme, manager, sat, skill
 ):
     sign_in_company(client, session, manager)
     url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/score"
     client.patch(url, json={"skill_ids": [str(skill.id)]})
-
-    sign_in_participant(client, session, sat["sam"])
-    assert client.get("/me/portfolio").json()["skills"][0]["name"] == "SQL"
-
-    sign_in_company(client, session, manager)
     client.patch(url, json={"skill_ids": []})
+    client.post(f"/programmes/{programme.id}/close")
 
     sign_in_participant(client, session, sat["sam"])
     assert client.get("/me/portfolio").json()["skills"] == []
@@ -343,7 +350,7 @@ def test_the_portfolio_never_carries_a_score(
         assert leak not in raw, f"{leak!r} must not reach a participant"
 
 
-def test_a_testimonial_is_a_draft_until_it_is_published(
+def test_a_testimonial_lands_on_the_profile_at_close(
     client, session, programme, manager, sat
 ):
     sign_in_company(client, session, manager)
@@ -364,6 +371,15 @@ def test_a_testimonial_is_a_draft_until_it_is_published(
     assert published.status_code == 200, published.text
     assert published.json()["published_at"] is not None
     assert published.json()["pdf_url"]
+
+    sign_in_participant(client, session, sat["sam"])
+    assert client.get("/me/portfolio").json()["testimonials"] == []
+    notes = list(session.scalars(select(Outbox).where(Outbox.effect_type == "profile_updated_email")))
+    assert not any("testimonial" in (row.payload.get("html_body") or "") for row in notes)
+
+    sign_in_company(client, session, manager)
+    score_fully(client, programme, sat["sam"])
+    assert client.post(f"/programmes/{programme.id}/close").status_code == 200
 
     sign_in_participant(client, session, sat["sam"])
     kept = client.get("/me/portfolio").json()["testimonials"]

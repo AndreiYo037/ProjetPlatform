@@ -1411,6 +1411,57 @@
           }
         }
       },
+      "delete": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Delete Programme",
+        "description": "A draft is unpublished work. Once it has gone live it stays.",
+        "operationId": "delete_programme_programmes__programme_id__delete",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "patch": {
         "tags": [
           "programmes"
@@ -1733,6 +1784,141 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Add Judging Session Programmes  Programme Id  Judging Sessions Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/pitch-schedule": {
+      "put": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Set Pitch Schedule",
+        "description": "The pitching clock: when the first pitch starts, and how long each one is.\n\nOne slot per handed-in submission. First come, first served among people\nwho have submitted. Changing the clock keeps anyone who already booked\non the same ordinal slot, at the new times.",
+        "operationId": "set_pitch_schedule_programmes__programme_id__pitch_schedule_put",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PitchScheduleUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PitchScheduleOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "programmes"
+        ],
+        "summary": "Get Pitch Schedule",
+        "operationId": "get_pitch_schedule_programmes__programme_id__pitch_schedule_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/PitchScheduleOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Pitch Schedule Programmes  Programme Id  Pitch Schedule Get"
                 }
               }
             }
@@ -3207,7 +3393,7 @@
           "judging"
         ],
         "summary": "Close",
-        "description": "Turn the evening's scores into the thing participants keep.\n\nSafe to repeat: a judge who finishes their card late still reaches the\nprofile on the next close.",
+        "description": "Turn the evening's scores into the thing participants keep.\n\nOnce. A second close is refused.",
         "operationId": "close_programmes__programme_id__close_post",
         "parameters": [
           {
@@ -4516,6 +4702,83 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Dashboard"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/pitch-slot": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Claim Pitch Slot Route",
+        "description": "First click that is still free gets the slot. Everyone else sees it gone.",
+        "operationId": "claim_pitch_slot_route_me_pitch_slot_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimPitchSlot"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -6682,6 +6945,20 @@
         ],
         "title": "CandidateOut"
       },
+      "ClaimPitchSlot": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Session Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "title": "ClaimPitchSlot"
+      },
       "CloseoutOut": {
         "properties": {
           "status": {
@@ -6793,6 +7070,13 @@
             "type": "array",
             "title": "Active Programmes"
           },
+          "draft_programmes": {
+            "items": {
+              "$ref": "#/components/schemas/ProgrammeOut"
+            },
+            "type": "array",
+            "title": "Draft Programmes"
+          },
           "past_programmes": {
             "items": {
               "$ref": "#/components/schemas/ProgrammeOut"
@@ -6816,6 +7100,7 @@
         "required": [
           "company",
           "active_programmes",
+          "draft_programmes",
           "past_programmes",
           "team",
           "candidate_pool_size"
@@ -7301,6 +7586,13 @@
               }
             ]
           },
+          "pitch_slots": {
+            "items": {
+              "$ref": "#/components/schemas/PitchSlotChoice"
+            },
+            "type": "array",
+            "title": "Pitch Slots"
+          },
           "criteria": {
             "items": {
               "$ref": "#/components/schemas/CriterionPublic"
@@ -7338,6 +7630,7 @@
           "past_programmes",
           "submission",
           "judging",
+          "pitch_slots",
           "criteria",
           "data_pack",
           "threads",
@@ -7827,10 +8120,27 @@
       },
       "JudgingSlot": {
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
           "starts_at": {
             "type": "string",
             "format": "date-time",
             "title": "Starts At"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
           },
           "location_or_meet_link": {
             "anyOf": [
@@ -7857,7 +8167,9 @@
         },
         "type": "object",
         "required": [
+          "id",
           "starts_at",
+          "ends_at",
           "location_or_meet_link",
           "run_order"
         ],
@@ -7988,6 +8300,142 @@
           "actor_type"
         ],
         "title": "PasswordResetRequest"
+      },
+      "PitchScheduleOut": {
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "title": "Duration Minutes"
+          },
+          "meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meet Link"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/PitchSlotOut"
+            },
+            "type": "array",
+            "title": "Slots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at",
+          "duration_minutes",
+          "meet_link",
+          "slots"
+        ],
+        "title": "PitchScheduleOut"
+      },
+      "PitchScheduleUpdate": {
+        "properties": {
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "starts_at",
+          "duration_minutes"
+        ],
+        "title": "PitchScheduleUpdate"
+      },
+      "PitchSlotChoice": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "starts_at",
+          "ends_at",
+          "available"
+        ],
+        "title": "PitchSlotChoice"
+      },
+      "PitchSlotOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "starts_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Starts At"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "taken": {
+            "type": "boolean",
+            "title": "Taken"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "starts_at",
+          "ends_at",
+          "taken"
+        ],
+        "title": "PitchSlotOut"
       },
       "Portfolio": {
         "properties": {
@@ -8410,6 +8858,34 @@
             ],
             "title": "Submit Deadline At"
           },
+          "pitch_starts_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Starts At"
+          },
+          "kickoff_meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff Meet Link"
+          },
+          "pitch_booking_open": {
+            "type": "boolean",
+            "title": "Pitch Booking Open",
+            "default": true
+          },
           "timezone": {
             "type": "string",
             "title": "Timezone"
@@ -8696,6 +9172,51 @@
             ],
             "title": "Pitch At"
           },
+          "pitch_starts_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Starts At"
+          },
+          "pitch_duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Duration Minutes"
+          },
+          "kickoff_meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff Meet Link"
+          },
+          "pitch_meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Meet Link"
+          },
           "company": {
             "anyOf": [
               {
@@ -8876,6 +9397,51 @@
               }
             ],
             "title": "Pitch At"
+          },
+          "pitch_starts_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Starts At"
+          },
+          "pitch_duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Duration Minutes"
+          },
+          "kickoff_meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff Meet Link"
+          },
+          "pitch_meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Meet Link"
           },
           "company": {
             "anyOf": [
@@ -10906,6 +11472,29 @@
               }
             ],
             "title": "Your Total"
+          },
+          "pitch_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch At"
+          },
+          "meet_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meet Link"
           }
         },
         "type": "object",

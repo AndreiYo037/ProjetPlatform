@@ -7,7 +7,8 @@ import ActorGateNotice from "@/components/ActorGateNotice";
 import Channel from "@/components/Channel";
 import Countdown from "@/components/Countdown";
 import SubmissionPanel from "@/components/SubmissionPanel";
-import { getDashboard, markThreadRead, type Dashboard } from "@/lib/api";
+import { getDashboard, claimPitchSlot, markThreadRead, type Dashboard } from "@/lib/api";
+import { formatSlot, formatSlotTime } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 /**
@@ -177,7 +178,11 @@ function ProgrammePageInner() {
       </nav>
 
       {section === "messages" && (
-        <Channel programmeId={data.programme.id} onChange={load} />
+        <Channel
+          programmeId={data.programme.id}
+          kickoffMeetLink={data.programme.kickoff_meet_link}
+          onChange={load}
+        />
       )}
 
       {section === "submission" && (
@@ -187,40 +192,6 @@ function ProgrammePageInner() {
             programmeId={data.programme.id}
             onChange={load}
           />
-          {data.judging && (
-            <>
-              <h2>Your pitch</h2>
-              <dl className="facts">
-                <dt>When</dt>
-                <dd>
-                  {new Date(data.judging.starts_at).toLocaleString(undefined, {
-                    timeZone: data.programme.timezone,
-                    weekday: "long",
-                    day: "numeric",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </dd>
-                {data.judging.run_order && (
-                  <>
-                    <dt>Your slot</dt>
-                    <dd>#{data.judging.run_order} in the running order</dd>
-                  </>
-                )}
-                {data.judging.location_or_meet_link && (
-                  <>
-                    <dt>Where</dt>
-                    <dd>
-                      <a href={data.judging.location_or_meet_link}>
-                        {data.judging.location_or_meet_link}
-                      </a>
-                    </dd>
-                  </>
-                )}
-              </dl>
-            </>
-          )}
         </>
       )}
 
@@ -266,32 +237,122 @@ function ProgrammePageInner() {
       )}
 
       {section === "judging" && (
-        <>
-          <p className="small muted">
-            The four criteria every pitch is scored against, with what each score means.
-          </p>
-          {data.criteria.map((criterion) => (
-            <div className="rubric" key={criterion.slot}>
-              <strong>{criterion.name}</strong>
-              <div className="anchors">
-                <div>
-                  <b>5</b>
-                  <span>{criterion.anchor_5}</span>
-                </div>
-                <div>
-                  <b>3</b>
-                  <span>{criterion.anchor_3}</span>
-                </div>
-                <div>
-                  <b>1</b>
-                  <span>{criterion.anchor_1}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </>
+        <PitchSection data={data} onBooked={load} />
       )}
     </main>
+  );
+}
+
+function PitchSection({
+  data,
+  onBooked,
+}: {
+  data: Dashboard;
+  onBooked: () => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const slots = data.pitch_slots ?? [];
+  const booked = data.judging;
+  const handedIn =
+    data.submission?.status === "complete" || data.submission?.status === "locked";
+  const canChange = !booked || data.programme.pitch_booking_open !== false;
+
+  async function pick(sessionId: string) {
+    setBusy(sessionId);
+    setError(null);
+    try {
+      await claimPitchSlot(sessionId, data.programme.id);
+      onBooked();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That slot was just taken.");
+      onBooked();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <>
+      <h2 style={{ marginTop: 0 }}>Your pitch</h2>
+      {slots.length === 0 && !booked ? (
+        <p className="small muted">
+          {handedIn
+            ? "Pitch times appear here once the company sets the judging clock. First to pick a slot gets it."
+            : "Submit your work first. One timeslot opens per submission — first come, first served."}
+        </p>
+      ) : booked ? (
+        <dl className="facts">
+          <dt>When</dt>
+          <dd>{formatSlot(booked.starts_at)} SGT</dd>
+          {booked.location_or_meet_link && (
+            <>
+              <dt>Meeting</dt>
+              <dd>
+                <a href={booked.location_or_meet_link} target="_blank" rel="noreferrer">
+                  {booked.location_or_meet_link}
+                </a>
+              </dd>
+            </>
+          )}
+        </dl>
+      ) : (
+        <p className="small muted">
+          First to pick a time gets it. Your confirmed slot and the Meet are
+          emailed at 00:00 on judging day.
+        </p>
+      )}
+      {slots.length > 0 && canChange && (
+        <>
+          <p className="small muted">
+            {booked ? "Change to another open slot:" : "Pick a slot:"}
+          </p>
+          <div className="row" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+            {slots.map((slot) => {
+              const mine = booked?.id === slot.id;
+              const taken = !slot.available && !mine;
+              return (
+                <button
+                  key={slot.id}
+                  className={mine ? "" : "secondary"}
+                  disabled={taken || mine || busy !== null}
+                  onClick={() => pick(slot.id)}
+                >
+                  {busy === slot.id
+                    ? "Booking…"
+                    : `${formatSlotTime(slot.starts_at)}${mine ? " · yours" : taken ? " · taken" : ""}`}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+      {error && <div className="notice bad">{error}</div>}
+
+      <h2>How you're judged</h2>
+      <p className="small muted">
+        The four criteria every pitch is scored against, with what each score means.
+      </p>
+      {data.criteria.map((criterion) => (
+        <div className="rubric" key={criterion.slot}>
+          <strong>{criterion.name}</strong>
+          <div className="anchors">
+            <div>
+              <b>5</b>
+              <span>{criterion.anchor_5}</span>
+            </div>
+            <div>
+              <b>3</b>
+              <span>{criterion.anchor_3}</span>
+            </div>
+            <div>
+              <b>1</b>
+              <span>{criterion.anchor_1}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </>
   );
 }
 

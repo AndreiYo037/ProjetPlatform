@@ -268,6 +268,19 @@ def _refresh_status(session: Session, submission: Submission) -> None:
     elif submission.status != SubmissionStatus.LOCKED:
         submission.status = SubmissionStatus.DRAFT
         submission.submitted_at = None
+    _resize_pitch_grid(session, submission)
+
+
+def _resize_pitch_grid(session: Session, submission: Submission) -> None:
+    team = session.get(Team, submission.team_id)
+    if team is None:
+        return
+    programme = session.get(Programme, team.programme_id)
+    if programme is None:
+        return
+    from projet.services.pitch import ensure_free_pitch_slot
+
+    ensure_free_pitch_slot(session, programme)
 
 
 def recheck(

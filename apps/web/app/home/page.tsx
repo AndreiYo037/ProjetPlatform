@@ -64,9 +64,7 @@ export default function ParticipantHomePage() {
       <h1 style={{ marginTop: 0 }}>{portfolio.name}</h1>
       <p className="lede">
         {portfolio.programmes_completed === 0
-          ? attested.length > 0
-            ? "Skills from judging. Credentials issue when the challenge closes."
-            : "Nothing here yet."
+          ? "Nothing here yet."
           : `${portfolio.programmes_completed} programme${
               portfolio.programmes_completed === 1 ? "" : "s"
             } completed.`}
@@ -74,7 +72,7 @@ export default function ParticipantHomePage() {
 
       {empty && (
         <div className="notice">
-          Skills appear when a judge tags what they saw.
+          Skills and credentials appear when a company closes the challenge.
         </div>
       )}
 

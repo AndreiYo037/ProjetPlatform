@@ -98,3 +98,11 @@ def test_a_programme_stays_active_until_its_deadline_passes():
         status=ProgrammeStatus.COMPLETE,
     )
     assert schedule.programme_is_past(no_dates_complete, now) is True
+
+
+def test_pitch_day_begins_at_midnight_on_the_pitch_date():
+    first_slot = datetime(2026, 9, 23, 14, 0, tzinfo=SGT)
+    begins = schedule.pitch_day_begins_at(first_slot)
+    local = begins.astimezone(SGT)
+    assert local.date() == datetime(2026, 9, 23, tzinfo=SGT).date()
+    assert (local.hour, local.minute) == (0, 0)

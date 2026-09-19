@@ -34,6 +34,7 @@ from projet.models.enums import (
     CompanyUserRole,
     CompanyUserStatus,
     OutboxSubjectType,
+    ProgrammeStatus,
 )
 from projet.models.people import normalise_email
 from projet.outbox.account_effects import SET_PASSWORD_EMAIL
@@ -79,6 +80,7 @@ class CompanyHome(BaseModel):
 
     company: CompanySummary
     active_programmes: list[ProgrammeOut]
+    draft_programmes: list[ProgrammeOut]
     past_programmes: list[ProgrammeOut]
     team: list[CompanyUserOut]
     candidate_pool_size: int
@@ -280,9 +282,12 @@ def company_home(
         else {}
     )
     now = utcnow()
-    active = [p for p in programmes if not programme_is_past(p, now)]
-    past = [p for p in programmes if programme_is_past(p, now)]
-    # Newest work first on Active; most recently finished first on Past.
+    drafts = [p for p in programmes if p.status == ProgrammeStatus.DRAFT]
+    published = [p for p in programmes if p.status != ProgrammeStatus.DRAFT]
+    active = [p for p in published if not programme_is_past(p, now)]
+    past = [p for p in published if programme_is_past(p, now)]
+    # Newest work first on Active and Drafts; most recently finished first on Past.
+    drafts.sort(key=lambda p: p.created_at, reverse=True)
     active.sort(key=lambda p: p.created_at, reverse=True)
     past.sort(
         key=lambda p: p.pitch_at or p.submit_deadline_at or p.created_at,
@@ -302,6 +307,7 @@ def company_home(
     return CompanyHome(
         company=CompanySummary.model_validate(company),
         active_programmes=[_programme_out(p, roles) for p in active],
+        draft_programmes=[_programme_out(p, roles) for p in drafts],
         past_programmes=[_programme_out(p, roles) for p in past],
         team=[CompanyUserOut.model_validate(u) for u in team],
         candidate_pool_size=pool_size,

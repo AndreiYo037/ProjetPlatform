@@ -16,11 +16,12 @@ from projet.jobs.definitions import (
     due_programmes,
     expire_offers,
     no_submission_report,
+    pitch_day_sweep,
     preflight,
     recheck_submission_links,
     response_time_indicator,
 )
-from projet.models import Application, Outbox, Thread
+from projet.models import Application, JudgingSession, Outbox, Thread
 from projet.models.enums import (
     AccessStatus,
     ApplicationStatus,
@@ -223,3 +224,105 @@ def test_preflight_lists_only_the_participants_with_a_problem(
 
     assert not_ready.id in ids
     assert ready.id not in ids
+
+
+def _booked_pitch(session, programme, participant_factory, *, excluded=False):
+    from projet.services.schedule import PROGRAMME_TZ
+
+    starts = datetime(2026, 9, 23, 14, 0, tzinfo=PROGRAMME_TZ)
+    programme.pitch_starts_at = starts
+    programme.pitch_duration_minutes = 15
+    programme.pitch_meet_link = "https://meet.google.com/pitch-room"
+    person = participant_factory()
+    person.excluded = excluded
+    slot = JudgingSession(
+        programme_id=programme.id,
+        starts_at=starts,
+        ends_at=starts + timedelta(minutes=15),
+        capacity=1,
+        location_or_meet_link=programme.pitch_meet_link,
+    )
+    session.add(slot)
+    session.flush()
+    person.judging_session_id = slot.id
+    session.flush()
+    return person
+
+
+def test_pitch_day_email_waits_until_midnight_sgt(
+    session, programme, participant_factory
+):
+    from projet.services.schedule import PROGRAMME_TZ
+
+    _booked_pitch(session, programme, participant_factory)
+    waiting = datetime(2026, 9, 22, 23, 59, tzinfo=PROGRAMME_TZ)
+
+    result = pitch_day_sweep(session, now=waiting)
+
+    assert result.programmes_processed == 0
+    assert result.emails_queued == 0
+    assert programme.pitch_day_emailed_at is None
+
+
+def test_pitch_day_email_sends_slot_and_meet_at_midnight(
+    session, programme, participant_factory, google
+):
+    from projet.outbox.provisioning import PITCH_DAY_EMAIL
+    from projet.outbox.worker import run_once
+    from projet.services.schedule import PROGRAMME_TZ
+
+    booked = _booked_pitch(session, programme, participant_factory)
+    unbooked = participant_factory()
+    midnight = datetime(2026, 9, 23, 0, 0, tzinfo=PROGRAMME_TZ)
+
+    result = pitch_day_sweep(session, now=midnight)
+    run_once(session, google)
+
+    assert result.programmes_processed == 1
+    assert result.emails_queued == 1
+    assert programme.pitch_day_emailed_at == midnight
+    queued = [row for row in session.scalars(select(Outbox)) if row.effect_type == PITCH_DAY_EMAIL]
+    assert len(queued) == 1
+    assert queued[0].subject_id == booked.id
+    send = google.calls_of("send_email")[0]
+    assert send.payload["to"] == booked.person.contact_email
+    assert send.payload["subject"].startswith("Judging today")
+    assert "Wednesday 23 September, 14:00" in send.payload["html_body"]
+    assert "https://meet.google.com/pitch-room" in send.payload["html_body"]
+    assert unbooked.person.contact_email not in [
+        call.payload["to"] for call in google.calls_of("send_email")
+    ]
+
+
+def test_a_late_sweep_still_sends_once(session, programme, participant_factory, google):
+    """If the clock is already past 00:00, the next sweep catches up — once."""
+    from projet.outbox.worker import run_once
+    from projet.services.schedule import PROGRAMME_TZ
+
+    _booked_pitch(session, programme, participant_factory)
+    afternoon = datetime(2026, 9, 23, 15, 0, tzinfo=PROGRAMME_TZ)
+
+    first = pitch_day_sweep(session, now=afternoon)
+    second = pitch_day_sweep(session, now=afternoon)
+    run_once(session, google)
+
+    assert first.programmes_processed == 1
+    assert first.emails_queued == 1
+    assert second.programmes_processed == 0
+    assert len(google.calls_of("send_email")) == 1
+
+
+def test_an_excluded_candidate_is_not_mailed_on_pitch_day(
+    session, programme, participant_factory, google
+):
+    from projet.outbox.worker import run_once
+    from projet.services.schedule import PROGRAMME_TZ
+
+    _booked_pitch(session, programme, participant_factory, excluded=True)
+    midnight = datetime(2026, 9, 23, 0, 0, tzinfo=PROGRAMME_TZ)
+
+    result = pitch_day_sweep(session, now=midnight)
+    run_once(session, google)
+
+    assert result.emails_queued == 0
+    assert google.calls_of("send_email") == []

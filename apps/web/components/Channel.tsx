@@ -5,6 +5,7 @@ import {
   assetUrl,
   attachToThread,
   createThread,
+  externalHref,
   findSimilarThreads,
   getThread,
   listThreads,
@@ -93,10 +94,12 @@ function lastPost(thread: ThreadOut) {
 export default function Channel({
   programmeId,
   variant = "participant",
+  kickoffMeetLink = null,
   onChange,
 }: {
   programmeId: string;
   variant?: Variant;
+  kickoffMeetLink?: string | null;
   onChange?: () => void;
 }) {
   const [threads, setThreads] = useState<ThreadOut[] | null>(null);
@@ -224,6 +227,18 @@ export default function Channel({
       </aside>
 
       <div className="chat-main">
+        {kickoffMeetLink && (
+          <p className="chat-meet small">
+            Kick-off.{" "}
+            <a
+              href={externalHref(kickoffMeetLink) ?? kickoffMeetLink}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {kickoffMeetLink}
+            </a>
+          </p>
+        )}
         {composing ? (
           <NewThread
             programmeId={programmeId}

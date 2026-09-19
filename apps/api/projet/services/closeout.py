@@ -1,17 +1,11 @@
 """Closing a programme, which is when the profile gets made.
 
-Skill tags already land on the profile when a judge saves them. Closing is
-still the moment credentials are issued — the durable, verifiable claim that
-someone presented the work — and a second pass that promotes any tag a late
-score added after the first close.
+Judge tags stay on the scoring card until this moment. Closing promotes them
+to attested skills, issues credentials, and is the only act that writes those
+claims — and any ready testimonials — onto a candidate's profile.
 
-So closing is deliberately a single explicit act rather than a status that
-drifts in on a timer. It is the moment the platform makes claims on a
-participant's behalf, and a claim made by a cron job at 2am is a claim nobody
-decided to make.
-
-Re-running is safe and is expected: a judge who scores late should still reach
-the profile, so closing again promotes what is new and leaves the rest alone.
+It runs once. A second close is refused, so a late card does not rewrite
+anyone's profile after the company has already issued.
 """
 
 from __future__ import annotations
@@ -22,7 +16,16 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from projet.models import Credential, Participant, Person, Programme, Score, Team, TeamMember
+from projet.models import (
+    Credential,
+    Participant,
+    Person,
+    Programme,
+    Score,
+    Team,
+    TeamMember,
+    Testimonial,
+)
 from projet.models.enums import CredentialType, ProgrammeStatus
 from projet.outbox.profile_effects import notify_candidate_profile_updated
 from projet.services.profile import promote_score_skill_tags
@@ -99,6 +102,8 @@ def close_programme(db: Session, programme: Programme) -> CloseoutResult:
     """Promote every judge tag, issue every earned credential, then mark it done."""
     if programme.status == ProgrammeStatus.DRAFT:
         raise CloseoutError("Publish the challenge first.")
+    if programme.status == ProgrammeStatus.COMPLETE:
+        raise CloseoutError("Already closed. Profiles were issued once.")
     from projet.services.schedule import programme_is_past
 
     # Closing before the week is over would bury an active challenge in every
@@ -118,20 +123,33 @@ def close_programme(db: Session, programme: Programme) -> CloseoutResult:
     for participant in participants:
         promoted = promote_score_skill_tags(db, participant.id)
         result.skills_promoted += promoted
-        if promoted:
+        scored = was_scored(db, participant)
+        ready_note = db.scalar(
+            select(Testimonial.id)
+            .where(Testimonial.participant_id == participant.id)
+            .where(Testimonial.published_at.isnot(None))
+            .where(Testimonial.pdf_storage_key.isnot(None))
+            .limit(1)
+        )
+        if scored and (promoted or ready_note):
             person = db.get(Person, participant.person_id)
             if person is not None:
+                bits = []
+                if promoted:
+                    bits.append(
+                        f"{promoted} skill{'s' if promoted != 1 else ''} from "
+                        f"{programme.title} are now on your Projet profile."
+                    )
+                if ready_note:
+                    bits.append("A testimonial from the company is on your profile too.")
                 notify_candidate_profile_updated(
                     db,
                     person=person,
                     participant_id=participant.id,
-                    what=(
-                        f"{promoted} skill{'s' if promoted != 1 else ''} from "
-                        f"{programme.title} are now on your Projet profile."
-                    ),
+                    what=" ".join(bits),
                     key_suffix=f"closeout:{programme.id}",
                 )
-        if not was_scored(db, participant):
+        if not scored:
             result.skipped.append(str(participant.id))
             continue
         result.participants_closed += 1

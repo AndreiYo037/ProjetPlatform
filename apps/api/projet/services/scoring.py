@@ -156,6 +156,3 @@ def set_skill_tags(
             ScoreSkillTag(score_id=score.id, participant_id=participant.id, skill_id=skill_id)
         )
     db.flush()
-    from projet.services.profile import sync_profile_skills_from_tags
-
-    sync_profile_skills_from_tags(db, participant.id)

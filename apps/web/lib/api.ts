@@ -247,6 +247,7 @@ export const createProgramme = (data: CreateProgrammeInput) =>
   api.post<ProgrammeDetail>("/programmes", data);
 export const updateProgramme = (id: string, data: UpdateProgrammeInput) =>
   api.patch<ProgrammeDetail>(`/programmes/${id}`, data);
+export const deleteProgramme = (id: string) => api.del<void>(`/programmes/${id}`);
 
 /** One angle from a drafting run. A run returns two or three of them. */
 export type ProblemStatementAngle = {
@@ -340,6 +341,25 @@ export const getPublicationCheck = (id: string) =>
   api.get<PublicationCheck>(`/programmes/${id}/publication-check`);
 export const publishProgramme = (id: string) =>
   api.post<ProgrammeDetail>(`/programmes/${id}/publish`);
+
+export type PitchSlot = {
+  id: string;
+  starts_at: string;
+  ends_at: string | null;
+  taken: boolean;
+};
+export type PitchSchedule = {
+  starts_at: string;
+  duration_minutes: number;
+  meet_link: string | null;
+  slots: PitchSlot[];
+};
+export const getPitchSchedule = (id: string) =>
+  api.get<PitchSchedule | null>(`/programmes/${id}/pitch-schedule`);
+export const setPitchSchedule = (
+  id: string,
+  body: { starts_at: string; duration_minutes: number },
+) => api.put<PitchSchedule>(`/programmes/${id}/pitch-schedule`, body);
 
 export const getListing = (company: string, programme: string) =>
   api.get<PublicListing>(`/public/x/${company}/${programme}`);
@@ -519,6 +539,8 @@ function withProgramme(path: string, programmeId?: string): string {
 
 export const getDashboard = (programmeId?: string) =>
   api.get<Dashboard>(withProgramme("/me/dashboard", programmeId));
+export const claimPitchSlot = (sessionId: string, programmeId?: string) =>
+  api.post<Dashboard>(withProgramme("/me/pitch-slot", programmeId), { session_id: sessionId });
 export const putSubmissionLink = (slot: string, driveUrl: string, programmeId?: string) =>
   api.put<SubmissionOut>(withProgramme("/me/submission/link", programmeId), {
     slot,

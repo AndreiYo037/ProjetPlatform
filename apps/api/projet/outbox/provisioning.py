@@ -7,10 +7,12 @@ out, step 1 is already DONE and will not re-send when the sweep retries.
   2. patch kickoff Calendar event with attendee
   3. patch deadline-marker Calendar event
   3a. assign judging session and run-order slot, patch that session's event
-  4. welcome email on the person's Gmail thread
-  5. increment confirmed count
+  4. increment confirmed count
 
-Steps 2, 3, 3a and 4 are the ones that leave the building, so they are the ones
+The "You're in" email is the offer, not a second note on accept. Calendar
+invites are the only mail this chain still owes.
+
+Steps 2, 3 and 3a are the ones that leave the building, so they are the ones
 that live here.
 """
 
@@ -23,10 +25,13 @@ from sqlalchemy import func, select
 from projet.integrations.google.client import Attendee
 from projet.models import JudgingSession, Participant, Person, Programme
 from projet.outbox.effects import EffectContext, PermanentEffectError, effect
+from projet.services.pitch import is_pickable_grid
 
 KICKOFF_INVITE = "kickoff_invite"
 DEADLINE_MARKER_INVITE = "deadline_marker_invite"
 JUDGING_SESSION_INVITE = "judging_session_invite"
+PITCH_SLOT_EMAIL = "pitch_slot_email"
+PITCH_DAY_EMAIL = "pitch_day_email"
 WELCOME_EMAIL = "welcome_email"
 OFFER_EMAIL = "offer_email"
 REJECTION_EMAIL = "rejection_email"
@@ -84,20 +89,37 @@ def judging_session_invite(ctx: EffectContext) -> dict:
     return {"event_id": session_row.google_event_id, "run_order": participant.run_order}
 
 
-@effect(WELCOME_EMAIL)
-def welcome_email(ctx: EffectContext) -> dict:
+@effect(PITCH_SLOT_EMAIL)
+def pitch_slot_email(ctx: EffectContext) -> dict:
+    """No longer sent. The only pitch mail is the 00:00 judging-day reminder."""
+    return {"skipped": True}
+
+
+@effect(PITCH_DAY_EMAIL)
+def pitch_day_email(ctx: EffectContext) -> dict:
+    """00:00 SGT on judging day: this person's slot, and the cohort Meet."""
     participant = _participant(ctx)
     person = participant.person
     programme = ctx.session.get(Programme, participant.programme_id)
+    title = programme.title if programme else "your programme"
     sent = ctx.google.send_email(
         to=person.contact_email,
-        subject=f"You're in — {programme.title if programme else 'your programme'}",
-        html_body=ctx.payload.get("html_body") or _default_welcome_html(person.name),
+        subject=ctx.payload.get("subject") or f"Judging today — {title}",
+        html_body=ctx.payload.get("html_body") or _default_pitch_html(person.name),
         thread_id=participant.gmail_thread_id,
     )
-    # Every later touchpoint hangs off this thread (section 7.2).
     participant.gmail_thread_id = sent.thread_id
     return {"message_id": sent.message_id, "thread_id": sent.thread_id}
+
+
+@effect(WELCOME_EMAIL)
+def welcome_email(ctx: EffectContext) -> dict:
+    """No longer sent. The offer is the "You're in" mail; accepting is silent.
+
+    The handler stays registered so any already-queued row drains without
+    mailing again.
+    """
+    return {"skipped": True}
 
 
 @effect(SESSION_REMOVAL)
@@ -114,13 +136,100 @@ def judging_session_removal(ctx: EffectContext) -> dict:
     return {"event_id": event_id, "removed": email}
 
 
-def _default_welcome_html(name: str) -> str:
+def _default_pitch_html(name: str) -> str:
     return (
         f"<p>Hi {name},</p>"
-        "<p>You're confirmed. Your dashboard has the brief, the data pack and your "
-        "submission deadline. Calendar invites for kickoff, the deadline and your "
-        "judging session are on their way.</p>"
+        "<p>Your pitch slot is booked. Open How you're judged on your dashboard for "
+        "the time and the meeting link.</p>"
     )
+
+
+def pitch_slot_email_html(
+    *,
+    name: str,
+    title: str,
+    starts_at,
+    meet_link: str | None,
+) -> str:
+    from projet.services.schedule import in_programme_tz
+
+    when = in_programme_tz(starts_at).strftime("%A %d %B, %H:%M")
+    meet = (
+        f'<p>Join the judging call: <a href="{meet_link}">{meet_link}</a></p>'
+        if meet_link
+        else ""
+    )
+    return (
+        f"<p>Hi {name},</p>"
+        f"<p>Your pitch slot for <strong>{title}</strong> is "
+        f"<strong>{when} SGT</strong>.</p>"
+        f"{meet}"
+        "<p>First come, first served — this time is yours. You can pick a different "
+        "open slot later if one is still free.</p>"
+    )
+
+
+def pitch_day_email_html(
+    *,
+    name: str,
+    title: str,
+    starts_at,
+    meet_link: str | None,
+) -> str:
+    from projet.services.schedule import in_programme_tz
+
+    when = in_programme_tz(starts_at).strftime("%A %d %B, %H:%M")
+    meet = (
+        f'<p><strong>Google Meet:</strong> <a href="{meet_link}">{meet_link}</a></p>'
+        if meet_link
+        else ""
+    )
+    return (
+        f"<p>Hi {name},</p>"
+        f"<p>Judging is today. Your slot for <strong>{title}</strong> is "
+        f"<strong>{when} SGT</strong>.</p>"
+        f"{meet}"
+        "<p>Same room for the whole cohort. Join at your time.</p>"
+    )
+
+
+def enqueue_pitch_day_reminders(session, programme: Programme) -> int:
+    """One mail per booked candidate: their slot and the cohort Meet."""
+    from projet.models.enums import OutboxSubjectType
+    from projet.outbox.effects import enqueue
+
+    booked = list(
+        session.scalars(
+            select(Participant)
+            .where(Participant.programme_id == programme.id)
+            .where(Participant.judging_session_id.is_not(None))
+            .where(Participant.excluded.is_(False))
+        )
+    )
+    queued = 0
+    for participant in booked:
+        row = session.get(JudgingSession, participant.judging_session_id)
+        if row is None:
+            continue
+        person = participant.person
+        enqueue(
+            session,
+            subject_type=OutboxSubjectType.PARTICIPANT,
+            subject_id=participant.id,
+            participant_id=participant.id,
+            effect_type=PITCH_DAY_EMAIL,
+            payload={
+                "subject": f"Judging today — {programme.title}",
+                "html_body": pitch_day_email_html(
+                    name=person.name if person else "",
+                    title=programme.title,
+                    starts_at=row.starts_at,
+                    meet_link=row.location_or_meet_link or programme.pitch_meet_link,
+                ),
+            },
+        )
+        queued += 1
+    return queued
 
 
 def enqueue_provisioning_chain(
@@ -167,16 +276,25 @@ def enqueue_provisioning_chain(
                 effect_type=JUDGING_SESSION_INVITE,
             )
         )
-    rows.append(
+    return rows
+
+
+def enqueue_pitch_booking(session, participant: Participant, row: JudgingSession) -> list:
+    """Add them to the session Calendar event. No email — that waits for 00:00."""
+    from projet.models.enums import OutboxSubjectType
+    from projet.outbox.effects import enqueue
+
+    if not row.google_event_id:
+        return []
+    return [
         enqueue(
             session,
             subject_type=OutboxSubjectType.PARTICIPANT,
             subject_id=participant.id,
             participant_id=participant.id,
-            effect_type=WELCOME_EMAIL,
+            effect_type=JUDGING_SESSION_INVITE,
         )
-    )
-    return rows
+    ]
 
 
 def assign_judging_session(session, participant: Participant) -> JudgingSession | None:
@@ -193,6 +311,10 @@ def assign_judging_session(session, participant: Participant) -> JudgingSession 
         )
     )
     if not sessions:
+        return None
+
+    programme = session.get(Programme, participant.programme_id)
+    if programme is not None and is_pickable_grid(programme):
         return None
 
     counts = dict(

@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { use, useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import Channel from "@/components/Channel";
 import DataPackPanel from "@/components/DataPackPanel";
+import JudgingPanel from "@/components/JudgingPanel";
 import {
+  deleteProgramme,
   disposition,
   draftProblemStatements,
   getApplication,
@@ -14,6 +17,7 @@ import {
   listApplications,
   listProblemStatementDrafts,
   publishProgramme,
+  setPitchSchedule,
   updateProgramme,
   type ApplicationDetail,
   type ApplicationOut,
@@ -21,7 +25,7 @@ import {
   type ProgrammeDetail,
   type PublicationCheck,
 } from "@/lib/api";
-import { fromDateInput, toDateInput } from "@/lib/dates";
+import { fromDateInput, fromDateTimeLocal, formatSlot, toDateInput, toDateTimeLocal } from "@/lib/dates";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
@@ -58,6 +62,7 @@ export default function ChallengeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const router = useRouter();
   const gate = useActor("company_user");
   const [programme, setProgramme] = useState<ProgrammeDetail | null>(null);
   const [applications, setApplications] = useState<ApplicationOut[]>([]);
@@ -65,9 +70,17 @@ export default function ChallengeDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   // Null until they pick one: the default depends on the programme, which is
   // not loaded yet when this state is declared.
   const [section, setSection] = useState<SectionKey | null>(null);
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("section") === "judging") {
+      setSection("judging");
+    }
+  }, []);
 
   const load = useCallback(async () => {
     if (gate.status !== "ready") return;
@@ -106,6 +119,23 @@ export default function ChallengeDetailPage({
     }
   }
 
+  async function handleDelete() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setError(null);
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteProgramme(id);
+      router.push("/company");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not delete this draft.");
+      setDeleting(false);
+    }
+  }
+
   if (gate.status !== "ready") return <ActorGateNotice gate={gate} />;
   if (error && !programme) return <main><div className="notice bad">{error}</div></main>;
   if (!programme) return <main><p className="muted">Loading…</p></main>;
@@ -135,8 +165,8 @@ export default function ChallengeDetailPage({
 
       {isDraft && (
         <div className="notice warn">
-          This challenge is still a draft. It will not appear in listings until you
-          publish it.
+          This challenge is a draft. It is not listed anywhere until you publish
+          it.
         </div>
       )}
 
@@ -153,7 +183,13 @@ export default function ChallengeDetailPage({
         ))}
       </nav>
 
-      {active === "messages" && <Channel programmeId={programme.id} variant="company" />}
+      {active === "messages" && (
+        <Channel
+          programmeId={programme.id}
+          variant="company"
+          kickoffMeetLink={programme.kickoff_meet_link}
+        />
+      )}
 
       {active === "applicants" && (
         <ApplicantsPanel
@@ -164,18 +200,12 @@ export default function ChallengeDetailPage({
       )}
 
       {active === "judging" && (
-        <>
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-            <h2 style={{ margin: 0 }}>Judging</h2>
-            <Link className="btn" href={`/company/challenges/${programme.id}/judging`}>
-              Open the cards
-            </Link>
-          </div>
-          <p className="small muted">
-            One submission card per participant, in pitch order, each opening onto
-            that person&apos;s scoring card.
-          </p>
-        </>
+        <JudgingPanel
+          programmeId={programme.id}
+          issued={programme.status === "complete"}
+          meetLink={programme.pitch_meet_link}
+          onIssued={load}
+        />
       )}
 
       {active === "brief" && (
@@ -215,7 +245,10 @@ export default function ChallengeDetailPage({
       )}
 
       {active === "schedule" && (
-        <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
+        <>
+          <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
+          <PitchingSection programme={programme} onSaved={load} />
+        </>
       )}
 
       {isDraft && (
@@ -230,14 +263,35 @@ export default function ChallengeDetailPage({
               </ul>
             </div>
           )}
-          <div className="row" style={{ marginTop: "1.25rem" }}>
+          <div className="row" style={{ marginTop: "1.25rem", gap: "0.75rem" }}>
             <button
-              disabled={busy || (pubCheck !== null && !pubCheck.ready)}
+              disabled={busy || deleting || (pubCheck !== null && !pubCheck.ready)}
               onClick={handlePublish}
             >
               {busy ? "Publishing…" : "Publish challenge"}
             </button>
+            {confirmDelete ? (
+              <>
+                <button
+                  className="secondary"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Cancel
+                </button>
+                <button disabled={deleting} onClick={handleDelete}>
+                  {deleting ? "Deleting…" : "Yes, delete draft"}
+                </button>
+              </>
+            ) : (
+              <button className="secondary" disabled={busy || deleting} onClick={handleDelete}>
+                Delete draft
+              </button>
+            )}
           </div>
+          {confirmDelete && (
+            <p className="small muted">This cannot be undone. Delete this draft?</p>
+          )}
         </>
       )}
     </main>
@@ -380,6 +434,83 @@ function ScheduleSection({
           <p className="small muted">23:59 on that day.</p>
         </div>
       </div>
+      {saveError && <div className="notice bad">{saveError}</div>}
+    </div>
+  );
+}
+
+function PitchingSection({
+  programme,
+  onSaved,
+}: {
+  programme: ProgrammeDetail;
+  onSaved: () => void;
+}) {
+  const [startsAt, setStartsAt] = useState(toDateTimeLocal(programme.pitch_starts_at));
+  const [duration, setDuration] = useState(
+    programme.pitch_duration_minutes ? String(programme.pitch_duration_minutes) : "10",
+  );
+
+  const draft = { startsAt, duration };
+  const baseline = {
+    startsAt: toDateTimeLocal(programme.pitch_starts_at),
+    duration: programme.pitch_duration_minutes ? String(programme.pitch_duration_minutes) : "10",
+  };
+
+  const { status, error: saveError } = useAutosave(
+    draft,
+    baseline,
+    async (next) => {
+      const starts = fromDateTimeLocal(next.startsAt);
+      const minutes = Number(next.duration);
+      if (!starts || !minutes) return;
+      await setPitchSchedule(programme.id, {
+        starts_at: starts,
+        duration_minutes: minutes,
+      });
+      onSaved();
+    },
+  );
+
+  return (
+    <div className="panel">
+      <strong>Pitching / judging</strong>
+      <p className="small muted">
+        Date and time the first pitch starts, and minutes per pitch including
+        turn-over. One timeslot opens per submission. People who have submitted
+        pick first come, first served.
+        {autosaveLabel(status) ? ` · ${autosaveLabel(status)}` : ""}
+      </p>
+      <div className="row" style={{ gap: "1rem" }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="pitch-start">First pitch</label>
+          <input
+            id="pitch-start"
+            type="datetime-local"
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+          />
+        </div>
+        <div className="field" style={{ flex: "0 0 8rem" }}>
+          <label htmlFor="pitch-duration">Minutes each</label>
+          <input
+            id="pitch-duration"
+            type="number"
+            min={1}
+            max={180}
+            value={duration}
+            onChange={(e) => setDuration(e.target.value)}
+          />
+        </div>
+      </div>
+      {programme.pitch_starts_at && (
+        <p className="small muted" style={{ marginBottom: 0 }}>
+          First slot {formatSlot(programme.pitch_starts_at)} SGT
+          {programme.pitch_duration_minutes
+            ? ` · ${programme.pitch_duration_minutes} min each`
+            : ""}
+        </p>
+      )}
       {saveError && <div className="notice bad">{saveError}</div>}
     </div>
   );

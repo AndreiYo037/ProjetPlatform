@@ -38,7 +38,7 @@ function OfferActions() {
         <strong>You&rsquo;re confirmed for {state.title}.</strong>
         <p className="small" style={{ margin: "0.5rem 0 0" }}>
           Calendar invites for kickoff, the deadline and your judging session are on their
-          way, along with a welcome email.
+          way.
         </p>
       </div>
     );

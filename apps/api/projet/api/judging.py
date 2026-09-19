@@ -16,7 +16,7 @@ gates the post-programme candidate pool and exports (FR-1101, FR-1103).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -29,6 +29,7 @@ from projet.models import (
     Company,
     CompanyUser,
     CriterionScore,
+    JudgingSession,
     Participant,
     Person,
     Programme,
@@ -105,6 +106,8 @@ class SubmissionCard(BaseModel):
     # in-progress total is the failure mode calibration is supposed to prevent.
     scored: bool
     your_total: int | None
+    pitch_at: datetime | None = None
+    meet_link: str | None = None
 
 
 class ScoringAnchor(BaseModel):
@@ -190,6 +193,13 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
             )
 
     score = score_for(db, team, scorer_id) if team and scorer_id else None
+    slot = db.get(JudgingSession, participant.judging_session_id) if participant.judging_session_id else None
+    programme = db.get(Programme, participant.programme_id)
+    meet = None
+    if slot and slot.location_or_meet_link:
+        meet = slot.location_or_meet_link
+    elif programme is not None:
+        meet = programme.pitch_meet_link
     return SubmissionCard(
         participant_id=participant.id,
         name=person.name if person else "",
@@ -206,6 +216,8 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         links=links,
         scored=score is not None,
         your_total=score.total if score else None,
+        pitch_at=slot.starts_at if slot else None,
+        meet_link=meet,
     )
 
 
@@ -225,10 +237,26 @@ def list_submission_cards(
         .where(Participant.programme_id == programme.id)
         .where(Participant.excluded.is_(False))
     )
-    participants = sorted(
-        db.scalars(statement),
-        key=lambda p: (p.run_order is None, p.run_order or 0, p.created_at),
-    )
+    participants = list(db.scalars(statement))
+    slots = {
+        row.id: row
+        for row in db.scalars(
+            select(JudgingSession).where(JudgingSession.programme_id == programme.id)
+        )
+    }
+
+    def sort_key(participant: Participant):
+        row = slots.get(participant.judging_session_id) if participant.judging_session_id else None
+        start = row.starts_at if row else None
+        return (
+            start is None,
+            start or datetime.min.replace(tzinfo=UTC),
+            participant.run_order is None,
+            participant.run_order or 0,
+            participant.created_at,
+        )
+
+    participants = sorted(participants, key=sort_key)
     scorer_id = None if actor.is_platform else actor.id
     return [_card(db, participant, scorer_id) for participant in participants]
 
@@ -492,20 +520,9 @@ def write_testimonial(
             )
         _store_generated_pdf(db, row=row, participant=participant, programme=programme)
     if payload.publish and row.published_at is None:
+        # Ready for Close and issue — not live on the profile, and no email,
+        # until the company closes.
         row.published_at = utcnow()
-        person = db.get(Person, participant.person_id)
-        company = db.get(Company, programme.company_id)
-        if person is not None:
-            from projet.outbox.profile_effects import notify_candidate_profile_updated
-
-            who = company.name if company else "A company"
-            notify_candidate_profile_updated(
-                db,
-                person=person,
-                participant_id=participant.id,
-                what=f"{who} published a testimonial on your Projet profile.",
-                key_suffix=f"testimonial:{row.id}",
-            )
     db.commit()
     return _testimonial_out(db, row)
 
@@ -638,8 +655,7 @@ def close(
 ) -> CloseoutOut:
     """Turn the evening's scores into the thing participants keep.
 
-    Safe to repeat: a judge who finishes their card late still reaches the
-    profile on the next close.
+    Once. A second close is refused.
     """
     try:
         result = close_programme(db, programme)

@@ -1,7 +1,7 @@
 """Outbox semantics (FR-1300).
 
-The failure this prevents is concrete: provisioning sends a welcome email, then
-Calendar times out. The retry must not send a second welcome email.
+The failure this prevents is concrete: provisioning patches Calendar, then
+times out. The retry must not fire an already-done step again.
 """
 
 from __future__ import annotations
@@ -226,6 +226,8 @@ def test_importing_the_worker_alone_registers_every_handler():
         "kickoff_invite",
         "deadline_marker_invite",
         "judging_session_invite",
+        "pitch_slot_email",
+        "pitch_day_email",
         "judging_session_removal",
         "snapshot_submission_link",
         "profile_updated_email",

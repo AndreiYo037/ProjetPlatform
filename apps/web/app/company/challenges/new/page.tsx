@@ -8,10 +8,11 @@ import {
   createProgramme,
   getRoleClusters,
   getRoleImplications,
+  setPitchSchedule,
   type ClusterGroup,
   type RoleImplications,
 } from "@/lib/api";
-import { fromDateInput } from "@/lib/dates";
+import { fromDateInput, fromDateTimeLocal, formatSlot } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 type Step = "role" | "details" | "review";
@@ -41,6 +42,8 @@ export default function NewChallengePage() {
   const [appsCloseAt, setAppsCloseAt] = useState("");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
+  const [pitchStartsAt, setPitchStartsAt] = useState("");
+  const [pitchDuration, setPitchDuration] = useState("10");
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +88,13 @@ export default function NewChallengePage() {
         start_at: fromDateInput(startAt),
         submit_deadline_at: fromDateInput(endAt),
       });
+      const pitchAt = fromDateTimeLocal(pitchStartsAt);
+      if (pitchAt && Number(pitchDuration) >= 1) {
+        await setPitchSchedule(programme.id, {
+          starts_at: pitchAt,
+          duration_minutes: Number(pitchDuration),
+        });
+      }
       router.push(`/company/challenges/${programme.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create this challenge.");
@@ -129,6 +139,8 @@ export default function NewChallengePage() {
           appsCloseAt={appsCloseAt}
           startAt={startAt}
           endAt={endAt}
+          pitchStartsAt={pitchStartsAt}
+          pitchDuration={pitchDuration}
           onTitleChange={handleTitleChange}
           onSlugChange={(v) => {
             setSlugTouched(true);
@@ -138,6 +150,8 @@ export default function NewChallengePage() {
           onAppsCloseAtChange={setAppsCloseAt}
           onStartAtChange={setStartAt}
           onEndAtChange={setEndAt}
+          onPitchStartsAtChange={setPitchStartsAt}
+          onPitchDurationChange={setPitchDuration}
           onBack={() => setStep("role")}
           onNext={() => {
             if (title.trim() && slug.trim()) setStep("review");
@@ -154,6 +168,8 @@ export default function NewChallengePage() {
           appsCloseAt={appsCloseAt}
           startAt={startAt}
           endAt={endAt}
+          pitchStartsAt={pitchStartsAt}
+          pitchDuration={pitchDuration}
           busy={busy}
           onBack={() => setStep("details")}
           onSubmit={submit}
@@ -304,12 +320,16 @@ function DetailsForm({
   appsCloseAt,
   startAt,
   endAt,
+  pitchStartsAt,
+  pitchDuration,
   onTitleChange,
   onSlugChange,
   onCapacityChange,
   onAppsCloseAtChange,
   onStartAtChange,
   onEndAtChange,
+  onPitchStartsAtChange,
+  onPitchDurationChange,
   onBack,
   onNext,
 }: {
@@ -319,12 +339,16 @@ function DetailsForm({
   appsCloseAt: string;
   startAt: string;
   endAt: string;
+  pitchStartsAt: string;
+  pitchDuration: string;
   onTitleChange: (v: string) => void;
   onSlugChange: (v: string) => void;
   onCapacityChange: (v: string) => void;
   onAppsCloseAtChange: (v: string) => void;
   onStartAtChange: (v: string) => void;
   onEndAtChange: (v: string) => void;
+  onPitchStartsAtChange: (v: string) => void;
+  onPitchDurationChange: (v: string) => void;
   onBack: () => void;
   onNext: () => void;
 }) {
@@ -402,6 +426,30 @@ function DetailsForm({
           <div className="hint">23:59 on that day.</div>
         </div>
       </div>
+      <div className="row" style={{ gap: "1rem" }}>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="ch-pitch">First pitch</label>
+          <input
+            id="ch-pitch"
+            type="datetime-local"
+            value={pitchStartsAt}
+            onChange={(e) => onPitchStartsAtChange(e.target.value)}
+          />
+          <div className="hint">Date and time the first pitch starts (SGT).</div>
+        </div>
+        <div className="field" style={{ flex: "0 0 8rem" }}>
+          <label htmlFor="ch-pitch-mins">Minutes each</label>
+          <input
+            id="ch-pitch-mins"
+            type="number"
+            min={1}
+            max={180}
+            value={pitchDuration}
+            onChange={(e) => onPitchDurationChange(e.target.value)}
+          />
+          <div className="hint">Including turn-over.</div>
+        </div>
+      </div>
 
       <div className="row" style={{ marginTop: "1.5rem", gap: "0.75rem" }}>
         <button className="secondary" onClick={onBack}>
@@ -432,6 +480,8 @@ function ReviewStep({
   appsCloseAt,
   startAt,
   endAt,
+  pitchStartsAt,
+  pitchDuration,
   busy,
   onBack,
   onSubmit,
@@ -443,6 +493,8 @@ function ReviewStep({
   appsCloseAt: string;
   startAt: string;
   endAt: string;
+  pitchStartsAt: string;
+  pitchDuration: string;
   busy: boolean;
   onBack: () => void;
   onSubmit: () => void;
@@ -469,6 +521,12 @@ function ReviewStep({
           <dd>{startAt ? `${formatDay(startAt)} · 00:00` : "Not set"}</dd>
           <dt>Ends</dt>
           <dd>{endAt ? `${formatDay(endAt)} · 23:59` : "Not set"}</dd>
+          <dt>First pitch</dt>
+          <dd>
+            {pitchStartsAt
+              ? `${formatSlot(`${pitchStartsAt}:00+08:00`)} SGT · ${pitchDuration || "10"} min each`
+              : "Not set"}
+          </dd>
         </dl>
       </div>
       <p className="small muted">

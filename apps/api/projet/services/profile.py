@@ -34,7 +34,7 @@ from projet.models import (
     Skill,
     Testimonial,
 )
-from projet.models.enums import SkillType
+from projet.models.enums import ProgrammeStatus, SkillType
 
 
 @dataclass
@@ -296,10 +296,10 @@ def endorsements_for(
 
 
 def published_testimonials_for(session: Session, person_id: uuid.UUID):
-    """Published testimonials across every programme this person has done.
+    """Ready testimonials from programmes that have been closed.
 
-    Published only, and only with a generated PDF. A draft stays off the
-    profile until the company publishes the wording.
+    The company finishes the wording during judging. Close and issue is when
+    it lands on the profile.
     """
     return session.execute(
         select(Testimonial, CompanyUser, Company, Programme)
@@ -310,5 +310,6 @@ def published_testimonials_for(session: Session, person_id: uuid.UUID):
         .where(Participant.person_id == person_id)
         .where(Testimonial.published_at.isnot(None))
         .where(Testimonial.pdf_storage_key.isnot(None))
+        .where(Programme.status == ProgrammeStatus.COMPLETE)
         .order_by(Testimonial.published_at.desc())
     ).all()

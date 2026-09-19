@@ -81,6 +81,16 @@ class Programme(Base):
     kickoff_event_id: Mapped[str | None] = mapped_column(String(300))
     kickoff_meet_link: Mapped[str | None] = mapped_column(Text)
 
+    # Pitching/judging: a real clock time, not a calendar day. Slots are
+    # JudgingSession rows of capacity 1; the Meet is one room for the block.
+    pitch_starts_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
+    pitch_duration_minutes: Mapped[int | None] = mapped_column(Integer)
+    pitch_event_id: Mapped[str | None] = mapped_column(String(300))
+    pitch_meet_link: Mapped[str | None] = mapped_column(Text)
+    # 00:00 SGT on pitch day — claimed once, so a late sweep still sends
+    # and a restart does not send twice.
+    pitch_day_emailed_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
+
     # Set by the deadline sweep so due work is claimed exactly once (FR-1500).
     deadline_processed_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     winners_count: Mapped[int] = mapped_column(Integer, default=1)

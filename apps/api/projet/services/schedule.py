@@ -51,6 +51,11 @@ def kickoff_meeting_at(start_at: datetime) -> datetime:
     return datetime.combine(local.date(), KICKOFF_MEETING, tzinfo=PROGRAMME_TZ)
 
 
+def pitch_day_begins_at(pitch_starts_at: datetime) -> datetime:
+    """00:00 SGT on the calendar day pitching starts."""
+    return at_start_of_day(pitch_starts_at)
+
+
 def bind_dates(
     start_at: datetime | None,
     end_at: datetime | None,

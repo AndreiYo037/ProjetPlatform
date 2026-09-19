@@ -46,6 +46,14 @@ def build_scheduler() -> BackgroundScheduler:
         coalesce=True,
     )
     scheduler.add_job(
+        _with_session(definitions.pitch_day_sweep),
+        IntervalTrigger(minutes=1),
+        id="pitch_day_sweep",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
         _with_session(run_once),
         IntervalTrigger(minutes=5),
         id="outbox_sweep",
@@ -78,6 +86,7 @@ def build_scheduler() -> BackgroundScheduler:
 
 JOB_TABLE = {
     "deadline_sweep": "every minute — locks submissions, flags non-submitters, clears sessions",
+    "pitch_day_sweep": "every minute — at 00:00 SGT on pitch day, slot + Meet to booked candidates",
     "outbox_sweep": "every 5 minutes — retry pending effects",
     "expire_offers": "every 15 minutes — release seats for waitlist promotion",
     "recheck_submission_links": "02:00 during running — a link shared on day 2 can break by day 5",

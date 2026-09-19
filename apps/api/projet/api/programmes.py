@@ -118,6 +118,25 @@ class JudgingSessionCreate(BaseModel):
     )
 
 
+class PitchScheduleUpdate(BaseModel):
+    starts_at: datetime
+    duration_minutes: int = Field(ge=1, le=180)
+
+
+class PitchSlotOut(BaseModel):
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime | None
+    taken: bool
+
+
+class PitchScheduleOut(BaseModel):
+    starts_at: datetime
+    duration_minutes: int
+    meet_link: str | None
+    slots: list[PitchSlotOut]
+
+
 class DataPackResourceCreate(BaseModel):
     label: str = Field(min_length=1, max_length=300)
     url_or_storage_key: str | None = None
@@ -285,6 +304,23 @@ def get_programme(
     return _detail(db, programme)
 
 
+@router.delete("/programmes/{programme_id}", status_code=204)
+def delete_programme(
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> Response:
+    """A draft is unpublished work. Once it has gone live it stays."""
+    if programme.status != ProgrammeStatus.DRAFT:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Only a draft can be deleted. Published challenges stay listed.",
+        )
+    db.delete(programme)
+    db.commit()
+    return Response(status_code=204)
+
+
 @router.patch("/programmes/{programme_id}", response_model=ProgrammeDetail)
 def update_programme(
     payload: ProgrammeUpdate,
@@ -310,6 +346,20 @@ def update_programme(
         programme.submit_deadline_at = end_at
         if programme.applications_close_at is not None:
             programme.applications_close_at = close_at
+
+    if programme.pitch_starts_at and programme.pitch_duration_minutes:
+        from projet.services.pitch import PitchError, sync_pitch_schedule
+
+        try:
+            sync_pitch_schedule(
+                db,
+                programme,
+                starts_at=programme.pitch_starts_at,
+                duration_minutes=programme.pitch_duration_minutes,
+            )
+        except PitchError as error:
+            db.rollback()
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
     db.commit()
     return _detail(db, programme)
@@ -450,6 +500,75 @@ def add_judging_session(
     db.add(row)
     db.commit()
     return {"id": str(row.id), "starts_at": row.starts_at.isoformat()}
+
+
+@router.put("/programmes/{programme_id}/pitch-schedule", response_model=PitchScheduleOut)
+def set_pitch_schedule(
+    payload: PitchScheduleUpdate,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> PitchScheduleOut:
+    """The pitching clock: when the first pitch starts, and how long each one is.
+
+    One slot per handed-in submission. First come, first served among people
+    who have submitted. Changing the clock keeps anyone who already booked
+    on the same ordinal slot, at the new times.
+    """
+    from projet.services.pitch import PitchError, occupant_map, sync_pitch_schedule
+
+    try:
+        rows = sync_pitch_schedule(
+            db,
+            programme,
+            starts_at=payload.starts_at,
+            duration_minutes=payload.duration_minutes,
+        )
+    except PitchError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+    db.commit()
+    taken = occupant_map(db, programme.id)
+    return PitchScheduleOut(
+        starts_at=programme.pitch_starts_at,
+        duration_minutes=programme.pitch_duration_minutes or payload.duration_minutes,
+        meet_link=programme.pitch_meet_link,
+        slots=[
+            PitchSlotOut(
+                id=row.id,
+                starts_at=row.starts_at,
+                ends_at=row.ends_at,
+                taken=row.id in taken,
+            )
+            for row in rows
+        ],
+    )
+
+
+@router.get("/programmes/{programme_id}/pitch-schedule", response_model=PitchScheduleOut | None)
+def get_pitch_schedule(
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_company_manager),
+) -> PitchScheduleOut | None:
+    from projet.services.pitch import listed_sessions, occupant_map
+
+    if programme.pitch_starts_at is None or not programme.pitch_duration_minutes:
+        return None
+    taken = occupant_map(db, programme.id)
+    return PitchScheduleOut(
+        starts_at=programme.pitch_starts_at,
+        duration_minutes=programme.pitch_duration_minutes,
+        meet_link=programme.pitch_meet_link,
+        slots=[
+            PitchSlotOut(
+                id=row.id,
+                starts_at=row.starts_at,
+                ends_at=row.ends_at,
+                taken=row.id in taken,
+            )
+            for row in listed_sessions(db, programme.id)
+        ],
+    )
 
 
 @router.get("/programmes/{programme_id}/data-pack")

@@ -36,8 +36,9 @@ from projet.models.enums import (
     SubmissionStatus,
 )
 from projet.outbox.effects import enqueue
-from projet.outbox.provisioning import SESSION_REMOVAL
+from projet.outbox.provisioning import SESSION_REMOVAL, enqueue_pitch_day_reminders
 from projet.outbox.snapshots import SNAPSHOT_EFFECT
+from projet.services.schedule import pitch_day_begins_at
 
 log = logging.getLogger(__name__)
 
@@ -52,6 +53,12 @@ class SweepResult:
 
     def __bool__(self) -> bool:
         return bool(self.programmes_processed)
+
+
+@dataclass
+class PitchDayResult:
+    programmes_processed: int = 0
+    emails_queued: int = 0
 
 
 def expire_offers(session: Session, now: datetime | None = None) -> int:
@@ -215,6 +222,49 @@ def deadline_sweep(session: Session, now: datetime | None = None) -> SweepResult
         total.non_submitters += result.non_submitters
         total.removals_queued += result.removals_queued
         total.snapshots_queued += result.snapshots_queued
+    session.commit()
+    return total
+
+
+def due_pitch_days(session: Session, now: datetime | None = None) -> list[Programme]:
+    """Pitch date has begun (00:00 SGT) and the reminder has not been claimed."""
+    now = now or utcnow()
+    rows = list(
+        session.scalars(
+            select(Programme)
+            .where(Programme.pitch_starts_at.is_not(None))
+            .where(Programme.pitch_day_emailed_at.is_(None))
+            .where(
+                Programme.status.notin_(
+                    [ProgrammeStatus.DRAFT, ProgrammeStatus.COMPLETE]
+                )
+            )
+        )
+    )
+    return [row for row in rows if pitch_day_begins_at(row.pitch_starts_at) <= now]
+
+
+def process_pitch_day(
+    session: Session, programme: Programme, now: datetime | None = None
+) -> PitchDayResult:
+    """Mail everyone who has a slot: their time, and the Meet."""
+    now = now or utcnow()
+    queued = enqueue_pitch_day_reminders(session, programme)
+    programme.pitch_day_emailed_at = now
+    return PitchDayResult(programmes_processed=1, emails_queued=queued)
+
+
+def pitch_day_sweep(session: Session, now: datetime | None = None) -> PitchDayResult:
+    """Every minute. Claims each programme once via pitch_day_emailed_at.
+
+    If the sweep wakes up after 00:00, it still sends. A restart does not.
+    """
+    now = now or utcnow()
+    total = PitchDayResult()
+    for programme in due_pitch_days(session, now):
+        result = process_pitch_day(session, programme, now)
+        total.programmes_processed += result.programmes_processed
+        total.emails_queued += result.emails_queued
     session.commit()
     return total
 

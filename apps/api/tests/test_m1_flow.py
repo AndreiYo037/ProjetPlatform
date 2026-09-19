@@ -196,8 +196,9 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
     assert "confirmed" in accepted.json()["message"]
 
     run_once(session, google)
-    # The welcome email is queued by the provisioning chain.
-    assert len(google.calls_of("send_email")) >= 2
+    # Offer is the "You're in" mail. Accepting does not send another.
+    subjects = [c.payload["subject"] for c in google.calls_of("send_email")]
+    assert sum(1 for s in subjects if s.startswith("You're in")) == 1
 
     sign_in(client, session, ActorType.PLATFORM, admin.id)
     seats = client.get(f"/programmes/{programme_id}/seats").json()

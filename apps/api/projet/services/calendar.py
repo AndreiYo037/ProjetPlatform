@@ -55,3 +55,35 @@ def ensure_kickoff_event(session: Session, programme: Programme) -> str | None:
     programme.kickoff_meet_link = result.meet_link
     session.flush()
     return result.event_id
+
+
+def ensure_pitch_event(
+    session: Session, programme: Programme, *, starts_at, ends_at
+) -> str | None:
+    """One Meet for the whole pitching block. Participants join at their slot."""
+    if programme.pitch_event_id:
+        return programme.pitch_event_id
+    if starts_at is None or ends_at is None:
+        return None
+
+    company = session.get(Company, programme.company_id)
+    company_name = company.name if company else "a company"
+
+    google = get_google_client()
+    result = google.create_event(
+        EventSpec(
+            summary=f"Pitching — {programme.title} ({company_name})",
+            starts_at=starts_at,
+            ends_at=ends_at,
+            description=(
+                f"Judging pitches for {programme.title}.\n\n"
+                f"Company: {company_name}\n"
+                "Join at your booked slot. Stay in this room until you have pitched."
+            ),
+            with_meet=True,
+        )
+    )
+    programme.pitch_event_id = result.event_id
+    programme.pitch_meet_link = result.meet_link
+    session.flush()
+    return result.event_id

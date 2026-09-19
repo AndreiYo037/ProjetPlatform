@@ -683,6 +683,13 @@ main.wide {
   white-space: nowrap;
 }
 
+.chat-meet {
+  margin: 0;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--line);
+  word-break: break-all;
+}
+
 .chat-scroll {
   flex: 1;
   min-height: 0;

@@ -49,7 +49,6 @@ from projet.services.profile import (
     attested_skills,
     endorsements_for,
     published_testimonials_for,
-    sync_person_skills_from_tags,
 )
 from projet.services.projects import (
     ProjectError,
@@ -245,8 +244,6 @@ def get_portfolio(
 
 
 def _portfolio(db: Session, person: Person) -> Portfolio:
-    sync_person_skills_from_tags(db, person.id)
-    db.commit()
     evidence = attested_skills(db, person.id)
     skills = [
         AttestedSkill(
@@ -843,13 +840,29 @@ class ProgrammeCard(BaseModel):
     deliverable: str
     start_at: datetime | None
     submit_deadline_at: datetime | None
+    pitch_starts_at: datetime | None = None
+    kickoff_meet_link: str | None = None
+    pitch_booking_open: bool = True
     timezone: str
 
 
 class JudgingSlot(BaseModel):
+    id: uuid.UUID
     starts_at: datetime
+    ends_at: datetime | None
     location_or_meet_link: str | None
     run_order: int | None
+
+
+class PitchSlotChoice(BaseModel):
+    id: uuid.UUID
+    starts_at: datetime
+    ends_at: datetime | None
+    available: bool
+
+
+class ClaimPitchSlot(BaseModel):
+    session_id: uuid.UUID
 
 
 class ProgrammeChoice(BaseModel):
@@ -872,6 +885,7 @@ class Dashboard(BaseModel):
     past_programmes: list[ProgrammeChoice]
     submission: SubmissionOut | None
     judging: JudgingSlot | None
+    pitch_slots: list[PitchSlotChoice]
     criteria: list[CriterionPublic]
     data_pack: list[DataPackEntry]
     threads: list[ThreadSummary]
@@ -1022,12 +1036,35 @@ def dashboard(
     provisioning = submission is None
 
     judging = None
+    pitch_slots: list[PitchSlotChoice] = []
+    from projet.services.pitch import (
+        has_handed_in,
+        listed_sessions,
+        occupant_map,
+        pitch_booking_open,
+    )
+
+    slot_rows = listed_sessions(db, programme.id)
+    taken = occupant_map(db, programme.id)
+    eligible = has_handed_in(db, participant) or bool(participant.judging_session_id)
+    if programme.pitch_starts_at and programme.pitch_duration_minutes and eligible:
+        pitch_slots = [
+            PitchSlotChoice(
+                id=row.id,
+                starts_at=row.starts_at,
+                ends_at=row.ends_at,
+                available=row.id not in taken,
+            )
+            for row in slot_rows
+        ]
     if participant.judging_session_id:
         row = db.get(JudgingSession, participant.judging_session_id)
         if row is not None:
             judging = JudgingSlot(
+                id=row.id,
                 starts_at=row.starts_at,
-                location_or_meet_link=row.location_or_meet_link,
+                ends_at=row.ends_at,
+                location_or_meet_link=row.location_or_meet_link or programme.pitch_meet_link,
                 run_order=participant.run_order,
             )
 
@@ -1069,6 +1106,9 @@ def dashboard(
             or (template.default_deliverable if template else ""),
             start_at=programme.start_at,
             submit_deadline_at=programme.submit_deadline_at,
+            pitch_starts_at=programme.pitch_starts_at,
+            kickoff_meet_link=programme.kickoff_meet_link,
+            pitch_booking_open=pitch_booking_open(programme),
             # FR-501/FR-1602 — stored UTC, rendered in their timezone.
             timezone=participant.person.timezone,
         ),
@@ -1076,6 +1116,7 @@ def dashboard(
         past_programmes=past_programmes,
         submission=submission,
         judging=judging,
+        pitch_slots=pitch_slots,
         criteria=[
             CriterionPublic(
                 slot=c.slot,
@@ -1099,6 +1140,32 @@ def dashboard(
         threads=threads,
         blocking_acknowledgements=blocking,
     )
+
+
+@router.post("/pitch-slot", response_model=Dashboard)
+def claim_pitch_slot_route(
+    payload: ClaimPitchSlot,
+    programme_id: uuid.UUID | None = Query(default=None),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> Dashboard:
+    """First click that is still free gets the slot. Everyone else sees it gone."""
+    from projet.outbox.provisioning import enqueue_pitch_booking
+    from projet.services.pitch import PitchError, claim_pitch_slot
+
+    participant = _participant(db, actor, programme_id)
+    try:
+        row = claim_pitch_slot(db, participant, payload.session_id)
+    except PitchError as error:
+        status_code = (
+            status.HTTP_409_CONFLICT
+            if any(word in str(error).lower() for word in ("taken", "cannot change"))
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(status_code, str(error)) from error
+    enqueue_pitch_booking(db, participant, row)
+    db.commit()
+    return dashboard(programme_id=participant.programme_id, db=db, actor=actor)
 
 
 class LinkRequest(BaseModel):

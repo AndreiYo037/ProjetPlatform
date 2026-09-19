@@ -198,11 +198,13 @@ def accept_offer(session: Session, token: str) -> Participant:
     session.flush()
 
     from projet.outbox.provisioning import assign_judging_session, enqueue_provisioning_chain
+    from projet.services.pitch import ensure_free_pitch_slot
     from projet.services.teams import ensure_submission, ensure_team_for_participant
 
     team = ensure_team_for_participant(session, participant)
     ensure_submission(session, team)
     assign_judging_session(session, participant)
+    ensure_free_pitch_slot(session, programme)
     enqueue_provisioning_chain(
         session,
         participant,

@@ -1,9 +1,9 @@
 """The effect registry.
 
-The provisioning chain (FR-1400) is several external calls in a row. If the
-welcome email sends and Calendar times out, the retry must not send a second
-email — so each step is its own outbox row with its own idempotency key, and
-the chain is declarative rather than one long function.
+The provisioning chain (FR-1400) is several external calls in a row. If a
+Calendar patch succeeds and the next step times out, the retry must not fire
+the already-done step again — so each step is its own outbox row with its own
+idempotency key, and the chain is declarative rather than one long function.
 """
 
 from __future__ import annotations

@@ -82,6 +82,7 @@ def test_publish_creates_kickoff_event(client, session, google, admin, seeded):
 
     published = client.post(f"/programmes/{programme['id']}/publish")
     assert published.status_code == 200
+    assert published.json()["kickoff_meet_link"]
 
     create_calls = google.calls_of("create_event")
     assert len(create_calls) == 1

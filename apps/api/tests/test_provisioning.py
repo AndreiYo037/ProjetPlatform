@@ -104,17 +104,16 @@ def test_the_chain_runs_and_each_step_is_separately_retryable(
     )
     session.flush()
 
-    assert len(rows) == 4
+    assert len(rows) == 3
     run_once(session, google)
 
     statuses = {row.effect_type: row.status for row in session.scalars(select(Outbox))}
     assert all(status == OutboxStatus.DONE for status in statuses.values())
-    assert participant.gmail_thread_id, "the welcome email opens the person's thread"
     assert len(google.calls_of("patch_event_attendees")) == 3
-    assert len(google.calls_of("send_email")) == 1
+    assert google.calls_of("send_email") == []
 
 
-def test_a_calendar_timeout_does_not_resend_the_welcome_email(
+def test_a_calendar_timeout_does_not_rerun_done_invites(
     session, programme, judging_session, participant_factory, google
 ):
     """The exact failure the outbox exists to prevent."""
@@ -127,7 +126,7 @@ def test_a_calendar_timeout_does_not_resend_the_welcome_email(
 
     google.fail_next = TransientGoogleError("calendar timed out")
     run_once(session, google)
-    first_sends = len(google.calls_of("send_email"))
+    first_patches = len(google.calls_of("patch_event_attendees"))
 
     # The sweep comes round again.
     for row in session.scalars(select(Outbox)):
@@ -135,7 +134,9 @@ def test_a_calendar_timeout_does_not_resend_the_welcome_email(
     session.flush()
     run_once(session, google)
 
-    assert len(google.calls_of("send_email")) == first_sends == 1
+    # The failed invite retries once; anything already DONE is left alone.
+    assert len(google.calls_of("patch_event_attendees")) == first_patches + 1
+    assert google.calls_of("send_email") == []
 
 
 def test_the_calendar_invite_goes_to_the_google_account(
@@ -152,19 +153,6 @@ def test_the_calendar_invite_goes_to_the_google_account(
 
     patch = google.calls_of("patch_event_attendees")[0]
     assert patch.payload["add"][0].email == "sam.google@gmail.com"
-
-
-def test_welcome_email_goes_to_the_contact_address(
-    session, programme, judging_session, participant_factory, google
-):
-    participant = participant_factory()
-    participant.person.contact_email = "sam@school.test"
-    enqueue_provisioning_chain(session, participant)
-    session.flush()
-    run_once(session, google)
-
-    send = google.calls_of("send_email")[0]
-    assert send.payload["to"] == "sam@school.test"
 
 
 def test_a_missing_judging_session_fails_permanently_rather_than_retrying(

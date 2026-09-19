@@ -36,3 +36,60 @@ export function formatDayRange(
   if (from && to && from !== to) return `${from} – ${to}`;
   return from ?? to;
 }
+
+function sgtParts(iso: string) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: PROGRAMME_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(iso));
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return {
+    year: get("year"),
+    month: get("month"),
+    day: get("day"),
+    hour: get("hour"),
+    minute: get("minute"),
+  };
+}
+
+/** datetime-local value in Singapore time. */
+export function toDateTimeLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const { year, month, day, hour, minute } = sgtParts(iso);
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+/** Interpret a datetime-local value as Singapore time. */
+export function fromDateTimeLocal(value: string): string | null {
+  if (!value) return null;
+  return `${value}:00+08:00`;
+}
+
+export function formatSlot(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: PROGRAMME_TZ,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso));
+}
+
+export function formatSlotTime(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: PROGRAMME_TZ,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(iso));
+}
