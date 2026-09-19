@@ -1,8 +1,8 @@
 """Editing a project — what each kind of entry will and will not accept.
 
 The boundary this file defends: on a verified entry the description is theirs
-and the facts are the platform's, and a skill on a verified entry is a judge's
-attestation rather than anything the participant can type.
+and the facts are the platform's. Unverified skill tags are a claim on either
+kind of entry, stored apart from a judge's attestation.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ import pytest
 
 from projet.models import ProjectEntry, Skill
 from projet.models.enums import ArtifactVisibility, ProgrammeStatus, SkillType
-from projet.models.portfolio import ProjectSkill
 from projet.services.projects import (
     ProjectError,
     add_link,
@@ -228,15 +227,14 @@ def test_skills_on_a_self_declared_entry_are_a_claim_they_can_set(session, mine)
     assert {ps.skill_id for ps in mine.skills} == {go.id}
 
 
-def test_skills_on_a_verified_entry_come_from_attestation_only(session, verified):
-    """A participant typing a skill onto a week a judge watched would make a
-    claim indistinguishable from that judge's attestation."""
+def test_skills_on_a_verified_entry_can_still_be_a_claim(session, verified):
+    """A claim on a verified project is still a ProjectSkill, not an
+    attestation — the two tables stay apart even when both sit on the card."""
     rust = _skill(session, "Rust")
 
-    with pytest.raises(ProjectError, match="attestation"):
-        set_skills(session, verified.person_id, verified.id, [rust.id])
-
-    assert session.query(ProjectSkill).count() == 0
+    set_skills(session, verified.person_id, verified.id, [rust.id])
+    session.refresh(verified)
+    assert {ps.skill_id for ps in verified.skills} == {rust.id}
 
 
 def test_an_unknown_skill_is_refused(session, mine):

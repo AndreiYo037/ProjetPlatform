@@ -5,7 +5,7 @@ import { Suspense, useState } from "react";
 import { confirmPasswordReset } from "@/lib/api";
 
 function homeFor(actor: { actor_type: string; company_id: string | null }) {
-  if (actor.actor_type === "participant") return "/dashboard";
+  if (actor.actor_type === "participant") return "/home";
   if (actor.actor_type === "platform") return "/admin";
   if (actor.company_id) return "/company";
   return "/";

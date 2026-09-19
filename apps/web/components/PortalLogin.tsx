@@ -68,7 +68,7 @@ export default function PortalLogin({
 }
 
 function homeFor(actor: Pick<Actor, "actor_type" | "company_id">, fallback: string) {
-  if (actor.actor_type === "participant") return "/dashboard";
+  if (actor.actor_type === "participant") return "/home";
   if (actor.actor_type === "platform") return "/admin";
   if (actor.company_id) return "/company";
   return fallback;

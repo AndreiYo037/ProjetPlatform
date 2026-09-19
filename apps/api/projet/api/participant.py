@@ -43,7 +43,11 @@ from projet.services.messaging import (
     unread_counts,
     visible_threads,
 )
-from projet.services.profile import capability_rollup, published_testimonials_for
+from projet.services.profile import (
+    capability_rollup,
+    endorsements_for,
+    published_testimonials_for,
+)
 from projet.services.projects import (
     ProjectError,
     add_link,
@@ -136,13 +140,16 @@ class CapabilityOut(BaseModel):
 
 
 class CredentialOut(BaseModel):
-    type: str
-    programme: str
+    """Who stood behind which skills, on which programme.
+
+    Completion stamps and verify codes stay off this schema: a credential the
+    holder cannot explain is a log entry, and the evidence is the endorsement.
+    """
+
     company: str
-    issued_at: datetime
-    # The code is the credential. Carried here so the holder can give it to
-    # someone who was never in the room.
-    verify_code: str
+    programme: str
+    skills: list[str]
+    attesters: list[str]
 
 
 class TestimonialCard(BaseModel):
@@ -206,19 +213,15 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
         for rollup in capability_rollup(db, person.id)
     ]
 
-    credentials: list[CredentialOut] = []
-    for credential in credentials_for(db, person.id):
-        programme = db.get(Programme, credential.programme_id)
-        company = db.get(Company, programme.company_id) if programme else None
-        credentials.append(
-            CredentialOut(
-                type=credential.type.value,
-                programme=programme.title if programme else "",
-                company=company.name if company else "",
-                issued_at=credential.issued_at,
-                verify_code=credential.verify_code,
-            )
+    credentials = [
+        CredentialOut(
+            company=row.company,
+            programme=row.programme,
+            skills=row.skills,
+            attesters=row.attesters,
         )
+        for row in endorsements_for(db, person.id)
+    ]
 
     rows = published_testimonials_for(db, person.id)
     testimonials = [
@@ -572,11 +575,10 @@ def set_project_skills(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_participant),
 ) -> ProjectEntryOut:
-    """Tag what a self-declared project used.
+    """Tag unverified skills on a project.
 
-    Never reachable for a verified entry: what it demonstrated is for a judge
-    to attest, not for the participant to claim, and this is the boundary
-    that keeps the two apart.
+    ProjectSkill is a claim, ProfileSkill is an attestation — separate tables,
+    so tagging a verified project here never impersonates a judge.
     """
     person = _person(db, actor)
     try:

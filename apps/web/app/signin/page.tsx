@@ -6,7 +6,7 @@ export default function ParticipantSignInPage() {
       actorType="participant"
       portalLabel="Participant"
       badge="Applicants & participants"
-      lede="For students and applicants — your dashboard, submission and channel."
+      lede="For students and applicants — your profile and programme."
       defaultHome="/home"
       forgotHref="/forgot-password"
       crossLinks={[

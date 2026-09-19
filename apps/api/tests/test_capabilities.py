@@ -37,7 +37,7 @@ from projet.models.enums import (
 from projet.seeds.loader import SeedError, _assert_capabilities_cover, load_content, seed_all
 from projet.seeds.parsers import ContentError, parse_capabilities
 from projet.seeds.parsers.capabilities import SkillCapabilities
-from projet.services.profile import capability_rollup, promote_score_skill_tags
+from projet.services.profile import capability_rollup, endorsements_for, promote_score_skill_tags
 from projet.services.teams import ensure_team_for_participant
 
 EXPECTED_CAPABILITIES = 7
@@ -59,8 +59,10 @@ def test_the_vocabulary_stays_small_enough_to_read(content_dir):
 def test_every_skill_maps_onto_at_least_one_capability(content_dir):
     bundle = load_content(content_dir)
     ranked = {name for seed in bundle.roles for name in seed.hard_skills + seed.soft_skills}
+    from_roles = parse_capabilities(content_dir / "capabilities.md")
+    assert ranked == {entry.skill for entry in from_roles.skill_map}
     mapped = {entry.skill for entry in bundle.skill_capabilities}
-    assert ranked == mapped
+    assert mapped == {name for (name, _kind) in bundle.skills}
 
 
 def test_no_capability_is_left_with_nothing_mapped_to_it(content_dir):
@@ -136,12 +138,15 @@ def test_a_skill_renamed_in_skills_md_alone_fails_the_seed(tmp_path, content_dir
         "deliverables.md",
         "skills.md",
         "capabilities.md",
+        "skill-taxonomy.md",
     ):
         (tmp_path / name).write_text(
             (content_dir / name).read_text(encoding="utf-8"), encoding="utf-8"
         )
     skills = (tmp_path / "skills.md").read_text(encoding="utf-8")
-    (tmp_path / "skills.md").write_text(skills.replace("SQL", "Structured Query Language"))
+    (tmp_path / "skills.md").write_text(
+        skills.replace("SQL", "Structured Query Language"), encoding="utf-8"
+    )
 
     with pytest.raises(SeedError, match="capability map and the skills taxonomy disagree"):
         load_content(tmp_path)
@@ -186,6 +191,7 @@ def test_re_mapping_a_skill_prunes_the_stale_link(session, tmp_path, content_dir
         "deliverables.md",
         "skills.md",
         "capabilities.md",
+        "skill-taxonomy.md",
     ):
         (tmp_path / name).write_text(
             (content_dir / name).read_text(encoding="utf-8"), encoding="utf-8"
@@ -448,3 +454,27 @@ def test_a_second_programme_compounds_onto_the_same_axis(
     assert {s.name for s in rollup[0].skills} == {sql.name, solidity.name}
     assert rollup[0].programme_count == 2
     assert rollup[0].attester_count == 2
+
+
+def test_endorsements_are_the_company_programme_and_skills(
+    session, programme, company, participant_factory
+):
+    participant = participant_factory()
+    skill = _skill(session, "SQL")
+    session.add(
+        ProfileSkill(
+            person_id=participant.person_id,
+            programme_id=programme.id,
+            skill_id=skill.id,
+            attested_by_name="Mo Manager",
+            attested_by_company=company.name,
+        )
+    )
+    session.flush()
+
+    cards = endorsements_for(session, participant.person_id)
+    assert len(cards) == 1
+    assert cards[0].company == company.name
+    assert cards[0].programme == programme.title
+    assert cards[0].skills == [skill.name]
+    assert cards[0].attesters == ["Mo Manager"]

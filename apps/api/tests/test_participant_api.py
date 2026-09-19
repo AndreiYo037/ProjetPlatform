@@ -366,7 +366,7 @@ def test_the_skill_drawer_offers_the_taxonomy_and_tags_a_project(client, signed_
     assert [s["name"] for s in tagged.json()["skills"]] == ["Rust"]
 
 
-def test_a_verified_entry_refuses_a_claimed_skill_over_http(
+def test_a_verified_entry_accepts_an_unverified_skill_over_http(
     client, signed_in, session, programme
 ):
     programme.status = ProgrammeStatus.COMPLETE
@@ -376,8 +376,8 @@ def test_a_verified_entry_refuses_a_claimed_skill_over_http(
 
     response = client.put(f"/me/projects/{entry_id}/skills", json={"skill_ids": [str(skill.id)]})
 
-    assert response.status_code == 400
-    assert "attestation" in response.json()["detail"]
+    assert response.status_code == 200
+    assert [s["name"] for s in response.json()["skills"]] == ["Go"]
 
 
 def test_someone_elses_project_is_a_404(client, signed_in, session, participant_factory):

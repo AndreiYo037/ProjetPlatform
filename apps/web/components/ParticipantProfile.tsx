@@ -6,10 +6,8 @@ import { getMyProfile, updateMyProfile, type PersonProfile } from "@/lib/api";
 /**
  * The details you maintain about yourself.
  *
- * This belongs to the person, not to any one programme, so it lives on their
- * home page rather than inside a programme they happen to be on. The
- * judge-attested side of a profile — skills, credentials, testimonials — is
- * read-only and lives at /portfolio.
+ * This belongs to the person, not to any one programme, so it lives at
+ * /profile rather than on Home (the portfolio) or inside a programme.
  */
 export default function ParticipantProfile() {
   const [profile, setProfile] = useState<PersonProfile | null>(null);

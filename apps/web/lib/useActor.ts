@@ -29,7 +29,7 @@ const SIGN_IN: Record<ActorTypeParam, string> = {
 };
 
 const HOME: Record<string, string> = {
-  participant: "/dashboard",
+  participant: "/home",
   company_user: "/company",
   platform: "/admin",
 };

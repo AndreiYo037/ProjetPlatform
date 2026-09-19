@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * Tagging skills without scrolling a list of hundreds.
@@ -154,15 +154,22 @@ export default function SkillPicker({
   /** False where there is no role to rank against — a self-declared project
    * has no template, so promising "ranked for this role" would be a lie. */
   ranked = true,
+  /** Combobox under the search field. Used on project cards; judging keeps
+   * the always-visible ranked chips so a pitch can be tagged without typing. */
+  dropdown = false,
 }: {
   options: SkillChoice[];
   selectedIds: string[];
   disabled?: boolean;
   onToggle: (id: string) => void;
   ranked?: boolean;
+  dropdown?: boolean;
 }) {
   const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
   const input = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLDivElement>(null);
   const selected = new Set(selectedIds);
 
   const chosen = useMemo(
@@ -173,8 +180,12 @@ export default function SkillPicker({
   const matches = useMemo(() => {
     const pool = options.filter((option) => !selected.has(option.id));
     if (!query.trim()) {
-      // Nothing typed: the role's own skills are the whole point of the list.
-      return { rows: pool.filter((o) => o.suggested), total: pool.length, browsing: true };
+      if (ranked) {
+        // Nothing typed: the role's own skills are the whole point of the list.
+        return { rows: pool.filter((o) => o.suggested), total: pool.length, browsing: true };
+      }
+      const rows = [...pool].sort((a, b) => a.name.localeCompare(b.name)).slice(0, SHOWN);
+      return { rows, total: pool.length, browsing: true };
     }
     const scored = pool
       .map((option) => ({ option, score: matchScore(option.name, query) }))
@@ -187,24 +198,116 @@ export default function SkillPicker({
           a.option.name.localeCompare(b.option.name),
       );
     return { rows: scored.slice(0, SHOWN).map((e) => e.option), total: scored.length, browsing: false };
-  }, [options, query, selectedIds]);
+  }, [options, query, selectedIds, ranked]);
+
+  useEffect(() => {
+    setActive(0);
+  }, [query, selectedIds]);
+
+  useEffect(() => {
+    if (!dropdown) return;
+    function onPointer(event: MouseEvent) {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
+  }, [dropdown]);
+
+  function pick(id: string) {
+    onToggle(id);
+    setQuery("");
+    setOpen(true);
+    input.current?.focus();
+  }
+
+  const chips = chosen.length > 0 && (
+    <div className="skill-list" style={{ marginBottom: "0.6rem" }}>
+      {chosen.map((skill) => (
+        <button
+          className="skill"
+          key={skill.id}
+          disabled={disabled}
+          onClick={() => onToggle(skill.id)}
+          title="Remove this tag"
+        >
+          {skill.name} ✕
+        </button>
+      ))}
+    </div>
+  );
+
+  if (dropdown) {
+    return (
+      <div>
+        {chips}
+        <div className="skill-combobox" ref={box}>
+          <input
+            ref={input}
+            id="project-skills"
+            type="search"
+            autoComplete="off"
+            placeholder={options.length ? `Search ${options.length} skills` : "Loading skills…"}
+            value={query}
+            disabled={disabled}
+            onFocus={() => setOpen(true)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setOpen(false);
+                return;
+              }
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setOpen(true);
+                setActive((i) => Math.min(i + 1, Math.max(matches.rows.length - 1, 0)));
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setActive((i) => Math.max(i - 1, 0));
+                return;
+              }
+              if (e.key === "Enter" && matches.rows[active]) {
+                e.preventDefault();
+                pick(matches.rows[active].id);
+              }
+            }}
+          />
+          {open && (
+            <div className="skill-menu" role="listbox">
+              {matches.rows.length === 0 ? (
+                <p className="small muted" style={{ margin: 0, padding: "0.55rem 0.7rem" }}>
+                  {options.length === 0 ? "Loading…" : "Nothing matches that."}
+                </p>
+              ) : (
+                matches.rows.map((skill, index) => (
+                  <button
+                    type="button"
+                    role="option"
+                    className="skill-option"
+                    key={skill.id}
+                    aria-selected={index === active}
+                    disabled={disabled}
+                    onMouseEnter={() => setActive(index)}
+                    onClick={() => pick(skill.id)}
+                  >
+                    {skill.name}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {chosen.length > 0 && (
-        <div className="row" style={{ flexWrap: "wrap", gap: "0.4rem", marginBottom: "0.6rem" }}>
-          {chosen.map((skill) => (
-            <button
-              key={skill.id}
-              disabled={disabled}
-              onClick={() => onToggle(skill.id)}
-              title="Remove this tag"
-            >
-              {skill.name} ✕
-            </button>
-          ))}
-        </div>
-      )}
+      {chips}
 
       <div className="field" style={{ marginBottom: "0.5rem" }}>
         <input

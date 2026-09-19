@@ -2,8 +2,8 @@
 
 This is the loop the scoring card opens: a judge tags what they saw and writes a
 testimonial, the programme closes, and both become something durable - an
-attested skill with a named practitioner behind it, and a credential someone who
-was never in the room can check.
+attested skill with a named practitioner behind it, grouped as a credential
+under the company and programme that stood behind them.
 
 The rules worth proving are the ones that keep it honest. A credential is not
 issued for turning up. A score never reaches the person scored. A draft
@@ -226,7 +226,7 @@ def test_a_draft_cannot_close(client, session, programme, manager, sat):
 
 
 def test_the_portfolio_shows_attested_skills_with_the_attester(
-    client, session, programme, manager, sat, skill
+    client, session, programme, company, manager, sat, skill
 ):
     sign_in_company(client, session, manager)
     score_fully(client, programme, sat["sam"], skill)
@@ -238,8 +238,14 @@ def test_the_portfolio_shows_attested_skills_with_the_attester(
     body = portfolio.json()
 
     assert body["programmes_completed"] == 1
-    assert [c["type"] for c in body["credentials"]] == ["completion"]
-    assert body["credentials"][0]["verify_code"]
+    assert body["credentials"] == [
+        {
+            "company": company.name,
+            "programme": programme.title,
+            "skills": ["SQL"],
+            "attesters": ["Mo Manager"],
+        }
+    ]
 
     capability = body["capabilities"][0]
     assert capability["name"] == "Working with data"

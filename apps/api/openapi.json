@@ -6937,37 +6937,38 @@
       },
       "CredentialOut": {
         "properties": {
-          "type": {
+          "company": {
             "type": "string",
-            "title": "Type"
+            "title": "Company"
           },
           "programme": {
             "type": "string",
             "title": "Programme"
           },
-          "company": {
-            "type": "string",
-            "title": "Company"
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
           },
-          "issued_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Issued At"
-          },
-          "verify_code": {
-            "type": "string",
-            "title": "Verify Code"
+          "attesters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Attesters"
           }
         },
         "type": "object",
         "required": [
-          "type",
-          "programme",
           "company",
-          "issued_at",
-          "verify_code"
+          "programme",
+          "skills",
+          "attesters"
         ],
-        "title": "CredentialOut"
+        "title": "CredentialOut",
+        "description": "Who stood behind which skills, on which programme.\n\nCompletion stamps and verify codes stay off this schema: a credential the\nholder cannot explain is a log entry, and the evidence is the endorsement."
       },
       "CriterionOut": {
         "properties": {
@@ -9258,35 +9259,35 @@
       },
       "PublicCredential": {
         "properties": {
-          "type": {
+          "company": {
             "type": "string",
-            "title": "Type"
+            "title": "Company"
           },
           "programme": {
             "type": "string",
             "title": "Programme"
           },
-          "company": {
-            "type": "string",
-            "title": "Company"
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
           },
-          "issued_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Issued At"
-          },
-          "verify_code": {
-            "type": "string",
-            "title": "Verify Code"
+          "attesters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Attesters"
           }
         },
         "type": "object",
         "required": [
-          "type",
-          "programme",
           "company",
-          "issued_at",
-          "verify_code"
+          "programme",
+          "skills",
+          "attesters"
         ],
         "title": "PublicCredential"
       },
@@ -9782,6 +9783,13 @@
             },
             "type": "array",
             "title": "Links"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
           }
         },
         "type": "object",
@@ -9793,7 +9801,8 @@
           "ended_at",
           "ongoing",
           "description",
-          "links"
+          "links",
+          "skills"
         ],
         "title": "PublicProjectEntry"
       },

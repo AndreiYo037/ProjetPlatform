@@ -29,7 +29,11 @@ from projet.db import get_session
 from projet.models import Company, Person, Programme
 from projet.models.enums import ArtifactVisibility
 from projet.services.closeout import credentials_for
-from projet.services.profile import capability_rollup, published_testimonials_for
+from projet.services.profile import (
+    capability_rollup,
+    endorsements_for,
+    published_testimonials_for,
+)
 from projet.services.projects import entries_for
 from projet.storage import sign_key
 
@@ -69,14 +73,14 @@ class PublicProjectEntry(BaseModel):
     ongoing: bool
     description: str | None
     links: list[PublicProjectLink]
+    skills: list[str]
 
 
 class PublicCredential(BaseModel):
-    type: str
-    programme: str
     company: str
-    issued_at: datetime
-    verify_code: str
+    programme: str
+    skills: list[str]
+    attesters: list[str]
 
 
 class PublicTestimonial(BaseModel):
@@ -137,6 +141,7 @@ def _project_out(entry) -> PublicProjectEntry:  # type: ignore[no-untyped-def]
         ongoing=entry.ongoing,
         description=entry.description,
         links=links,
+        skills=sorted({ps.skill.name for ps in entry.skills}),
     )
 
 
@@ -175,19 +180,15 @@ def get_public_profile(
     projects = [_project_out(entry) for entry in entries]
     verified_count = sum(1 for entry in entries if entry.verified)
 
-    credentials: list[PublicCredential] = []
-    for credential in credentials_for(db, person.id):
-        programme = db.get(Programme, credential.programme_id)
-        company = db.get(Company, programme.company_id) if programme else None
-        credentials.append(
-            PublicCredential(
-                type=credential.type.value,
-                programme=programme.title if programme else "",
-                company=company.name if company else "",
-                issued_at=credential.issued_at,
-                verify_code=credential.verify_code,
-            )
+    credentials = [
+        PublicCredential(
+            company=row.company,
+            programme=row.programme,
+            skills=row.skills,
+            attesters=row.attesters,
         )
+        for row in endorsements_for(db, person.id)
+    ]
 
     testimonials = [
         PublicTestimonial(

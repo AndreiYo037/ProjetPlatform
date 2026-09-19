@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import select
 
 from projet.models import DataPackResource, Role, RoleTemplate, Skill
-from projet.models.enums import SkillType, VerificationStatus
+from projet.models.enums import VerificationStatus
 from projet.seeds.loader import (
     SeedError,
     check_slug_lock,
@@ -90,9 +90,11 @@ def test_at_risk_roles_carry_a_delivery_note(content_dir):
 
 def test_soft_skill_vocabulary_stays_small_enough_for_a_dropdown(content_dir):
     """FR-903b — an unranked list of hundreds gets nothing tagged. The soft
-    vocabulary is shared on purpose; fragmenting it defeats the ranking."""
+    vocabulary ranked per role is shared on purpose; fragmenting it defeats
+    the ranking. Platform-wide tags in skill-taxonomy.md are a separate list.
+    """
     bundle = load_content(content_dir)
-    soft = {name for (name, kind) in bundle.skills if kind == SkillType.SOFT}
+    soft = {name for role in bundle.roles for name in role.soft_skills}
     assert len(soft) <= 30, f"soft skill vocabulary has grown to {len(soft)}"
 
 
@@ -128,6 +130,7 @@ def test_a_renamed_role_in_one_file_fails_the_join(tmp_path, content_dir):
         "deliverables.md",
         "skills.md",
         "capabilities.md",
+        "skill-taxonomy.md",
     ):
         (tmp_path / name).write_text(
             (content_dir / name).read_text(encoding="utf-8"), encoding="utf-8"
@@ -216,6 +219,18 @@ def test_every_ranked_skill_resolves_to_a_skill_row(session, content_dir):
     for template in session.scalars(select(RoleTemplate)):
         for skill in template.ranked_hard_skills + template.ranked_soft_skills:
             assert skill in names, f"{skill!r} is ranked but not in the taxonomy"
+
+
+def test_the_platform_taxonomy_is_searchable(session, content_dir):
+    """Tags from skill-taxonomy.md sit in the same picker as ranked skills."""
+    seed_all(session, content_dir)
+    names = {s.name for s in session.scalars(select(Skill))}
+    for expected in ("React", "Python", "Figma", "Prompt engineering", "AWS", "C++"):
+        assert expected in names
+    slugs = {s.slug for s in session.scalars(select(Skill))}
+    assert "cpp" in slugs
+    assert "csharp" in slugs
+    assert len(slugs) == len(names)
 
 
 def test_role_aliases_are_searchable(session, content_dir):

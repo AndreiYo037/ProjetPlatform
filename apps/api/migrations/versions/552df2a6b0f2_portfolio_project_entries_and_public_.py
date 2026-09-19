@@ -67,9 +67,14 @@ def upgrade() -> None:
         # NOT NULL onto a populated table needs a default to backfill with.
         # False is the right backfill as well as the right default: nobody
         # consented to a public profile before the column existed.
+        # SQLite batch-recreates the table as the *final* schema of this
+        # block, so dropping the default in the same batch would copy rows
+        # into a NOT NULL column with no default and fail.
         batch_op.add_column(
             sa.Column('public', sa.Boolean(), nullable=False, server_default=sa.false())
         )
+
+    with op.batch_alter_table('person', schema=None) as batch_op:
         batch_op.alter_column('public', server_default=None)
 
     # ### end Alembic commands ###

@@ -18,7 +18,7 @@ import { useActor } from "@/lib/useActor";
  * after, so they sit behind a button rather than above the conversation.
  *
  * The participant's own details are not here — they belong to the person, not
- * the programme, and live on /home.
+ * the programme, and live on Home.
  */
 
 const SECTIONS = [
@@ -65,7 +65,7 @@ export default function ProgrammePage() {
               See open challenges
             </Link>
             <Link className="btn secondary" href="/home">
-              Your home
+              Home
             </Link>
           </div>
         </main>
@@ -98,7 +98,7 @@ export default function ProgrammePage() {
   return (
     <main className={section === "messages" ? "wide" : undefined}>
       <Link className="small muted" href="/home">
-        ← Your home
+        ← Home
       </Link>
 
       <h1 style={{ marginTop: "0.4rem" }}>{data.programme.title}</h1>

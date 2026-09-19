@@ -303,16 +303,12 @@ def remove_link(
 def set_skills(
     session: Session, person_id: uuid.UUID, entry_id: uuid.UUID, skill_ids: list[uuid.UUID]
 ) -> ProjectEntry:
-    """Replace a self-declared entry's claimed skills.
+    """Replace an entry's claimed (unverified) skills.
 
-    Verified entries never take a skill through here: what a verified entry
-    demonstrated is for a judge to attest as a ProfileSkill, not for the
-    participant to claim, and ProjectSkill exists precisely so a claim can
-    never be mistaken for that attestation.
+    Allowed on verified work too: these rows live on ProjectSkill, not
+    ProfileSkill, so a claim cannot be mistaken for a judge's attestation.
     """
     entry = _owned_entry(session, person_id, entry_id)
-    if entry.verified:
-        raise ProjectError("Skills on a verified entry come from attestation, not a claim.")
 
     wanted = set(skill_ids)
     if wanted:

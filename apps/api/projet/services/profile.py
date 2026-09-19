@@ -202,6 +202,61 @@ def capability_rollup(
     return sorted(rollups.values(), key=lambda r: r.sort_order)
 
 
+@dataclass
+class ProgrammeEndorsement:
+    """One company's attested skills from one programme — the credential."""
+
+    company: str
+    programme: str
+    skills: list[str]
+    attesters: list[str]
+
+
+def endorsements_for(
+    session: Session, person_id: uuid.UUID, *, include_hidden: bool = False
+) -> list[ProgrammeEndorsement]:
+    """ProfileSkill rows, grouped by the programme they were earned on.
+
+    This is what a credential is: a named company stood behind these skills
+    after watching this person work, on this programme. Not a completion
+    stamp, and not a code.
+    """
+    query = (
+        select(
+            Company.name,
+            Programme.title,
+            Programme.id,
+            Skill.name,
+            ProfileSkill.attested_by_name,
+            ProfileSkill.created_at,
+        )
+        .select_from(ProfileSkill)
+        .join(Skill, Skill.id == ProfileSkill.skill_id)
+        .join(Programme, Programme.id == ProfileSkill.programme_id)
+        .join(Company, Company.id == Programme.company_id)
+        .where(ProfileSkill.person_id == person_id)
+        .order_by(ProfileSkill.created_at.desc(), Skill.name)
+    )
+    if not include_hidden:
+        query = query.where(ProfileSkill.visible.is_(True))
+
+    groups: dict[uuid.UUID, ProgrammeEndorsement] = {}
+    order: list[uuid.UUID] = []
+    for company, title, programme_id, skill, attester, _created in session.execute(query):
+        card = groups.get(programme_id)
+        if card is None:
+            card = ProgrammeEndorsement(
+                company=company, programme=title, skills=[], attesters=[]
+            )
+            groups[programme_id] = card
+            order.append(programme_id)
+        if skill not in card.skills:
+            card.skills.append(skill)
+        if attester and attester not in card.attesters:
+            card.attesters.append(attester)
+    return [groups[pid] for pid in order]
+
+
 def published_testimonials_for(session: Session, person_id: uuid.UUID):
     """Published testimonials across every programme this person has done.
 

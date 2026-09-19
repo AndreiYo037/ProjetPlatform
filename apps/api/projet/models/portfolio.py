@@ -122,13 +122,13 @@ class ProjectLink(Base):
 
 
 class ProjectSkill(Base):
-    """A skill claimed on a self-declared project.
+    """A skill claimed on a project — unverified.
 
-    The self-declared counterpart to ProfileSkill, and a separate table rather
-    than a nullable programme_id on that one. ProfileSkill rows carry an
-    attester; these carry nobody. Keeping them in different tables means a
-    query for attested evidence cannot accidentally sweep up a claim, which a
-    nullable column would make a matter of remembering a WHERE clause.
+    The counterpart to ProfileSkill, and a separate table rather than a
+    nullable programme_id on that one. ProfileSkill rows carry an attester;
+    these carry nobody. Keeping them in different tables means a query for
+    attested evidence cannot accidentally sweep up a claim, which a nullable
+    column would make a matter of remembering a WHERE clause.
     """
 
     __tablename__ = "project_skill"

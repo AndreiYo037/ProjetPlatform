@@ -9,6 +9,10 @@ in deliverables.md would simply lose its deliverable.
 capabilities.md joins the same way, on skill name rather than role name, and is
 held to the same standard: every skill the roles rank must map onto at least one
 capability, or the seed refuses to run.
+
+skill-taxonomy.md is the rest of the picker — names offered in search across
+Projet that are not (only) a role shortlist. Those extra names are mapped onto
+capabilities from the section they sit in, so they remain attest-able.
 """
 
 from __future__ import annotations
@@ -38,11 +42,13 @@ from projet.seeds.parsers import (
     parse_deliverables,
     parse_resources,
     parse_rubrics,
+    parse_skill_taxonomy,
     parse_skills,
     parse_universal_rubric,
 )
 from projet.seeds.parsers.capabilities import CapabilitySpec, SkillCapabilities
 from projet.seeds.parsers.common import SourceRef, slugify
+from projet.seeds.parsers.skill_taxonomy import TaxonomySkill
 from projet.seeds.parsers.rubrics import CriterionSpec
 
 SLUGS_LOCK = "slugs.lock"
@@ -79,6 +85,7 @@ class ContentBundle:
     universal_memo: str | None
     capabilities: list[CapabilitySpec] = field(default_factory=list)
     skill_capabilities: list[SkillCapabilities] = field(default_factory=list)
+    extra_skills: list[TaxonomySkill] = field(default_factory=list)
     baseline_provided: list[str] = field(default_factory=list)
     baseline_asks: list[str] = field(default_factory=list)
     baseline_student_stack: list[str] = field(default_factory=list)
@@ -91,6 +98,11 @@ class ContentBundle:
                 seen[(name, SkillType.HARD)] = None
             for name in role.soft_skills:
                 seen[(name, SkillType.SOFT)] = None
+        ranked = {name for name, _kind in seen}
+        for extra in self.extra_skills:
+            if extra.name in ranked:
+                continue
+            seen[(extra.name, extra.type)] = None
         return seen
 
 
@@ -104,6 +116,7 @@ def load_content(content_dir: Path | None = None) -> ContentBundle:
     resources_doc = parse_resources(root / "resources.md")
     skills = parse_skills(root / "skills.md")
     capabilities = parse_capabilities(root / "capabilities.md")
+    taxonomy = parse_skill_taxonomy(root / "skill-taxonomy.md")
 
     by_name: dict[str, dict[str, Any]] = {
         "rubrics.md": {r.role: r for r in rubrics},
@@ -145,15 +158,31 @@ def load_content(content_dir: Path | None = None) -> ContentBundle:
         )
 
     _assert_unique_slugs(seeds)
-    bundle_skills = {name for seed in seeds for name in seed.hard_skills + seed.soft_skills}
-    _assert_capabilities_cover(bundle_skills, capabilities.skill_map)
+    role_skills = {name for seed in seeds for name in seed.hard_skills + seed.soft_skills}
+    _assert_capabilities_cover(role_skills, capabilities.skill_map)
+
+    known_axes = {spec.name for spec in capabilities.capabilities}
+    extra_links: list[SkillCapabilities] = []
+    mapped = {entry.skill for entry in capabilities.skill_map}
+    for extra in taxonomy:
+        unknown = [name for name in extra.capabilities if name not in known_axes]
+        if unknown:
+            raise SeedError(
+                f"skill-taxonomy.md skill {extra.name!r} names undefined "
+                f"capabilities: {', '.join(sorted(unknown))}"
+            )
+        if extra.name in mapped:
+            continue
+        extra_links.append(SkillCapabilities(skill=extra.name, capabilities=extra.capabilities))
+        mapped.add(extra.name)
 
     return ContentBundle(
         roles=seeds,
         universal_rubric=universal,
         universal_memo=deliverables_doc.universal_memo,
         capabilities=capabilities.capabilities,
-        skill_capabilities=capabilities.skill_map,
+        skill_capabilities=capabilities.skill_map + extra_links,
+        extra_skills=taxonomy,
         baseline_provided=resources_doc.baseline_provided,
         baseline_asks=resources_doc.baseline_asks,
         baseline_student_stack=resources_doc.baseline_student_stack,
@@ -298,20 +327,43 @@ class SeedReport:
         return self.__dict__
 
 
+# Names whose default slug collides (C, C++, C# all become "c").
+SKILL_SLUG_OVERRIDES = {
+    "C": "c-lang",
+    "C++": "cpp",
+    "C#": "csharp",
+    ".NET": "dotnet",
+    "R": "r-lang",
+}
+
+
+def _skill_slug(name: str, taken: set[str]) -> str:
+    slug = SKILL_SLUG_OVERRIDES.get(name, slugify(name)) or "skill"
+    if slug not in taken:
+        return slug
+    n = 2
+    while f"{slug}-{n}" in taken:
+        n += 1
+    return f"{slug}-{n}"
+
+
 def seed_skills(session: Session, bundle: ContentBundle, report: SeedReport) -> dict[str, Skill]:
     existing = {s.name: s for s in session.scalars(select(Skill))}
+    taken_slugs = {s.slug for s in existing.values()}
     for name, skill_type in bundle.skills:
         skill = existing.get(name)
         if skill is None:
+            slug = _skill_slug(name, taken_slugs)
             skill = Skill(
                 name=name,
-                slug=slugify(name),
+                slug=slug,
                 type=skill_type,
                 aliases=[],
                 status=SkillStatus.CANONICAL,
             )
             session.add(skill)
             existing[name] = skill
+            taken_slugs.add(slug)
             report.skills_created += 1
         elif skill.type != skill_type:
             raise SeedError(

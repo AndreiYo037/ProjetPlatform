@@ -194,6 +194,7 @@ export async function uploadCompanyLogo(
   if (!response.ok) throw new ApiError(response.status, body?.detail ?? "Could not upload that logo.");
   return body as CompanySummary;
 }
+
 export const getMyProfile = () => api.get<PersonProfile>("/me/profile");
 export const updateMyProfile = (body: Partial<Omit<PersonProfile, "email">>) =>
   api.patch<PersonProfile>("/me/profile", body);
@@ -409,7 +410,7 @@ export type TestimonialOut = Schemas["TestimonialOut"];
 export type TestimonialDraftOut = Schemas["TestimonialDraftOut"];
 export type CloseoutOut = Schemas["CloseoutOut"];
 
-/** What the participant keeps: attested skills, credentials, testimonials. */
+/** What the participant keeps: attested skills, company endorsements, testimonials. */
 export const getPortfolio = () => api.get<Portfolio>("/me/portfolio");
 
 /** Case-study entries: verified ones seeded from a programme, self-declared
@@ -457,8 +458,9 @@ export const uploadProjectFile = (id: string, file: File, label?: string) => {
 export const removeProjectLink = (id: string, linkId: string) =>
   api.del<ProjectEntry>(`/me/projects/${id}/links/${linkId}`);
 
-/** Replaces the entry's claimed skills wholesale — the list sent is the list
- * kept. Refused on a verified entry, where skills come from attestation. */
+/** Replaces the entry's claimed (unverified) skills wholesale — the list
+ * sent is the list kept. Allowed on verified work too: these are claims,
+ * not judge attestations. */
 export const setProjectSkills = (id: string, skillIds: string[]) =>
   api.put<ProjectEntry>(`/me/projects/${id}/skills`, { skill_ids: skillIds });
 

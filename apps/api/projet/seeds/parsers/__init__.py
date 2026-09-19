@@ -15,6 +15,7 @@ from projet.seeds.parsers.common import (
 from projet.seeds.parsers.deliverables import parse_deliverables
 from projet.seeds.parsers.resources import parse_resources
 from projet.seeds.parsers.rubrics import parse_rubrics, parse_universal_rubric
+from projet.seeds.parsers.skill_taxonomy import parse_skill_taxonomy
 from projet.seeds.parsers.skills import parse_skills
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "parse_resources",
     "parse_rubrics",
     "parse_skills",
+    "parse_skill_taxonomy",
     "parse_table_rows",
     "parse_universal_rubric",
     "split_list",

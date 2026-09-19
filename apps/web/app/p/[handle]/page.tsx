@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { SkillTags, SkillsBlock, skillsForProfile } from "@/components/SkillTags";
 import { API_BASE_URL, assetUrl, externalHref, type PublicProfile } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -56,9 +57,16 @@ export default async function PublicProfilePage({
 
   const verified = profile.projects.filter((p) => p.verified);
   const selfDeclared = profile.projects.filter((p) => !p.verified);
+  const { attested, claimed } = skillsForProfile(
+    profile.capabilities,
+    profile.projects.map((project) => ({
+      skills: project.skills.map((name) => ({ name })),
+    })),
+  );
 
   const empty =
-    profile.capabilities.length === 0 &&
+    attested.length === 0 &&
+    claimed.length === 0 &&
     profile.projects.length === 0 &&
     profile.credentials.length === 0 &&
     profile.testimonials.length === 0;
@@ -72,13 +80,8 @@ export default async function PublicProfilePage({
         {profile.programmes_completed} programme{profile.programmes_completed === 1 ? "" : "s"}{" "}
         completed
         {profile.projects.length > 0 &&
-          ` · ${profile.verified_project_count} project${
-            profile.verified_project_count === 1 ? "" : "s"
-          } company verified${
-            profile.self_declared_project_count > 0
-              ? ` · ${profile.self_declared_project_count} self-declared`
-              : ""
-          }`}
+          profile.verified_project_count > 0 &&
+          ` · ${profile.verified_project_count} Projet Verified`}
       </p>
       {profile.bio && <p style={{ whiteSpace: "pre-wrap" }}>{profile.bio}</p>}
 
@@ -86,34 +89,7 @@ export default async function PublicProfilePage({
         <div className="notice">Nothing published here yet.</div>
       )}
 
-      {profile.capabilities.length > 0 && (
-        <>
-          <h2>What practitioners saw</h2>
-          <p className="small muted">
-            Tagged by the judges who watched them work, not declared by them.
-          </p>
-          {profile.capabilities.map((capability) => (
-            <div className="panel" key={capability.slug}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <strong>{capability.name}</strong>
-                <span className="small muted">
-                  {capability.attester_count} attester
-                  {capability.attester_count === 1 ? "" : "s"} · {capability.programme_count}{" "}
-                  programme{capability.programme_count === 1 ? "" : "s"}
-                </span>
-              </div>
-              <p className="small muted">{capability.summary}</p>
-              <div className="row" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
-                {capability.skills.map((skill) => (
-                  <span className="tag" key={skill.name} title={skill.attesters.join(", ")}>
-                    {skill.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </>
-      )}
+      <SkillsBlock attested={attested} claimed={claimed} />
 
       {verified.length > 0 && (
         <>
@@ -144,30 +120,20 @@ export default async function PublicProfilePage({
       {profile.credentials.length > 0 && (
         <>
           <h2>Credentials</h2>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Programme</th>
-                  <th>Company</th>
-                  <th>Type</th>
-                  <th>Verify code</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profile.credentials.map((credential) => (
-                  <tr key={credential.verify_code}>
-                    <td>{credential.programme}</td>
-                    <td className="muted">{credential.company}</td>
-                    <td>{credential.type.replace("_", " ")}</td>
-                    <td>
-                      <code className="small">{credential.verify_code}</code>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {profile.credentials.map((credential) => (
+            <div className="panel" key={`${credential.company}-${credential.programme}`}>
+              <div className="row" style={{ justifyContent: "space-between", alignItems: "baseline" }}>
+                <strong>{credential.company}</strong>
+                <span className="small muted">{credential.programme}</span>
+              </div>
+              {credential.attesters.length > 0 && (
+                <p className="small muted" style={{ margin: "0.2rem 0 0.5rem" }}>
+                  Endorsed by {credential.attesters.join(", ")}
+                </p>
+              )}
+              <SkillTags skills={credential.skills.map((name) => ({ name }))} />
+            </div>
+          ))}
         </>
       )}
 
@@ -196,7 +162,7 @@ function ProjectCard({ project }: { project: PublicProfile["projects"][number] }
     <div className="card">
       <div className="row" style={{ justifyContent: "space-between" }}>
         <strong>{project.title}</strong>
-        {project.verified && <span className="tag open">company verified</span>}
+        {project.verified && <span className="tag open projet">Projet Verified</span>}
       </div>
       <p className="small muted" style={{ marginTop: "0.2rem" }}>
         {project.associated_experience}
@@ -204,6 +170,9 @@ function ProjectCard({ project }: { project: PublicProfile["projects"][number] }
         {range}
       </p>
       {project.description && <p style={{ whiteSpace: "pre-wrap" }}>{project.description}</p>}
+      {project.skills.length > 0 && (
+        <SkillTags skills={project.skills.map((name) => ({ name }))} claimed />
+      )}
       {project.links.length > 0 && (
         <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
           {project.links.map((link, i) => (

@@ -24,16 +24,18 @@ import {
  * API refuses the rest anyway — this just means they never get to try and lose
  * their typing to an error.
  *
- * Skills are the same boundary the other way. A self-declared project gets the
- * drawer; a verified one does not, because what it demonstrated is for a judge
- * to attest, not for the participant to claim.
+ * Skills on a project are a claim the participant tags themselves, verified
+ * or not. Judge-attested skills live under Skills on Home, separately.
  */
 
 const VISIBILITY = [
-  { value: "private", label: "Nobody", hint: "The work stays off your public page." },
-  { value: "link_only", label: "Anyone with your profile link", hint: "Shown on your page." },
-  { value: "public", label: "Everyone", hint: "Shown on your page." },
+  { value: "private", label: "Private", hint: "Links and files stay off your public page." },
+  { value: "public", label: "Public", hint: "Shown on your public page." },
 ];
+
+function asVisibility(value?: string) {
+  return value === "public" || value === "link_only" ? "public" : "private";
+}
 
 export default function ProjectSheet({
   entry,
@@ -54,7 +56,8 @@ export default function ProjectSheet({
   const [endedAt, setEndedAt] = useState(entry?.ended_at ?? "");
   const [ongoing, setOngoing] = useState(entry?.ongoing ?? false);
   const [description, setDescription] = useState(entry?.description ?? "");
-  const [visibility, setVisibility] = useState(entry?.artifact_visibility ?? "private");
+  const [visibility, setVisibility] = useState(asVisibility(entry?.artifact_visibility));
+  const [skillIds, setSkillIds] = useState(entry?.skills.map((s) => String(s.id)) ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -74,7 +77,8 @@ export default function ProjectSheet({
         ongoing,
       };
       if (creating) {
-        await createProject({ ...shared, ...own });
+        const created = await createProject({ ...shared, ...own });
+        if (skillIds.length > 0) await setProjectSkills(created.id, skillIds);
       } else if (verified) {
         // The facts are the platform's; only the description goes up.
         await updateProject(entry.id, shared);
@@ -85,6 +89,25 @@ export default function ProjectSheet({
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save that.");
+      setBusy(false);
+    }
+  }
+
+  async function toggleSkill(id: string) {
+    const next = skillIds.includes(id)
+      ? skillIds.filter((existing) => existing !== id)
+      : [...skillIds, id];
+    setSkillIds(next);
+    if (!entry) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await setProjectSkills(entry.id, next);
+      onSaved();
+    } catch (err) {
+      setSkillIds(skillIds);
+      setError(err instanceof Error ? err.message : "Could not save that skill.");
+    } finally {
       setBusy(false);
     }
   }
@@ -199,7 +222,7 @@ export default function ProjectSheet({
           />
         </div>
 
-        {!creating && <SkillDrawer entry={entry} verified={verified} onSaved={onSaved} />}
+        <SkillDrawer selectedIds={skillIds} disabled={busy} onToggle={toggleSkill} />
 
         {!creating && <LinksEditor entry={entry} onSaved={onSaved} />}
 
@@ -234,7 +257,7 @@ export default function ProjectSheet({
         </div>
         {creating && (
           <p className="small muted">
-            Links, files and skills can be added once the project is saved.
+            Links and files can be added once the project is saved.
           </p>
         )}
       </div>
@@ -361,69 +384,39 @@ function LinksEditor({ entry, onSaved }: { entry: ProjectEntry; onSaved: () => v
   );
 }
 
-/** Self-declared skills, in their own bordered well so a claim never sits on
- * the same visual plane as an attested capability. */
+/** Unverified skill tags. A claim, not an attestation — searchable so the
+ * whole taxonomy is reachable without scrolling hundreds of names. */
 function SkillDrawer({
-  entry,
-  verified,
-  onSaved,
+  selectedIds,
+  disabled,
+  onToggle,
 }: {
-  entry: ProjectEntry;
-  verified: boolean;
-  onSaved: () => void;
+  selectedIds: string[];
+  disabled: boolean;
+  onToggle: (id: string) => void;
 }) {
   const [options, setOptions] = useState<SkillChoice[]>([]);
-  const [selected, setSelected] = useState<string[]>(entry.skills.map((s) => String(s.id)));
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (verified) return;
     getProjectSkillOptions()
       .then((rows) =>
-        // Nothing is "suggested" here: a self-declared project has no role
-        // template to rank against, so everything is reached by typing.
         setOptions(rows.map((row) => ({ ...row, id: String(row.id), suggested: false }))),
       )
       .catch(() => setOptions([]));
-  }, [verified]);
-
-  if (verified) {
-    return (
-      <p className="small muted">
-        Skills on a verified project come from the judges who watched it, and appear under your
-        capabilities.
-      </p>
-    );
-  }
-
-  async function toggle(id: string) {
-    const next = selected.includes(id)
-      ? selected.filter((existing) => existing !== id)
-      : [...selected, id];
-    setSelected(next);
-    setBusy(true);
-    try {
-      await setProjectSkills(entry.id, next);
-      onSaved();
-    } finally {
-      setBusy(false);
-    }
-  }
+  }, []);
 
   return (
-    <div className="drawer">
-      <strong className="small">Skills</strong>
-      <p className="small muted" style={{ marginTop: "0.2rem" }}>
-        Your own claim, and shown as one. Skills a judge watched you use are attested separately
-        and carry their name.
-      </p>
+    <div className="field">
+      <label htmlFor="project-skills">Unverified skills</label>
       <SkillPicker
         options={options}
-        selectedIds={selected}
-        disabled={busy}
-        onToggle={toggle}
+        selectedIds={selectedIds}
+        disabled={disabled}
+        onToggle={onToggle}
         ranked={false}
+        dropdown
       />
+      <div className="hint">Tagged by you, not by a judge.</div>
     </div>
   );
 }
