@@ -23,8 +23,9 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from projet.models import Credential, Participant, Programme, Score, Team, TeamMember
+from projet.models import Credential, Participant, Person, Programme, Score, Team, TeamMember
 from projet.models.enums import CredentialType, ProgrammeStatus
+from projet.outbox.profile_effects import notify_candidate_profile_updated
 from projet.services.profile import promote_score_skill_tags
 
 # The company closes when they are ready. Draft is the exception: nothing has
@@ -107,7 +108,21 @@ def close_programme(db: Session, programme: Programme) -> CloseoutResult:
         .where(Participant.excluded.is_(False))
     )
     for participant in participants:
-        result.skills_promoted += promote_score_skill_tags(db, participant.id)
+        promoted = promote_score_skill_tags(db, participant.id)
+        result.skills_promoted += promoted
+        if promoted:
+            person = db.get(Person, participant.person_id)
+            if person is not None:
+                notify_candidate_profile_updated(
+                    db,
+                    person=person,
+                    participant_id=participant.id,
+                    what=(
+                        f"{promoted} skill{'s' if promoted != 1 else ''} from "
+                        f"{programme.title} are now on your Projet profile."
+                    ),
+                    key_suffix=f"closeout:{programme.id}",
+                )
         if not was_scored(db, participant):
             result.skipped.append(str(participant.id))
             continue

@@ -66,10 +66,18 @@ def enqueue(
     effect_type: str,
     payload: dict | None = None,
     participant_id: uuid.UUID | None = None,
+    key_suffix: str | None = None,
 ) -> Outbox:
     """Write the intent. Idempotent on (subject, effect): asking twice for the
-    same effect returns the existing row rather than queuing a second send."""
+    same effect returns the existing row rather than queuing a second send.
+
+    `key_suffix` is for effects that can honestly fire more than once on the
+    same subject — a second testimonial, a later profile edit — without
+    colliding with the first send.
+    """
     key = Outbox.build_key(subject_type, subject_id, effect_type)
+    if key_suffix:
+        key = f"{key}:{key_suffix}"
     existing = session.scalar(select(Outbox).where(Outbox.idempotency_key == key))
     if existing is not None:
         return existing

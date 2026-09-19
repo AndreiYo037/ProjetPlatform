@@ -74,6 +74,9 @@ export default function Header() {
                 <Link className="btn secondary small" href="/home">
                   Home
                 </Link>
+                <Link className="btn secondary small" href="/challenges">
+                  Challenges
+                </Link>
                 <Link className="btn secondary small" href="/profile">
                   Update profile
                 </Link>

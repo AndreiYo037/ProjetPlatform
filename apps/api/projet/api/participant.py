@@ -158,6 +158,7 @@ class TestimonialCard(BaseModel):
     author_title: str | None
     company: str
     programme: str
+    pdf_url: str | None
     published_at: datetime | None
 
 
@@ -231,6 +232,11 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
             author_title=row.CompanyUser.title,
             company=row.Company.name,
             programme=row.Programme.title,
+            pdf_url=(
+                f"/files/{row.Testimonial.pdf_storage_key}?sig={sign_key(row.Testimonial.pdf_storage_key)}"
+                if row.Testimonial.pdf_storage_key
+                else None
+            ),
             published_at=row.Testimonial.published_at,
         )
         for row in rows
@@ -620,6 +626,13 @@ def update_profile(
     actor: Actor = Depends(require_participant),
 ) -> ProfileOut:
     person = _person(db, actor)
+    before = (
+        person.name,
+        person.organisation,
+        person.year_course,
+        person.job_title,
+        person.phone,
+    )
     if payload.name is not None:
         name = payload.name.strip()
         if not name:
@@ -633,6 +646,17 @@ def update_profile(
         person.job_title = payload.job_title.strip() or None
     if payload.phone is not None:
         person.phone = payload.phone.strip() or None
+    after = (
+        person.name,
+        person.organisation,
+        person.year_course,
+        person.job_title,
+        person.phone,
+    )
+    if before != after:
+        from projet.outbox.profile_effects import notify_watchers_candidate_edited
+
+        notify_watchers_candidate_edited(db, person=person)
     db.commit()
     db.refresh(person)
     return _profile_out(person)

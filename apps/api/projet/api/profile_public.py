@@ -89,6 +89,7 @@ class PublicTestimonial(BaseModel):
     author_title: str | None
     company: str
     programme: str
+    pdf_url: str | None
     published_at: datetime | None
 
 
@@ -197,6 +198,11 @@ def get_public_profile(
             author_title=row.CompanyUser.title,
             company=row.Company.name,
             programme=row.Programme.title,
+            pdf_url=(
+                f"/files/{row.Testimonial.pdf_storage_key}?sig={sign_key(row.Testimonial.pdf_storage_key)}"
+                if row.Testimonial.pdf_storage_key
+                else None
+            ),
             published_at=row.Testimonial.published_at,
         )
         for row in published_testimonials_for(db, person.id)

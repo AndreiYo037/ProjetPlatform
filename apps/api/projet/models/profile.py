@@ -55,5 +55,7 @@ class Testimonial(Base):
     )
     author_company_user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("company_user.id"))
     body: Mapped[str] = mapped_column(Text)
+    # The signed letter. Drafting fills `body`; publishing requires this file.
+    pdf_storage_key: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
     published_at: Mapped[datetime | None] = mapped_column(TimestampTZ)

@@ -57,7 +57,8 @@ from projet.services.scoring import (
     team_for_participant,
 )
 from projet.services.skills import options_for_role
-from projet.storage import sign_key
+from projet.services.testimonial_pdf import render_testimonial_pdf
+from projet.storage import get_storage, sign_key
 
 router = APIRouter(tags=["judging"])
 
@@ -387,15 +388,22 @@ class TestimonialOut(BaseModel):
     body: str
     author_name: str | None
     author_title: str | None
+    pdf_url: str | None
     published_at: datetime | None
     created_at: datetime
 
 
 class TestimonialWrite(BaseModel):
-    body: str = Field(min_length=1, max_length=4000)
+    body: str = Field(default="", max_length=4000)
     # A draft is a real state: a rep should be able to write badly at 9pm and
     # fix it in the morning before anyone can quote it.
     publish: bool = False
+
+
+def _pdf_url(key: str | None) -> str | None:
+    if not key:
+        return None
+    return f"/files/{key}?sig={sign_key(key)}"
 
 
 def _testimonial_out(db: Session, row: Testimonial) -> TestimonialOut:
@@ -406,6 +414,7 @@ def _testimonial_out(db: Session, row: Testimonial) -> TestimonialOut:
         body=row.body,
         author_name=author.name if author else None,
         author_title=author.title if author else None,
+        pdf_url=_pdf_url(row.pdf_storage_key),
         published_at=row.published_at,
         created_at=row.created_at,
     )
@@ -472,11 +481,49 @@ def write_testimonial(
         row.body = payload.body.strip()
     # Publishing is one-way from the participant's side: they may already have
     # put it on a CV, so unpublishing would retract something in use. Editing
-    # the text stays open.
+    # the wording stays open; we regenerate the downloadable PDF from it.
+    db.flush()
+    if payload.publish or row.published_at is not None:
+        if not row.body:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Write the testimonial before publishing.",
+            )
+        _store_generated_pdf(db, row=row, participant=participant, programme=programme)
     if payload.publish and row.published_at is None:
         row.published_at = utcnow()
+        person = db.get(Person, participant.person_id)
+        company = db.get(Company, programme.company_id)
+        if person is not None:
+            from projet.outbox.profile_effects import notify_candidate_profile_updated
+
+            who = company.name if company else "A company"
+            notify_candidate_profile_updated(
+                db,
+                person=person,
+                participant_id=participant.id,
+                what=f"{who} published a testimonial on your Projet profile.",
+                key_suffix=f"testimonial:{row.id}",
+            )
     db.commit()
     return _testimonial_out(db, row)
+
+
+def _store_generated_pdf(
+    db: Session, *, row: Testimonial, participant: Participant, programme: Programme
+) -> None:
+    author = db.get(CompanyUser, row.author_company_user_id)
+    company = db.get(Company, programme.company_id)
+    pdf = render_testimonial_pdf(
+        body=row.body,
+        author_name=author.name if author else "",
+        author_title=author.title if author else None,
+        company_name=company.name if company else "",
+        programme_title=programme.title,
+    )
+    key = f"testimonials/{participant.id}/{row.id}.pdf"
+    get_storage().put(key, pdf, "application/pdf")
+    row.pdf_storage_key = key
 
 
 class TestimonialDraftOut(BaseModel):

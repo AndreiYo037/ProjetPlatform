@@ -9880,6 +9880,17 @@
             "type": "string",
             "title": "Programme"
           },
+          "pdf_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Url"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -9900,6 +9911,7 @@
           "author_title",
           "company",
           "programme",
+          "pdf_url",
           "published_at"
         ],
         "title": "PublicTestimonial"
@@ -10803,6 +10815,17 @@
             "type": "string",
             "title": "Programme"
           },
+          "pdf_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Url"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -10823,6 +10846,7 @@
           "author_title",
           "company",
           "programme",
+          "pdf_url",
           "published_at"
         ],
         "title": "TestimonialCard"
@@ -10878,6 +10902,17 @@
             ],
             "title": "Author Title"
           },
+          "pdf_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Url"
+          },
           "published_at": {
             "anyOf": [
               {
@@ -10903,6 +10938,7 @@
           "body",
           "author_name",
           "author_title",
+          "pdf_url",
           "published_at",
           "created_at"
         ],

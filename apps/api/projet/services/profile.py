@@ -260,9 +260,8 @@ def endorsements_for(
 def published_testimonials_for(session: Session, person_id: uuid.UUID):
     """Published testimonials across every programme this person has done.
 
-    Published only. A draft is a rep still thinking, and surfacing it — to the
-    person it is about or to a stranger reading the public page — would make
-    every draft a promise nobody chose to make yet.
+    Published only, and only with a generated PDF. A draft stays off the
+    profile until the company publishes the wording.
     """
     return session.execute(
         select(Testimonial, CompanyUser, Company, Programme)
@@ -272,5 +271,6 @@ def published_testimonials_for(session: Session, person_id: uuid.UUID):
         .join(Programme, Programme.id == Participant.programme_id)
         .where(Participant.person_id == person_id)
         .where(Testimonial.published_at.isnot(None))
+        .where(Testimonial.pdf_storage_key.isnot(None))
         .order_by(Testimonial.published_at.desc())
     ).all()

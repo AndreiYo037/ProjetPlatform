@@ -12,6 +12,7 @@ silent, unrecoverable loss of every email and calendar invite it touched.
 from projet.outbox import (  # noqa: E402, F401  (after effects, deliberately)
     account_effects,
     application_effects,
+    profile_effects,
     provisioning,
     snapshots,
 )

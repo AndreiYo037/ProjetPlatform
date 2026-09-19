@@ -231,7 +231,8 @@ export default function ScoringCardPage({
  * rubric above it.
  *
  * Publishing is one-way. By the time someone has it on a CV, retracting it is
- * not ours to do - but the wording stays editable.
+ * not ours to do - but the wording stays editable. Publishing turns the text
+ * into a PDF they can download.
  */
 function TestimonialBox({
   programmeId,
@@ -267,7 +268,7 @@ function TestimonialBox({
     try {
       const drafted = await draftTestimonial(programmeId, participantId);
       setBody(drafted.body);
-      setFlash("Drafted from the skills you tagged and this challenge's brief. Edit it before you publish — this is still your word.");
+      setFlash("Drafted from the skills you tagged and this challenge's brief. Edit it, then publish.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not draft that.");
     } finally {
@@ -294,6 +295,7 @@ function TestimonialBox({
   }
 
   const published = existing?.published_at != null;
+  const hasPdf = Boolean(existing?.pdf_url);
   const locked = busy || drafting || skillsSaving;
 
   return (
@@ -303,8 +305,8 @@ function TestimonialBox({
         Only if you mean it. One you chose to write is worth more than one everyone
         was made to, and this is the part they will actually carry with them.
         {published
-          ? " Published — they can see it. You can still edit the wording."
-          : " A draft stays private until you publish it."}
+          ? " Published — they can download it as a PDF. You can still edit the wording."
+          : " A draft stays private. Publishing turns this into a PDF they can download."}
         {" "}
         Drafting uses the skills you tagged above and this challenge's brief. It will
         not invent anything you did not tag.
@@ -317,19 +319,27 @@ function TestimonialBox({
           onChange={(e) => setBody(e.target.value)}
           placeholder="I am pleased to recommend…"
         />
-      </div>
-      {error && <div className="notice bad">{error}</div>}
-      {flash && <div className="notice good">{flash}</div>}
-      <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
         <button
           className="secondary"
           disabled={locked || !skillsTagged}
           onClick={draft}
+          style={{ marginTop: "0.5rem" }}
         >
           {drafting ? "Drafting…" : "Draft from skills"}
         </button>
+      </div>
+      {hasPdf && existing?.pdf_url && (
+        <p>
+          <a href={assetUrl(existing.pdf_url)} target="_blank" rel="noreferrer">
+            Download the PDF
+          </a>
+        </p>
+      )}
+      {error && <div className="notice bad">{error}</div>}
+      {flash && <div className="notice good">{flash}</div>}
+      <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
         <button className="secondary" disabled={locked || !body.trim()} onClick={() => save(false)}>
-          Save draft
+          {published ? "Save" : "Save draft"}
         </button>
         {!published && (
           <button disabled={locked || !body.trim()} onClick={() => save(true)}>

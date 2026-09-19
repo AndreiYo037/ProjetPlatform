@@ -4,10 +4,8 @@ import ProjetVerifiedStamp from "@/components/ProjetVerifiedStamp";
  * Attested skills as a flat list. One skill that maps onto two capabilities
  * is still one chip — the grouping is a taxonomy concern, not a profile one.
  *
- * Projet-attested and self-declared stay two different chips. Weight only
- * counts repeats inside the same kind: programmes for attested, projects for
- * claimed. The same name on a second project is a heavier outlined tag, not a
- * second one, and never folds into a filled attested pill.
+ * Profile Skills are Projet-attested only. Claims live on a project if they
+ * live anywhere; they do not appear here.
  */
 
 export type TaggedSkill = {
@@ -46,47 +44,7 @@ export function flattenAttestedSkills(
   return [...byName.values()].sort(byWeight);
 }
 
-function projectSkillCounts(
-  projects: { visible?: boolean; skills: { name: string; id?: string }[] }[],
-) {
-  const counts = new Map<string, { name: string; id?: string; weight: number }>();
-  for (const project of projects) {
-    if (project.visible === false) continue;
-    const seen = new Set<string>();
-    for (const skill of project.skills) {
-      if (seen.has(skill.name)) continue;
-      seen.add(skill.name);
-      const existing = counts.get(skill.name);
-      if (existing) existing.weight += 1;
-      else counts.set(skill.name, { name: skill.name, id: skill.id, weight: 1 });
-    }
-  }
-  return counts;
-}
-
-/** Attested first (filled), then claims (outlined). Never mix the two. */
-export function skillsForProfile(
-  groups: { skills: { name: string; attesters: string[]; programme_count?: number }[] }[],
-  projects: { visible?: boolean; skills: { name: string; id?: string }[] }[],
-) {
-  const attested = flattenAttestedSkills(groups);
-  const attestedNames = new Set(attested.map((skill) => skill.name));
-  const claimed = [...projectSkillCounts(projects).values()]
-    .filter((skill) => !attestedNames.has(skill.name))
-    .sort(byWeight);
-
-  return { attested, claimed };
-}
-
-function skillTitle(
-  skill: { attesters?: string[]; weight?: number },
-  claimed: boolean,
-) {
-  if (claimed) {
-    return skill.weight && skill.weight > 1
-      ? `Added by you on ${skill.weight} projects`
-      : "Added by you — not attested on a Projet programme";
-  }
+function skillTitle(skill: { attesters?: string[]; weight?: number }) {
   const who = skill.attesters?.length ? skill.attesters.join(", ") : undefined;
   if (skill.weight && skill.weight > 1) {
     return who
@@ -111,21 +69,19 @@ function SkillMeter({ weight }: { weight?: number }) {
 
 export function SkillTags({
   skills,
-  claimed = false,
 }: {
   skills: { name: string; id?: string; attesters?: string[]; weight?: number }[];
-  claimed?: boolean;
 }) {
   if (skills.length === 0) return null;
   return (
     <div className="skill-list">
       {skills.map((skill) => (
         <span
-          className={claimed ? "skill claimed" : "skill"}
+          className="skill"
           key={skill.id ?? skill.name}
-          title={skillTitle(skill, claimed)}
+          title={skillTitle(skill)}
         >
-          {!claimed && <ProjetVerifiedStamp />}
+          <ProjetVerifiedStamp />
           {skill.name}
           <SkillMeter weight={skill.weight} />
         </span>
@@ -134,28 +90,12 @@ export function SkillTags({
   );
 }
 
-export function SkillsBlock({
-  attested,
-  claimed,
-}: {
-  attested: TaggedSkill[];
-  claimed: TaggedSkill[];
-}) {
-  if (attested.length === 0 && claimed.length === 0) return null;
+export function SkillsBlock({ attested }: { attested: TaggedSkill[] }) {
+  if (attested.length === 0) return null;
   return (
     <>
       <h2>Skills</h2>
       <SkillTags skills={attested} />
-      {claimed.length > 0 && (
-        <>
-          <p className="small muted">
-            {attested.length > 0
-              ? "Outlined tags were added by you — not attested on a Projet programme."
-              : "Added by you — not attested on a Projet programme."}
-          </p>
-          <SkillTags skills={claimed} claimed />
-        </>
-      )}
     </>
   );
 }

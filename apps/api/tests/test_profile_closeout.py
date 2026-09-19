@@ -23,11 +23,14 @@ from projet.models import (
     Capability,
     CompanyUser,
     Credential,
+    Outbox,
     PlatformUser,
     Skill,
     SkillCapability,
     SubmissionLink,
+    Testimonial,
 )
+from projet.models.base import utcnow
 from projet.models.enums import (
     AccessStatus,
     ActorType,
@@ -283,16 +286,40 @@ def test_a_testimonial_is_a_draft_until_it_is_published(
     assert client.get("/me/portfolio").json()["testimonials"] == []
 
     sign_in_company(client, session, manager)
+    empty = client.put(url, json={"body": "   ", "publish": True})
+    assert empty.status_code == 422
+
     published = client.put(url, json={"body": "Sam read the data properly.", "publish": True})
+    assert published.status_code == 200, published.text
     assert published.json()["published_at"] is not None
+    assert published.json()["pdf_url"]
 
     sign_in_participant(client, session, sat["sam"])
     kept = client.get("/me/portfolio").json()["testimonials"]
     assert len(kept) == 1
-    assert kept[0]["body"] == "Sam read the data properly."
+    assert kept[0]["pdf_url"]
     assert kept[0]["author_name"] == "Mo Manager"
     assert kept[0]["author_title"] == "Head of Data"
     assert kept[0]["company"] == "Acme Pte Ltd"
+    notes = list(session.scalars(select(Outbox).where(Outbox.effect_type == "profile_updated_email")))
+    assert any("testimonial" in (row.payload.get("html_body") or "") for row in notes)
+
+
+def test_a_text_only_testimonial_does_not_reach_the_profile(
+    client, session, programme, manager, sat
+):
+    """A published row with no generated PDF is treated as unfinished."""
+    row = Testimonial(
+        participant_id=sat["sam"].id,
+        author_company_user_id=manager.id,
+        body="Published as text only.",
+        published_at=utcnow(),
+    )
+    session.add(row)
+    session.commit()
+
+    sign_in_participant(client, session, sat["sam"])
+    assert client.get("/me/portfolio").json()["testimonials"] == []
 
 
 def test_editing_a_published_testimonial_does_not_unpublish_it(

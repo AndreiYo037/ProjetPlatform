@@ -228,6 +228,7 @@ def test_importing_the_worker_alone_registers_every_handler():
         "judging_session_invite",
         "judging_session_removal",
         "snapshot_submission_link",
+        "profile_updated_email",
     }
     missing = expected - set(effects_module.registry)
     assert not missing, f"handlers unregistered when importing the worker: {sorted(missing)}"
