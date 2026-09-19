@@ -108,7 +108,7 @@ export default function NewChallengePage() {
   return (
     <main className="narrow">
       <Link href="/company" className="small muted" style={{ textDecoration: "none" }}>
-        &larr; Back to company
+        &larr; Back to programmes
       </Link>
       <h1 style={{ marginTop: "0.5rem" }}>New challenge</h1>
       <p className="lede">

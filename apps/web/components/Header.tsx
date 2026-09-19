@@ -50,9 +50,13 @@ export default function Header() {
 
   return (
     <header className="bar">
-      <Link href="/" className="brand">
-        Projet
-      </Link>
+      {actor ? (
+        <span className="brand">Projet</span>
+      ) : (
+        <Link href="/" className="brand">
+          Projet
+        </Link>
+      )}
       <nav className="bar-links">
         {!checked ? null : actor ? (
           <>
@@ -65,9 +69,14 @@ export default function Header() {
               </Link>
             )}
             {actor.company_id && (
-              <Link className="btn secondary small" href="/company">
-                Company
-              </Link>
+              <>
+                <Link className="btn secondary small" href="/company">
+                  Programmes
+                </Link>
+                <Link className="btn secondary small" href="/company/profile">
+                  Profile
+                </Link>
+              </>
             )}
             {actor.actor_type === "participant" && (
               <>

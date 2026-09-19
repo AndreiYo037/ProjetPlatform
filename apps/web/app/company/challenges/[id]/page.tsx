@@ -148,7 +148,7 @@ export default function ChallengeDetailPage({
   return (
     <main className={active === "messages" ? "wide" : undefined}>
       <Link href="/company" className="small muted" style={{ textDecoration: "none" }}>
-        &larr; Back to company
+        &larr; Back to programmes
       </Link>
 
       <div className="row" style={{ justifyContent: "space-between", marginTop: "0.5rem" }}>
