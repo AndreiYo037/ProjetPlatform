@@ -35,6 +35,7 @@ from projet.models.enums import (
 )
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.rubric import compose_rubric
+from projet.services.submission import set_upload
 from projet.services.teams import ensure_submission, ensure_team_for_participant
 from tests.conftest import make_participant
 
@@ -123,6 +124,7 @@ def test_a_card_carries_the_work_and_a_signed_snapshot(
     assert card["complete"] is True
     assert card["scored"] is False
     assert card["your_total"] is None
+    assert card["max_total"] == 20
     link = card["links"][0]
     assert link["slot"] == "artifact"
     assert link["filename"] == "Churn dashboard"
@@ -185,6 +187,7 @@ def test_a_total_arrives_only_once_all_four_are_rated(
         url, json={"ratings": {criteria[2]["criterion_id"]: 3, criteria[3]["criterion_id"]: 2}}
     )
     assert whole.json()["total"] == 14
+    assert whole.json()["max_total"] == 20
     assert whole.json()["complete"] is True
 
     listed = next(
@@ -194,6 +197,42 @@ def test_a_total_arrives_only_once_all_four_are_rated(
     )
     assert listed["scored"] is True
     assert listed["your_total"] == 14
+    assert listed["max_total"] == 20
+
+
+def test_an_uploaded_memo_counts_as_complete(
+    client, session, programme, manager, content_dir
+):
+    """Memo is a file, not a URL. The card must not call that incomplete."""
+    compose_rubric(session, programme, content_dir)
+    sam = make_participant(session, programme, name="Sam Student")
+    team = ensure_team_for_participant(session, sam)
+    submission = ensure_submission(session, team)
+    artifact = next(
+        link
+        for link in session.scalars(
+            select(SubmissionLink).where(SubmissionLink.submission_id == submission.id)
+        )
+        if link.slot is SubmissionSlot.ARTIFACT
+    )
+    artifact.drive_url = "https://docs.google.com/document/d/abc/edit"
+    artifact.access_status = AccessStatus.OK
+    set_upload(
+        session,
+        submission,
+        SubmissionSlot.MEMO,
+        content=b"%PDF-1.4 memo",
+        filename="memo.pdf",
+        mime_type="application/pdf",
+    )
+    session.flush()
+
+    sign_in(client, session, manager)
+    card = client.get(f"/programmes/{programme.id}/submissions").json()[0]
+    assert card["complete"] is True
+    memo = next(link for link in card["links"] if link["slot"] == "memo")
+    assert memo["url"] is None
+    assert memo["snapshot_url"]
 
 
 def test_a_rating_is_saved_as_it_is_given_and_can_be_changed(

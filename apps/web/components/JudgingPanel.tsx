@@ -143,7 +143,9 @@ export default function JudgingPanel({
               {!card.complete && <span className="tag">incomplete</span>}
               {card.locked && <span className="tag">locked</span>}
               <span className={`tag ${card.your_total !== null ? "open" : ""}`}>
-                {card.your_total !== null ? `${card.your_total}/20` : "not scored"}
+                {card.your_total !== null
+                  ? `${card.your_total}/${card.max_total}`
+                  : "not scored"}
               </span>
             </div>
           </div>

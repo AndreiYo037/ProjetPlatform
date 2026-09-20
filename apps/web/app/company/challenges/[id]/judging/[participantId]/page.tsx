@@ -91,7 +91,7 @@ export default function ScoringCardPage({
       <div className="row" style={{ justifyContent: "space-between", marginTop: "0.5rem" }}>
         <h1 style={{ margin: 0 }}>{card.name}</h1>
         <span className={`tag ${card.complete ? "open" : ""}`}>
-          {card.total !== null ? `${card.total}/20` : "in progress"}
+          {card.total !== null ? `${card.total}/${card.max_total}` : "in progress"}
         </span>
       </div>
       {card.submission.pitch_at && (
@@ -304,7 +304,7 @@ function TestimonialBox({
       const drafted = await draftTestimonial(programmeId, participantId);
       setBody(drafted.body);
       setFlash(
-        "Drafted from the skills you tagged and this challenge's brief. It saves as you edit — publish when you mean it.",
+        "Drafted from the skills you tagged and this challenge's brief. It saves as you edit — generate a PDF when you mean it.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not draft that.");
@@ -324,9 +324,9 @@ function TestimonialBox({
       });
       setExisting(saved);
       setBaseline(saved.body);
-      setFlash("Published.");
+      setFlash("PDF generated.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not publish that.");
+      setError(err instanceof Error ? err.message : "Could not generate that PDF.");
     } finally {
       setBusy(false);
     }
@@ -343,8 +343,8 @@ function TestimonialBox({
         Only if you mean it. One you chose to write is worth more than one everyone
         was made to, and this is the part they will actually carry with them.
         {published
-          ? " Ready for Close and issue. You can still edit the wording."
-          : " A draft stays private and saves as you type. Mark it ready when the wording is finished — it goes on their profile only when you Close and issue."}
+          ? " PDF generated. You can still edit the wording."
+          : " A draft stays private and saves as you type. Generate a PDF when the wording is finished — it goes on their profile only when you Close and issue."}
         {" "}
         Drafting uses the skills you tagged above and this challenge's brief. It will
         not invent anything you did not tag.
@@ -381,12 +381,12 @@ function TestimonialBox({
         {autosaveLabel(draftStatus)
           ? `Draft ${autosaveLabel(draftStatus)?.toLowerCase()}`
           : "Draft saves as you type"}
-        {published ? " · ready for Close and issue" : ""}.
+        {published ? " · PDF generated" : ""}.
       </p>
       {!published && (
         <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
           <button disabled={locked || !body.trim()} onClick={publish}>
-            Ready for Close and issue
+            {busy ? "Generating…" : "Generate PDF"}
           </button>
         </div>
       )}

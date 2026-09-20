@@ -255,8 +255,7 @@ function PitchSection({
   const [error, setError] = useState<string | null>(null);
   const slots = data.pitch_slots ?? [];
   const booked = data.judging;
-  const handedIn =
-    data.submission?.status === "complete" || data.submission?.status === "locked";
+  const handedIn = Boolean(data.submission?.submitted_at) || data.submission?.status === "locked";
   const canChange = !booked || data.programme.pitch_booking_open !== false;
 
   async function pick(sessionId: string) {

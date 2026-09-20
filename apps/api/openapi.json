@@ -5099,6 +5099,73 @@
         }
       }
     },
+    "/me/submission/submit": {
+      "post": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Submit Submission",
+        "description": "Hand the work in. That is what opens a pitch timeslot.",
+        "operationId": "submit_submission_me_submission_submit_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/threads/{thread_id}/read": {
       "post": {
         "tags": [
@@ -11240,6 +11307,10 @@
             ],
             "title": "Total"
           },
+          "max_total": {
+            "type": "integer",
+            "title": "Max Total"
+          },
           "complete": {
             "type": "boolean",
             "title": "Complete"
@@ -11278,6 +11349,7 @@
           "submission",
           "criteria",
           "total",
+          "max_total",
           "complete",
           "would_refer",
           "skill_ids",
@@ -11618,6 +11690,10 @@
             ],
             "title": "Your Total"
           },
+          "max_total": {
+            "type": "integer",
+            "title": "Max Total"
+          },
           "pitch_at": {
             "anyOf": [
               {
@@ -11654,7 +11730,8 @@
           "complete",
           "links",
           "scored",
-          "your_total"
+          "your_total",
+          "max_total"
         ],
         "title": "SubmissionCard",
         "description": "One participant, what they handed in, and where their scoring stands."

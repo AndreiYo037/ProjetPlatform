@@ -187,7 +187,11 @@ def test_filling_every_slot_completes_the_submission(client, signed_in, google):
     body = client.put("/me/submission/link", json={"slot": "memo", "drive_url": OTHER_URL}).json()
 
     assert body["status"] == "complete"
-    assert body["submitted_at"]
+    assert body["submitted_at"] is None
+
+    handed = client.post("/me/submission/submit").json()
+    assert handed["status"] == "complete"
+    assert handed["submitted_at"]
 
 
 def test_recheck_picks_up_a_fixed_sharing_setting(client, signed_in, google):

@@ -573,6 +573,8 @@ export const deleteSubmissionSlot = (slot: string, programmeId?: string) =>
   api.del<SubmissionOut>(withProgramme(`/me/submission/link/${slot}`, programmeId));
 export const recheckSubmission = (programmeId?: string) =>
   api.post<SubmissionOut>(withProgramme("/me/submission/recheck", programmeId));
+export const submitSubmission = (programmeId?: string) =>
+  api.post<SubmissionOut>(withProgramme("/me/submission/submit", programmeId));
 
 /** Multipart, so it goes round the JSON helper. A slot filled this way is
  *  already the frozen copy — there is no accessibility check to run. */

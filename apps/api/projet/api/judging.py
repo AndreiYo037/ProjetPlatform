@@ -105,6 +105,7 @@ class SubmissionCard(BaseModel):
     # in-progress total is the failure mode calibration is supposed to prevent.
     scored: bool
     your_total: int | None
+    max_total: int
     pitch_at: datetime | None = None
     meet_link: str | None = None
 
@@ -138,6 +139,7 @@ class ScoringCard(BaseModel):
     submission: SubmissionCard
     criteria: list[ScoringAnchor]
     total: int | None
+    max_total: int
     complete: bool
     would_refer: str | None
     skill_ids: list[uuid.UUID]
@@ -195,6 +197,7 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
     score = score_for(db, team, scorer_id) if team and scorer_id else None
     slot = db.get(JudgingSession, participant.judging_session_id) if participant.judging_session_id else None
     programme = db.get(Programme, participant.programme_id)
+    needed = len(criteria_for(db, participant.programme_id))
     meet = None
     if slot and slot.location_or_meet_link:
         meet = slot.location_or_meet_link
@@ -208,14 +211,18 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         status=submission.status.value if submission else "draft",
         submitted_at=submission.submitted_at if submission else None,
         locked=bool(submission and submission.locked_at),
-        # The same definition services/submission uses: every named slot filled
-        # with something we can actually open. A card that says complete while a
-        # memo slot is empty would send a judge into a pitch with half the work.
+        # Same rule as the participant dashboard: a pasted link we can open, or
+        # a file we already hold. Memo is an upload, so snapshot_url is enough.
         complete=bool(links)
-        and all(link.url and link.access_status == AccessStatus.OK.value for link in links),
+        and all(
+            (link.url or link.snapshot_url)
+            and link.access_status == AccessStatus.OK.value
+            for link in links
+        ),
         links=links,
         scored=score is not None,
         your_total=score.total if score else None,
+        max_total=needed * 5,
         pitch_at=slot.starts_at if slot else None,
         meet_link=meet,
     )
@@ -329,6 +336,7 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
         submission=_card(db, participant, scorer_id),
         criteria=criteria,
         total=score.total if score else None,
+        max_total=len(criteria) * 5,
         complete=all(criterion.value is not None for criterion in criteria) and bool(criteria),
         would_refer=referral,
         skill_ids=skill_ids,
@@ -526,7 +534,7 @@ def write_testimonial(
             )
         _store_generated_pdf(db, row=row, participant=participant, programme=programme)
     if payload.publish and row.published_at is None:
-        # Ready for Close and issue — not live on the profile, and no email,
+        # PDF generated — not live on the profile, and no email,
         # until the company closes.
         row.published_at = utcnow()
     db.commit()

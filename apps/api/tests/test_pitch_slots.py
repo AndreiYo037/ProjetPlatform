@@ -18,7 +18,7 @@ from projet.models import CompanyUser, SubmissionLink
 from projet.models.enums import AccessStatus, ActorType, CompanyUserRole
 from projet.outbox.worker import run_once
 from projet.services.auth import SESSION_COOKIE, start_session
-from projet.services.submission import _refresh_status
+from projet.services.submission import _refresh_status, submit_work
 from projet.services.teams import ensure_submission, ensure_team_for_participant
 from tests.conftest import make_participant
 
@@ -68,6 +68,7 @@ def hand_in(session, participant):
         link.drive_url = "https://example.com/work"
         link.access_status = AccessStatus.OK
     _refresh_status(session, submission)
+    submit_work(session, submission)
     session.flush()
     return submission
 
@@ -156,6 +157,36 @@ def test_you_cannot_claim_a_slot_before_you_submit(
     refused = client.post("/me/pitch-slot", json={"session_id": slot_id})
     assert refused.status_code == 422
     assert "Submit" in refused.json()["detail"]
+
+
+def test_filling_slots_does_not_open_a_timeslot_until_submit(
+    client, session, programme, manager
+):
+    sam = make_participant(session, programme, name="Sam Student")
+    team = ensure_team_for_participant(session, sam)
+    submission = ensure_submission(session, team)
+    for link in session.scalars(
+        select(SubmissionLink).where(SubmissionLink.submission_id == submission.id)
+    ):
+        link.drive_url = "https://example.com/work"
+        link.access_status = AccessStatus.OK
+    _refresh_status(session, submission)
+    session.flush()
+
+    sign_in_company(client, session, manager)
+    assert set_clock(client, programme)["slots"] == []
+
+    sign_in_participant(client, session, sam)
+    before = client.get("/me/dashboard").json()
+    assert before["pitch_slots"] == []
+    assert before["submission"]["status"] == "complete"
+    assert before["submission"]["submitted_at"] is None
+
+    submit_work(session, submission)
+    session.flush()
+    after = client.get("/me/dashboard").json()
+    assert len(after["pitch_slots"]) == 1
+    assert after["submission"]["submitted_at"]
 
 
 def test_judging_cards_sort_by_booked_slot_and_carry_the_meet(

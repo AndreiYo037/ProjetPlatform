@@ -18,6 +18,7 @@ from projet.services.submission import (
     recheck,
     set_link,
     set_upload,
+    submit_work,
 )
 from projet.services.teams import ensure_submission, ensure_team_for_participant
 
@@ -70,7 +71,27 @@ def test_a_submission_completes_when_every_slot_opens(session, submission, googl
     set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
 
     assert sub.status == SubmissionStatus.COMPLETE
+    assert sub.submitted_at is None
+
+
+def test_submit_hands_the_work_in(session, submission, google):
+    """Filling the slots is ready; Submit is what counts as handed in."""
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
+
+    submit_work(session, sub, google=google)
+    assert sub.status == SubmissionStatus.COMPLETE
     assert sub.submitted_at is not None
+
+
+def test_you_cannot_submit_with_an_empty_slot(session, submission, google):
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+
+    with pytest.raises(SubmissionError, match="Fill every slot"):
+        submit_work(session, sub, google=google)
+    assert sub.submitted_at is None
 
 
 def test_links_can_be_changed_freely_before_the_deadline(session, submission, google):
@@ -197,7 +218,7 @@ def test_an_upload_completes_the_submission_alongside_a_link(session, submission
     )
 
     assert sub.status == SubmissionStatus.COMPLETE
-    assert sub.submitted_at is not None
+    assert sub.submitted_at is None
 
 
 def test_clearing_an_upload_deletes_the_stored_file(session, submission):

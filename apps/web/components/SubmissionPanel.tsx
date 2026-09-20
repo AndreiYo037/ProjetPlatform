@@ -5,7 +5,7 @@ import {
   assetUrl,
   deleteSubmissionSlot,
   putSubmissionLink,
-  recheckSubmission,
+  submitSubmission,
   uploadSubmissionFile,
   type SubmissionOut,
 } from "@/lib/api";
@@ -87,8 +87,8 @@ export default function SubmissionPanel({
       // catches a link that was revoked minutes ago — the one failure this
       // whole area exists to prevent, and worth one more look at the moment
       // the participant is declaring themselves done.
-      const result = await recheckSubmission(programmeId);
-      if (result.status === "complete") {
+      const result = await submitSubmission(programmeId);
+      if (result.submitted_at) {
         setJustSubmitted(true);
       } else {
         setSubmitError("Something needs fixing before this can be submitted — see above.");
@@ -102,18 +102,21 @@ export default function SubmissionPanel({
   }
 
   const complete = submission.status === "complete";
+  const handedIn = Boolean(submission.submitted_at);
 
   return (
     <>
       <div className="row" style={{ marginBottom: "0.75rem" }}>
-        <span className={`tag ${complete ? "open" : "closed"}`}>
+        <span className={`tag ${handedIn || complete ? "open" : "closed"}`}>
           {submission.locked
             ? "Locked"
-            : complete
-              ? "Complete"
-              : submission.slots.some((s) => s.drive_url || s.file_url)
-                ? "In progress"
-                : "Not started"}
+            : handedIn
+              ? "Submitted"
+              : complete
+                ? "Ready to submit"
+                : submission.slots.some((s) => s.drive_url || s.file_url)
+                  ? "In progress"
+                  : "Not started"}
         </span>
       </div>
 
@@ -204,15 +207,21 @@ export default function SubmissionPanel({
         <div className="panel" style={{ marginTop: "1rem" }}>
           {!complete && (
             <p className="small muted" style={{ marginTop: 0 }}>
-              Fill every slot — a link, or a file you have uploaded — to
-              submit.
+              Fill every slot — a link, or a file you have uploaded — then
+              submit. That is what opens a pitch timeslot.
+            </p>
+          )}
+          {complete && !handedIn && (
+            <p className="small muted" style={{ marginTop: 0 }}>
+              Submit to hand this in. Then you can pick a pitch timeslot.
             </p>
           )}
           {submitError && <div className="notice bad">{submitError}</div>}
           {justSubmitted && submission.submitted_at && (
             <div className="notice good">
-              Submitted {formatSubmittedAt(submission.submitted_at)}. You can keep
-              making changes and submit again any time before the deadline.
+              Submitted {formatSubmittedAt(submission.submitted_at)}. Pick a
+              pitch timeslot under How you&apos;re judged. You can keep making
+              changes and submit again any time before the deadline.
             </div>
           )}
           <button onClick={submit} disabled={!complete || busy !== null}>

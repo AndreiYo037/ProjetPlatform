@@ -250,9 +250,8 @@ def clear_link(session: Session, submission: Submission, slot: SubmissionSlot) -
 
 
 def _refresh_status(session: Session, submission: Submission) -> None:
-    """Complete means every slot has a link we can actually open, or a file
-    we already hold — an upload's snapshot_key is set the moment it lands,
-    not just at the deadline."""
+    """Complete means every slot is filled and openable. That is not a hand-in;
+    submit_work stamps submitted_at, and that is what opens a timeslot."""
     links = list(
         session.scalars(select(SubmissionLink).where(SubmissionLink.submission_id == submission.id))
     )
@@ -264,7 +263,6 @@ def _refresh_status(session: Session, submission: Submission) -> None:
     )
     if complete:
         submission.status = SubmissionStatus.COMPLETE
-        submission.submitted_at = submission.submitted_at or utcnow()
     elif submission.status != SubmissionStatus.LOCKED:
         submission.status = SubmissionStatus.DRAFT
         submission.submitted_at = None
@@ -325,3 +323,18 @@ def recheck(
     _refresh_status(session, submission)
     session.flush()
     return results
+
+
+def submit_work(
+    session: Session, submission: Submission, *, google: GoogleClient | None = None
+) -> Submission:
+    """The hand-in. Filling slots is not enough — this is what opens a timeslot."""
+    if is_locked(session, submission):
+        raise SubmissionError("The deadline has passed; submissions are locked.")
+    recheck(session, submission, google=google)
+    if submission.status != SubmissionStatus.COMPLETE:
+        raise SubmissionError("Fill every slot before you submit.")
+    submission.submitted_at = utcnow()
+    _resize_pitch_grid(session, submission)
+    session.flush()
+    return submission

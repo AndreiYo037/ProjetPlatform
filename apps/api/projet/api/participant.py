@@ -69,6 +69,7 @@ from projet.services.submission import (
     is_locked,
     recheck,
     set_link,
+    submit_work,
     set_upload,
     submission_for_participant,
 )
@@ -1271,6 +1272,25 @@ def recheck_links(
     if submission is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No submission yet.")
     recheck(db, submission)
+    db.commit()
+    return _require_submission_out(db, participant)
+
+
+@router.post("/submission/submit", response_model=SubmissionOut)
+def submit_submission(
+    programme_id: uuid.UUID | None = Query(default=None),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> SubmissionOut:
+    """Hand the work in. That is what opens a pitch timeslot."""
+    participant = _participant(db, actor, programme_id)
+    submission = submission_for_participant(db, participant)
+    if submission is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No submission yet.")
+    try:
+        submit_work(db, submission)
+    except SubmissionError as error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
     db.commit()
     return _require_submission_out(db, participant)
 
