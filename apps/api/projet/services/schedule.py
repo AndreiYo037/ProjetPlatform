@@ -1,9 +1,8 @@
 """Programme dates the company picks, with fixed times of day.
 
-The company chooses which days a challenge runs. The clock itself is not
-configurable: start is midnight on the start date, and the challenge ends at
-23:59 on the end date. That is what "24 October" and "25 October" mean, so a
-picker never has to ask for a time.
+The company chooses which days a challenge runs. Start is midnight on the
+start date, and the challenge ends at 23:59 on the end date. Kickoff is the
+exception: the company picks a clock time, always on the start date.
 """
 
 from __future__ import annotations
@@ -18,9 +17,7 @@ PROGRAMME_TZ = ZoneInfo("Asia/Singapore")
 
 START_OF_DAY = time(0, 0)
 END_OF_DAY = time(23, 59, 59)
-# The kickoff Meet is a call on the start date, not the midnight the
-# programme becomes active.
-KICKOFF_MEETING = time(9, 0)
+KICKOFF_DURATION_HOURS = 1
 
 
 class ScheduleError(ValueError):
@@ -45,10 +42,21 @@ def at_end_of_day(moment: datetime) -> datetime:
     return datetime.combine(local.date(), END_OF_DAY, tzinfo=PROGRAMME_TZ)
 
 
-def kickoff_meeting_at(start_at: datetime) -> datetime:
-    """When the kickoff call sits on the start date."""
-    local = in_programme_tz(start_at)
-    return datetime.combine(local.date(), KICKOFF_MEETING, tzinfo=PROGRAMME_TZ)
+def bind_kickoff(
+    start_at: datetime | None, kickoff_at: datetime | None
+) -> datetime | None:
+    """Pin the kickoff call to the start date, using the time the company picked.
+
+    The day is the challenge start; the clock time is theirs. A picker that
+    sends a datetime on some other day still lands on the start date.
+    """
+    if kickoff_at is None:
+        return None
+    if start_at is None:
+        raise ScheduleError("Pick a start date before the kickoff time.")
+    day = in_programme_tz(start_at).date()
+    clock = in_programme_tz(kickoff_at).time().replace(second=0, microsecond=0)
+    return datetime.combine(day, clock, tzinfo=PROGRAMME_TZ)
 
 
 def pitch_day_begins_at(pitch_starts_at: datetime) -> datetime:

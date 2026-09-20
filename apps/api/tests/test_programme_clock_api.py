@@ -21,7 +21,7 @@ from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.schedule import PROGRAMME_TZ
-from tests.conftest import next_end, next_kickoff
+from tests.conftest import kickoff_on, next_end, next_kickoff
 
 SGT = ZoneInfo("Asia/Singapore")
 
@@ -82,6 +82,7 @@ def create(client, company_id, role_id, **overrides) -> dict:
         "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
         "start_at": start.isoformat(),
         "submit_deadline_at": next_end(start).isoformat(),
+        "kickoff_at": kickoff_on(start).isoformat(),
         **BRIEF,
     }
     payload.update(overrides)
@@ -190,7 +191,7 @@ def test_every_programme_is_individual(client, company_id, role_id):
     assert programme["team_size_max"] == 1
 
 
-def test_publication_is_blocked_until_start_and_end_exist(client, company_id, role_id):
+def test_publication_is_blocked_until_start_end_and_kickoff_exist(client, company_id, role_id):
     bare = client.post(
         "/programmes",
         json={
@@ -207,13 +208,14 @@ def test_publication_is_blocked_until_start_and_end_exist(client, company_id, ro
     assert check["ready"] is False
     assert any("start date" in problem for problem in check["problems"])
     assert any("end date" in problem for problem in check["problems"])
+    assert any("kickoff time" in problem for problem in check["problems"])
     assert any("problem statement" in problem for problem in check["problems"])
 
     refused = client.post(f"/programmes/{programme_id}/publish")
     assert refused.status_code == 409
 
 
-def test_start_and_end_are_enough_to_publish(client, company_id, role_id):
+def test_start_end_and_kickoff_are_enough_to_publish(client, company_id, role_id):
     """A company can publish a bare-bones shell to test the flow end to end
     and write the real brief before an applicant ever sees the listing."""
     start = next_kickoff()
@@ -226,6 +228,7 @@ def test_start_and_end_are_enough_to_publish(client, company_id, role_id):
             "slug": "bare-but-scheduled",
             "start_at": start.isoformat(),
             "submit_deadline_at": next_end(start).isoformat(),
+            "kickoff_at": kickoff_on(start).isoformat(),
         },
     )
     assert created.status_code == 201, created.text
@@ -239,3 +242,59 @@ def test_start_and_end_are_enough_to_publish(client, company_id, role_id):
     published = client.post(f"/programmes/{programme_id}/publish")
     assert published.status_code == 200, published.text
     assert published.json()["status"] == "open"
+
+
+def test_dates_without_a_kickoff_time_cannot_publish(client, company_id, role_id):
+    start = next_kickoff()
+    created = client.post(
+        "/programmes",
+        json={
+            "company_id": company_id,
+            "role_id": role_id,
+            "title": "No kickoff yet",
+            "slug": "no-kickoff-yet",
+            "start_at": start.isoformat(),
+            "submit_deadline_at": next_end(start).isoformat(),
+        },
+    )
+    assert created.status_code == 201, created.text
+    programme_id = created.json()["id"]
+    assert created.json()["kickoff_at"] is None
+
+    check = client.get(f"/programmes/{programme_id}/publication-check").json()
+    assert check["ready"] is False
+    assert any("kickoff time" in problem for problem in check["problems"])
+
+    refused = client.post(f"/programmes/{programme_id}/publish")
+    assert refused.status_code == 409
+
+
+def test_kickoff_is_the_picked_time_on_the_start_date(client, company_id, role_id):
+    start = datetime(2026, 10, 8, tzinfo=SGT)
+    picked = datetime(2026, 10, 1, 16, 45, tzinfo=SGT)
+    body = create(
+        client,
+        company_id,
+        role_id,
+        start_at=start.isoformat(),
+        kickoff_at=picked.isoformat(),
+        applications_close_at=datetime(2026, 10, 7, tzinfo=SGT).isoformat(),
+    ).json()
+    stored = datetime.fromisoformat(body["kickoff_at"]).astimezone(PROGRAMME_TZ)
+    assert stored.date() == start.date()
+    assert (stored.hour, stored.minute) == (16, 45)
+
+
+def test_moving_the_start_keeps_the_kickoff_clock(client, company_id, role_id):
+    programme = create(client, company_id, role_id).json()
+    original = datetime.fromisoformat(programme["kickoff_at"]).astimezone(PROGRAMME_TZ)
+    later = datetime.fromisoformat(programme["start_at"]) + timedelta(days=1)
+
+    updated = client.patch(
+        f"/programmes/{programme['id']}",
+        json={"start_at": later.isoformat()},
+    )
+    assert updated.status_code == 200, updated.text
+    stored = datetime.fromisoformat(updated.json()["kickoff_at"]).astimezone(PROGRAMME_TZ)
+    assert stored.date() == later.astimezone(PROGRAMME_TZ).date()
+    assert (stored.hour, stored.minute) == (original.hour, original.minute)

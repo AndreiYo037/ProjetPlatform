@@ -10,7 +10,6 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from projet.models import JudgingSession, Outbox, Participant
-from projet.models.base import utcnow
 from projet.models.enums import OutboxStatus
 from projet.outbox.provisioning import (
     JUDGING_SESSION_INVITE,
@@ -91,7 +90,7 @@ def test_run_order_is_generated_not_curated(
     assert positions == [1, 2, 3, 4, 5]
 
 
-def test_the_chain_runs_and_each_step_is_separately_retryable(
+def test_the_chain_queues_nothing_now_calendar_invites_are_gone(
     session, programme, judging_session, participant_factory, google
 ):
     participant = participant_factory()
@@ -104,58 +103,36 @@ def test_the_chain_runs_and_each_step_is_separately_retryable(
     )
     session.flush()
 
-    assert len(rows) == 3
+    assert rows == []
     run_once(session, google)
-
-    statuses = {row.effect_type: row.status for row in session.scalars(select(Outbox))}
-    assert all(status == OutboxStatus.DONE for status in statuses.values())
-    assert len(google.calls_of("patch_event_attendees")) == 3
+    assert google.calls_of("patch_event_attendees") == []
     assert google.calls_of("send_email") == []
 
 
-def test_a_calendar_timeout_does_not_rerun_done_invites(
+def test_already_queued_invites_drain_without_patching_calendar(
     session, programme, judging_session, participant_factory, google
 ):
-    """The exact failure the outbox exists to prevent."""
-    from projet.integrations.google.client import TransientGoogleError
+    """Rows already in the outbox must complete without adding attendees."""
+    from projet.models.enums import OutboxSubjectType
+    from projet.outbox.effects import enqueue
 
     participant = participant_factory()
-    assign_judging_session(session, participant)
-    enqueue_provisioning_chain(session, participant, kickoff_event_id="evt-kickoff")
-    session.flush()
-
-    google.fail_next = TransientGoogleError("calendar timed out")
-    run_once(session, google)
-    first_patches = len(google.calls_of("patch_event_attendees"))
-
-    # The sweep comes round again.
-    for row in session.scalars(select(Outbox)):
-        row.next_attempt_at = utcnow()
+    enqueue(
+        session,
+        subject_type=OutboxSubjectType.PARTICIPANT,
+        subject_id=participant.id,
+        effect_type=JUDGING_SESSION_INVITE,
+    )
     session.flush()
     run_once(session, google)
 
-    # The failed invite retries once; anything already DONE is left alone.
-    assert len(google.calls_of("patch_event_attendees")) == first_patches + 1
-    assert google.calls_of("send_email") == []
+    row = session.scalar(select(Outbox))
+    assert row.status == OutboxStatus.DONE
+    assert row.result == {"skipped": True}
+    assert google.calls_of("patch_event_attendees") == []
 
 
-def test_the_calendar_invite_goes_to_the_google_account(
-    session, programme, judging_session, participant_factory, google
-):
-    """FR-204 — the invite has to land on an account that can open Meet."""
-    participant = participant_factory()
-    participant.person.google_email = "sam.google@gmail.com"
-    participant.person.contact_email = "sam@school.test"
-    assign_judging_session(session, participant)
-    enqueue_provisioning_chain(session, participant)
-    session.flush()
-    run_once(session, google)
-
-    patch = google.calls_of("patch_event_attendees")[0]
-    assert patch.payload["add"][0].email == "sam.google@gmail.com"
-
-
-def test_a_missing_judging_session_fails_permanently_rather_than_retrying(
+def test_a_queued_invite_with_no_session_is_skipped_not_retried(
     session, programme, participant_factory, google
 ):
     from projet.models.enums import OutboxSubjectType
@@ -171,5 +148,5 @@ def test_a_missing_judging_session_fails_permanently_rather_than_retrying(
     session.flush()
     run_once(session, google)
 
-    assert row.status == OutboxStatus.FAILED
-    assert row.attempts == 1
+    assert row.status == OutboxStatus.DONE
+    assert row.result == {"skipped": True}

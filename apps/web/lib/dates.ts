@@ -65,10 +65,23 @@ export function toDateTimeLocal(iso: string | null | undefined): string {
   return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
+/** HH:MM in Singapore time, for a time picker on a known date. */
+export function toTimeInput(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const { hour, minute } = sgtParts(iso);
+  return `${hour}:${minute}`;
+}
+
 /** Interpret a datetime-local value as Singapore time. */
 export function fromDateTimeLocal(value: string): string | null {
   if (!value) return null;
   return `${value}:00+08:00`;
+}
+
+/** Time on a calendar day, as Singapore time. */
+export function fromTimeOnDate(dateValue: string, timeValue: string): string | null {
+  if (!dateValue || !timeValue) return null;
+  return `${dateValue}T${timeValue}:00+08:00`;
 }
 
 export function formatSlot(iso: string | null | undefined): string | null {

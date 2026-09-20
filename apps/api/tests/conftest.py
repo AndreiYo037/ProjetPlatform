@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from pathlib import Path
 
 import pytest
@@ -44,8 +44,26 @@ def next_kickoff() -> datetime:
     return datetime.now(UTC) + timedelta(days=14)
 
 
+def kickoff_on(start: datetime, hour: int = 14, minute: int = 0) -> datetime:
+    """Kickoff call on the start date at a company-picked time (not a fixed 09:00)."""
+    from projet.services.schedule import PROGRAMME_TZ, in_programme_tz
+
+    local = in_programme_tz(start)
+    return datetime.combine(local.date(), time(hour, minute), tzinfo=PROGRAMME_TZ)
+
+
 def next_end(start: datetime | None = None) -> datetime:
     return (start or next_kickoff()) + timedelta(days=7)
+
+
+def scheduled(start: datetime | None = None, hour: int = 14) -> dict[str, str]:
+    """Start, end, and a company-picked kickoff — enough to publish."""
+    start = start or next_kickoff()
+    return {
+        "start_at": start.isoformat(),
+        "submit_deadline_at": next_end(start).isoformat(),
+        "kickoff_at": kickoff_on(start, hour).isoformat(),
+    }
 
 
 @pytest.fixture(scope="session")

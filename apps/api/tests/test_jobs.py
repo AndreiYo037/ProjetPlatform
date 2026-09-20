@@ -31,7 +31,6 @@ from projet.models.enums import (
     SubmissionStatus,
     ThreadType,
 )
-from projet.outbox.provisioning import SESSION_REMOVAL
 from projet.outbox.snapshots import SNAPSHOT_EFFECT
 from projet.services.teams import ensure_submission, ensure_team_for_participant
 
@@ -120,11 +119,10 @@ def test_an_uploaded_slot_is_locked_but_not_requeued_for_snapshotting(
     )
 
 
-def test_non_submitters_are_flagged_and_taken_off_their_session(
+def test_non_submitters_are_flagged_at_the_deadline(
     session, programme, judging_session, participant_factory
 ):
-    """FR-811c — the deadline passes, non-submitters drop off their slot, and
-    the schedule is already correct."""
+    """FR-811c — the deadline passes and non-submitters drop off their slot."""
     submitted = participant_factory()
     submitted.judging_session_id = judging_session.id
     _submit(session, submitted)
@@ -145,8 +143,6 @@ def test_non_submitters_are_flagged_and_taken_off_their_session(
     assert broken.status == ParticipantStatus.NO_SUBMISSION, (
         "a link we cannot open is not a submission"
     )
-    removals = [r for r in session.scalars(select(Outbox)) if r.effect_type == SESSION_REMOVAL]
-    assert len(removals) == 2
     assert no_submission_report(session, programme.id)
 
 

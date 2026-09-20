@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 
 from projet.models import (
     Application,
-    JudgingSession,
     Participant,
     Programme,
     Submission,
@@ -36,7 +35,7 @@ from projet.models.enums import (
     SubmissionStatus,
 )
 from projet.outbox.effects import enqueue
-from projet.outbox.provisioning import SESSION_REMOVAL, enqueue_pitch_day_reminders
+from projet.outbox.provisioning import enqueue_pitch_day_reminders
 from projet.outbox.snapshots import SNAPSHOT_EFFECT
 from projet.services.schedule import pitch_day_begins_at
 
@@ -186,24 +185,6 @@ def process_deadline(
         else:
             participant.status = ParticipantStatus.NO_SUBMISSION
             result.non_submitters += 1
-
-        # FR-811c — non-submitters and excluded participants come off the event.
-        if (not complete or participant.excluded) and participant.judging_session_id:
-            judging = session.get(JudgingSession, participant.judging_session_id)
-            if judging and judging.google_event_id:
-                enqueue(
-                    session,
-                    subject_type=OutboxSubjectType.PARTICIPANT,
-                    subject_id=participant.id,
-                    participant_id=participant.id,
-                    effect_type=SESSION_REMOVAL,
-                    payload={
-                        "event_id": judging.google_event_id,
-                        "email": participant.person.google_email
-                        or participant.person.contact_email,
-                    },
-                )
-                result.removals_queued += 1
 
     programme.status = ProgrammeStatus.SUBMITTED
     programme.deadline_processed_at = now

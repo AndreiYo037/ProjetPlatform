@@ -12,7 +12,7 @@ import {
   type ClusterGroup,
   type RoleImplications,
 } from "@/lib/api";
-import { fromDateInput, fromDateTimeLocal, formatSlot } from "@/lib/dates";
+import { fromDateInput, fromDateTimeLocal, fromTimeOnDate, formatSlot } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 type Step = "role" | "details" | "review";
@@ -41,6 +41,7 @@ export default function NewChallengePage() {
   const [capacity, setCapacity] = useState("");
   const [appsCloseAt, setAppsCloseAt] = useState("");
   const [startAt, setStartAt] = useState("");
+  const [kickoffTime, setKickoffTime] = useState("");
   const [endAt, setEndAt] = useState("");
   const [pitchStartsAt, setPitchStartsAt] = useState("");
   const [pitchDuration, setPitchDuration] = useState("10");
@@ -87,6 +88,7 @@ export default function NewChallengePage() {
         applications_close_at: fromDateInput(appsCloseAt),
         start_at: fromDateInput(startAt),
         submit_deadline_at: fromDateInput(endAt),
+        kickoff_at: fromTimeOnDate(startAt, kickoffTime),
       });
       const pitchAt = fromDateTimeLocal(pitchStartsAt);
       if (pitchAt && Number(pitchDuration) >= 1) {
@@ -138,6 +140,7 @@ export default function NewChallengePage() {
           capacity={capacity}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
+          kickoffTime={kickoffTime}
           endAt={endAt}
           pitchStartsAt={pitchStartsAt}
           pitchDuration={pitchDuration}
@@ -149,6 +152,7 @@ export default function NewChallengePage() {
           onCapacityChange={setCapacity}
           onAppsCloseAtChange={setAppsCloseAt}
           onStartAtChange={setStartAt}
+          onKickoffTimeChange={setKickoffTime}
           onEndAtChange={setEndAt}
           onPitchStartsAtChange={setPitchStartsAt}
           onPitchDurationChange={setPitchDuration}
@@ -167,6 +171,7 @@ export default function NewChallengePage() {
           capacity={capacity}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
+          kickoffTime={kickoffTime}
           endAt={endAt}
           pitchStartsAt={pitchStartsAt}
           pitchDuration={pitchDuration}
@@ -319,6 +324,7 @@ function DetailsForm({
   capacity,
   appsCloseAt,
   startAt,
+  kickoffTime,
   endAt,
   pitchStartsAt,
   pitchDuration,
@@ -327,6 +333,7 @@ function DetailsForm({
   onCapacityChange,
   onAppsCloseAtChange,
   onStartAtChange,
+  onKickoffTimeChange,
   onEndAtChange,
   onPitchStartsAtChange,
   onPitchDurationChange,
@@ -338,6 +345,7 @@ function DetailsForm({
   capacity: string;
   appsCloseAt: string;
   startAt: string;
+  kickoffTime: string;
   endAt: string;
   pitchStartsAt: string;
   pitchDuration: string;
@@ -346,6 +354,7 @@ function DetailsForm({
   onCapacityChange: (v: string) => void;
   onAppsCloseAtChange: (v: string) => void;
   onStartAtChange: (v: string) => void;
+  onKickoffTimeChange: (v: string) => void;
   onEndAtChange: (v: string) => void;
   onPitchStartsAtChange: (v: string) => void;
   onPitchDurationChange: (v: string) => void;
@@ -416,6 +425,17 @@ function DetailsForm({
           <div className="hint">00:00 on that day.</div>
         </div>
         <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="ch-kickoff">Kickoff</label>
+          <input
+            id="ch-kickoff"
+            type="time"
+            value={kickoffTime}
+            onChange={(e) => onKickoffTimeChange(e.target.value)}
+            disabled={!startAt}
+          />
+          <div className="hint">On the start date, SGT. One hour. Required to publish.</div>
+        </div>
+        <div className="field" style={{ flex: 1 }}>
           <label htmlFor="ch-end">Ends</label>
           <input
             id="ch-end"
@@ -479,6 +499,7 @@ function ReviewStep({
   capacity,
   appsCloseAt,
   startAt,
+  kickoffTime,
   endAt,
   pitchStartsAt,
   pitchDuration,
@@ -492,6 +513,7 @@ function ReviewStep({
   capacity: string;
   appsCloseAt: string;
   startAt: string;
+  kickoffTime: string;
   endAt: string;
   pitchStartsAt: string;
   pitchDuration: string;
@@ -519,6 +541,12 @@ function ReviewStep({
           <dd>{appsCloseAt ? `${formatDay(appsCloseAt)} · 23:59` : "Not set"}</dd>
           <dt>Starts</dt>
           <dd>{startAt ? `${formatDay(startAt)} · 00:00` : "Not set"}</dd>
+          <dt>Kickoff</dt>
+          <dd>
+            {startAt && kickoffTime
+              ? `${formatDay(startAt)} · ${kickoffTime}`
+              : "Not set"}
+          </dd>
           <dt>Ends</dt>
           <dd>{endAt ? `${formatDay(endAt)} · 23:59` : "Not set"}</dd>
           <dt>First pitch</dt>

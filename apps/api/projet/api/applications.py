@@ -294,7 +294,7 @@ def accept(payload: AcceptRequest, db: Session = Depends(get_session)) -> Accept
     return AcceptResponse(
         participant_id=participant.id,
         programme_title=programme.title if programme else "",
-        message="You're confirmed. Check your email for the calendar invites.",
+        message="You're confirmed. Times and Meet links are on your dashboard.",
     )
 
 

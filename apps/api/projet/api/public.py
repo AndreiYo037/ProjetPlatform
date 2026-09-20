@@ -73,6 +73,7 @@ class PublicListing(BaseModel):
     applications_close_at: datetime | None
     start_at: datetime | None
     submit_deadline_at: datetime | None
+    kickoff_at: datetime | None = None
     # End of the last day. Named here so the apply form can commit to both
     # dates a participant has to make.
     pitch_at: datetime | None
@@ -303,6 +304,7 @@ def listing(
         applications_close_at=programme.applications_close_at,
         start_at=programme.start_at,
         submit_deadline_at=programme.submit_deadline_at,
+        kickoff_at=programme.kickoff_at,
         pitch_at=programme.pitch_at,
         # FR-101 — seat count displays only where capacity is set.
         seats_total=programme.capacity,

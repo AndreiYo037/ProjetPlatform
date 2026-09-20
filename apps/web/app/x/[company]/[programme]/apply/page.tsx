@@ -11,6 +11,7 @@ import {
   type PersonProfile,
   type PublicListing,
 } from "@/lib/api";
+import { formatSlot } from "@/lib/dates";
 
 /**
  * The calendar day. Times of day are fixed (start 00:00, end 23:59), so the
@@ -90,6 +91,7 @@ export default function ApplyPage({
   }, []);
 
   const kickoff = formatMoment(listing?.start_at);
+  const kickoffCall = formatSlot(listing?.kickoff_at);
   const pitch = formatMoment(listing?.pitch_at);
   const isStudent = orgType === "school";
   const hasProfileCv = Boolean(profile?.cv_url);
@@ -218,9 +220,8 @@ export default function ApplyPage({
             onChange={(e) => setGoogleEmail(e.target.value)}
           />
           <div className="hint">
-            Only used for Calendar invites and Meet links if you&apos;re accepted, so it
-            needs to be a real Google account, not just any inbox. A school or work
-            address running on Google is fine — it can be the same as your contact email
+            Used if you join Meet with a Google account. A school or work address
+            running on Google is fine — it can be the same as your contact email
             above, or different.
           </div>
         </div>
@@ -344,6 +345,8 @@ export default function ApplyPage({
         <dl className="facts">
           <dt>Starts</dt>
           <dd>{kickoff ?? "To be confirmed"}</dd>
+          <dt>Kickoff</dt>
+          <dd>{kickoffCall ? `${kickoffCall} SGT` : "To be confirmed"}</dd>
           <dt>Ends</dt>
           <dd>{pitch ?? "To be confirmed"}</dd>
         </dl>

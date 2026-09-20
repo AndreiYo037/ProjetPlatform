@@ -113,7 +113,7 @@ function ProgrammePageInner() {
         <div className="notice">
           <strong>Setting up your place.</strong>
           <p className="small" style={{ margin: "0.4rem 0 0" }}>
-            Your calendar invites and submission slots are being created. Refresh in a
+            Your submission slots are being created. Refresh in a
             moment — nothing is needed from you yet.
           </p>
         </div>
@@ -181,6 +181,7 @@ function ProgrammePageInner() {
         <Channel
           programmeId={data.programme.id}
           kickoffMeetLink={data.programme.kickoff_meet_link}
+          kickoffAt={data.programme.kickoff_at}
           onChange={load}
         />
       )}

@@ -840,6 +840,7 @@ class ProgrammeCard(BaseModel):
     deliverable: str
     start_at: datetime | None
     submit_deadline_at: datetime | None
+    kickoff_at: datetime | None = None
     pitch_starts_at: datetime | None = None
     kickoff_meet_link: str | None = None
     pitch_booking_open: bool = True
@@ -1106,6 +1107,7 @@ def dashboard(
             or (template.default_deliverable if template else ""),
             start_at=programme.start_at,
             submit_deadline_at=programme.submit_deadline_at,
+            kickoff_at=programme.kickoff_at,
             pitch_starts_at=programme.pitch_starts_at,
             kickoff_meet_link=programme.kickoff_meet_link,
             pitch_booking_open=pitch_booking_open(programme),

@@ -149,7 +149,7 @@ export default function ParticipantProfile() {
           autoComplete="email"
         />
         <div className="hint">
-          Used for Calendar invites and Meet links. Can be the same as your contact email.
+          Used if you join Meet with a Google account. Can be the same as your contact email.
         </div>
       </div>
 

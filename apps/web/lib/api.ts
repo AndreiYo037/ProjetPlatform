@@ -236,6 +236,7 @@ export type CreateProgrammeInput = {
   applications_close_at?: string | null;
   start_at?: string | null;
   submit_deadline_at?: string | null;
+  kickoff_at?: string | null;
   problem_statement?: string | null;
   deliverable_spec?: string | null;
   winners_count?: number;

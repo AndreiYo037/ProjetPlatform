@@ -1,7 +1,7 @@
-"""Kickoff Calendar event creation and attendee patching.
+"""Kickoff Calendar event creation.
 
-Publishing a programme creates the Calendar event. Accepting an offer adds the
-participant as an attendee via the provisioning chain's KICKOFF_INVITE effect.
+Publishing a programme creates the Meet. Participants are not added as
+attendees — they get the link in email and on the dashboard.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from projet.models.enums import ActorType
 from projet.outbox.worker import run_once
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import next_end, next_kickoff
+from tests.conftest import kickoff_on, next_kickoff, scheduled
 
 
 @pytest.fixture
@@ -54,6 +54,20 @@ def sign_in(client, session, actor_type, subject_id):
     client.cookies.set(SESSION_COOKIE, raw)
 
 
+def programme_payload(company_id, role_id, *, title, slug, start=None, hour=14):
+    start = start or next_kickoff()
+    return {
+        "company_id": company_id,
+        "role_id": str(role_id),
+        "title": title,
+        "slug": slug,
+        **scheduled(start, hour),
+        "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
+        "problem_statement": "Test problem",
+        "deliverable_spec": "Test deliverable",
+    }
+
+
 def test_publish_creates_kickoff_event(client, session, google, admin, seeded):
     sign_in(client, session, ActorType.PLATFORM, admin.id)
     company = client.post(
@@ -65,19 +79,17 @@ def test_publish_creates_kickoff_event(client, session, google, admin, seeded):
             "owner_email": "owner@acme-cal.test",
         },
     ).json()
+    start = next_kickoff()
     programme = client.post(
         "/programmes",
-        json={
-            "company_id": company["id"],
-            "role_id": str(seeded.id),
-            "title": "Calendar test",
-            "slug": "cal-test",
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
-            "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-            "problem_statement": "Test problem",
-            "deliverable_spec": "Test deliverable",
-        },
+        json=programme_payload(
+            company["id"],
+            seeded.id,
+            title="Calendar test",
+            slug="cal-test",
+            start=start,
+            hour=14,
+        ),
     ).json()
 
     published = client.post(f"/programmes/{programme['id']}/publish")
@@ -88,12 +100,17 @@ def test_publish_creates_kickoff_event(client, session, google, admin, seeded):
     assert len(create_calls) == 1
     assert "Kickoff" in create_calls[0].payload["body"]["summary"]
     assert "Acme" in create_calls[0].payload["body"]["summary"]
+    begins = datetime.fromisoformat(create_calls[0].payload["body"]["start"]["dateTime"])
+    ends = datetime.fromisoformat(create_calls[0].payload["body"]["end"]["dateTime"])
+    meeting = kickoff_on(start, 14)
+    assert begins == meeting
+    assert ends == meeting + timedelta(hours=1)
 
     prog = session.get(Programme, uuid.UUID(programme["id"]))
     assert prog.kickoff_event_id is not None
 
 
-def test_accept_adds_participant_to_kickoff_event(
+def test_accept_does_not_add_participant_to_kickoff_event(
     client, session, google, admin, seeded
 ):
     sign_in(client, session, ActorType.PLATFORM, admin.id)
@@ -108,17 +125,12 @@ def test_accept_adds_participant_to_kickoff_event(
     ).json()
     programme = client.post(
         "/programmes",
-        json={
-            "company_id": company["id"],
-            "role_id": str(seeded.id),
-            "title": "Calendar accept test",
-            "slug": "cal-accept",
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
-            "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-            "problem_statement": "Test problem",
-            "deliverable_spec": "Test deliverable",
-        },
+        json=programme_payload(
+            company["id"],
+            seeded.id,
+            title="Calendar accept test",
+            slug="cal-accept",
+        ),
     ).json()
     programme_id = programme["id"]
 
@@ -161,27 +173,14 @@ def test_accept_adds_participant_to_kickoff_event(
 
     run_once(session, google)
 
-    # The kickoff event should have been patched with the participant
-    patch_calls = google.calls_of("patch_event_attendees")
-    kickoff_patches = [
-        c for c in patch_calls
-        if c.payload.get("add") and any(
-            a.email == "sam-cal@gmail.com" for a in c.payload["add"]
-        )
-    ]
-    assert len(kickoff_patches) >= 1, (
-        f"expected kickoff event to be patched with participant; "
-        f"got patch calls: {patch_calls}"
-    )
+    assert google.calls_of("patch_event_attendees") == []
 
 
-def test_the_offer_carries_the_meet_link_and_a_calendar_invite(
+def test_the_offer_carries_the_meet_link_without_a_calendar_invite(
     client, session, google, admin, seeded
 ):
-    """The Meet link and the Calendar invite both land with the offer.
-
-    Someone deciding whether to take a place checks the kickoff against their
-    own calendar, which means the invite has to arrive before they accept.
+    """The Meet link lands in the offer email. Participants are not invited
+    on Calendar.
     """
     sign_in(client, session, ActorType.PLATFORM, admin.id)
     company = client.post(
@@ -195,17 +194,12 @@ def test_the_offer_carries_the_meet_link_and_a_calendar_invite(
     ).json()
     programme = client.post(
         "/programmes",
-        json={
-            "company_id": company["id"],
-            "role_id": str(seeded.id),
-            "title": "Offer invite test",
-            "slug": "cal-offer",
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
-            "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-            "problem_statement": "Test problem",
-            "deliverable_spec": "Test deliverable",
-        },
+        json=programme_payload(
+            company["id"],
+            seeded.id,
+            title="Offer invite test",
+            slug="cal-offer",
+        ),
     ).json()
     programme_id = programme["id"]
 
@@ -240,14 +234,9 @@ def test_the_offer_carries_the_meet_link_and_a_calendar_invite(
     )
     assert prog.kickoff_meet_link in offer.payload["html_body"]
     assert "Offer invite test" in offer.payload["html_body"]
-
-    invited = [
-        c
-        for c in google.calls_of("patch_event_attendees")
-        if c.payload["event_id"] == prog.kickoff_event_id
-        and any(a.email == "sam-offer@gmail.com" for a in c.payload.get("add") or [])
-    ]
-    assert invited, "an offered applicant is on the kickoff event before accepting"
+    assert "14:00" in offer.payload["html_body"]
+    assert "calendar invite" not in offer.payload["html_body"].lower()
+    assert google.calls_of("patch_event_attendees") == []
 
 
 def test_republish_does_not_create_duplicate_event(
@@ -266,17 +255,12 @@ def test_republish_does_not_create_duplicate_event(
     ).json()
     programme = client.post(
         "/programmes",
-        json={
-            "company_id": company["id"],
-            "role_id": str(seeded.id),
-            "title": "Idempotent test",
-            "slug": "cal-idem",
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
-            "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-            "problem_statement": "Test",
-            "deliverable_spec": "Test",
-        },
+        json=programme_payload(
+            company["id"],
+            seeded.id,
+            title="Idempotent test",
+            slug="cal-idem",
+        ),
     ).json()
     programme_id = programme["id"]
 

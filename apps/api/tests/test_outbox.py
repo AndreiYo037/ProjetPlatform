@@ -220,6 +220,7 @@ def test_importing_the_worker_alone_registers_every_handler():
         "password_reset_email",
         "application_received_email",
         "offer_email",
+        "offer_kickoff_invite",
         "waitlist_email",
         "rejection_email",
         "welcome_email",

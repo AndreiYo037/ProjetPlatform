@@ -20,7 +20,6 @@ from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType
 from projet.outbox.application_effects import (
     OFFER_EMAIL,
-    OFFER_KICKOFF_INVITE,
     REJECTION_EMAIL,
     WAITLIST_EMAIL,
 )
@@ -125,15 +124,6 @@ def make_offer(
             )
         },
     )
-
-    programme = session.get(Programme, application.programme_id)
-    if programme is not None and programme.kickoff_event_id:
-        enqueue(
-            session,
-            subject_type=OutboxSubjectType.APPLICATION,
-            subject_id=application.id,
-            effect_type=OFFER_KICKOFF_INVITE,
-        )
     return application
 
 
@@ -197,7 +187,7 @@ def accept_offer(session: Session, token: str) -> Participant:
     session.add(participant)
     session.flush()
 
-    from projet.outbox.provisioning import assign_judging_session, enqueue_provisioning_chain
+    from projet.outbox.provisioning import assign_judging_session
     from projet.services.pitch import ensure_free_pitch_slot
     from projet.services.teams import ensure_submission, ensure_team_for_participant
 
@@ -205,11 +195,6 @@ def accept_offer(session: Session, token: str) -> Participant:
     ensure_submission(session, team)
     assign_judging_session(session, participant)
     ensure_free_pitch_slot(session, programme)
-    enqueue_provisioning_chain(
-        session,
-        participant,
-        kickoff_event_id=programme.kickoff_event_id,
-    )
     session.flush()
     return participant
 

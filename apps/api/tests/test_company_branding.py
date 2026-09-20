@@ -24,7 +24,7 @@ from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.storage import get_storage
-from tests.conftest import next_end, next_kickoff
+from tests.conftest import scheduled
 
 PNG = bytes.fromhex(
     "89504e470d0a1a0a0000000d4948445200000001000000010802000000907753"
@@ -159,8 +159,7 @@ def test_the_logo_reaches_the_public_listing_and_the_directory(
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 views, plus a half-page memo.",
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
         },
     )
     assert created.status_code == 201, created.text

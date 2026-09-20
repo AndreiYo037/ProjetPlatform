@@ -95,8 +95,8 @@ def google_email_warning(email: str | None) -> str | None:
     domain = normalised.split("@", 1)[1]
     if any(domain.startswith(bad) for bad in NON_GOOGLE_DOMAINS):
         return (
-            f"{domain} is usually not a Google account. Projet sends Calendar invites "
-            "and Meet links to this address, so it needs to be the Google account you "
+            f"{domain} is usually not a Google account. Projet sends Meet links "
+            "to this address, so it needs to be the Google account you "
             "will actually use."
         )
     return None

@@ -78,6 +78,8 @@ class Programme(Base):
         enum_column(ProgrammeStatus), default=ProgrammeStatus.DRAFT
     )
 
+    # The company picks the clock time; it is always on the start date.
+    kickoff_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     kickoff_event_id: Mapped[str | None] = mapped_column(String(300))
     kickoff_meet_link: Mapped[str | None] = mapped_column(Text)
 

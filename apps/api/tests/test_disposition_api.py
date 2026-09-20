@@ -29,7 +29,7 @@ from projet.models import CompanyUser, PlatformUser, Role
 from projet.models.enums import ActorType, CompanyUserRole
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, hash_password, start_session
-from tests.conftest import next_end, next_kickoff
+from tests.conftest import scheduled
 
 
 @pytest.fixture
@@ -77,8 +77,7 @@ def rig(client, session, admin, role) -> dict:
             "role_id": str(role.id),
             "title": "Churn dashboard",
             "slug": "churn",
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 views, plus a half-page memo.",

@@ -25,7 +25,7 @@ from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.writeup import _first_sentence, derive_writeup_prompt, writeup_prompt_for
-from tests.conftest import next_end, next_kickoff
+from tests.conftest import scheduled
 
 
 @pytest.fixture
@@ -73,8 +73,7 @@ def listing(client, session, admin, role) -> dict:
             "role_id": str(role.id),
             "title": "Churn dashboard",
             "slug": "churn",
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 views, plus a half-page memo.",

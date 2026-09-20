@@ -54,6 +54,7 @@ from projet.services.rubric import (
 from projet.services.schedule import (
     ScheduleError,
     bind_dates,
+    bind_kickoff,
 )
 from projet.storage import get_storage
 
@@ -78,6 +79,10 @@ class ProgrammeCreate(BaseModel):
         default=None,
         description="Last day. Stored as 23:59 in the programme timezone.",
     )
+    kickoff_at: datetime | None = Field(
+        default=None,
+        description="Kickoff call time. Stored on the start date in the programme timezone.",
+    )
     # Usually filled in later, from a draft the company accepts and edits. They
     # are accepted here so a caller who already knows the brief is not forced
     # through a second request to say so.
@@ -98,6 +103,7 @@ class ProgrammeUpdate(BaseModel):
     applications_close_at: datetime | None = None
     start_at: datetime | None = None
     submit_deadline_at: datetime | None = None
+    kickoff_at: datetime | None = None
     winners_count: int | None = None
 
 
@@ -263,6 +269,7 @@ def create_programme(
         start_at, end_at, close_at = bind_dates(
             payload.start_at, payload.submit_deadline_at, payload.applications_close_at
         )
+        kickoff_at = bind_kickoff(start_at, payload.kickoff_at)
     except ScheduleError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
@@ -279,6 +286,7 @@ def create_programme(
         applications_close_at=close_at,
         start_at=start_at,
         submit_deadline_at=end_at,
+        kickoff_at=kickoff_at,
         problem_statement=payload.problem_statement,
         deliverable_spec=payload.deliverable_spec,
         winners_count=payload.winners_count,
@@ -346,6 +354,13 @@ def update_programme(
         programme.submit_deadline_at = end_at
         if programme.applications_close_at is not None:
             programme.applications_close_at = close_at
+
+    if {"start_at", "kickoff_at"} & changes.keys():
+        try:
+            programme.kickoff_at = bind_kickoff(programme.start_at, programme.kickoff_at)
+        except ScheduleError as error:
+            db.rollback()
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
     if programme.pitch_starts_at and programme.pitch_duration_minutes:
         from projet.services.pitch import PitchError, sync_pitch_schedule
@@ -417,8 +432,9 @@ def publication_check(
 def _setup_problems(programme: Programme) -> list[str]:
     """What blocks this from going live.
 
-    Start and end dates are the hard block: the apply form's commitment
-    checkbox has no days to name without them. The problem statement,
+    Start and end dates and the kickoff time are the hard block: the apply
+    form's commitment checkbox has no days to name without the dates, and the
+    kickoff Meet has no clock without the time. The problem statement,
     deliverable and applications-close date are left to the company's
     judgement instead of enforced here — a company can publish a bare-bones
     shell to test the pipeline end to end and fill in the brief before a real
@@ -430,6 +446,8 @@ def _setup_problems(programme: Programme) -> list[str]:
         problems.append("No start date has been picked.")
     if programme.submit_deadline_at is None:
         problems.append("No end date has been picked.")
+    if programme.kickoff_at is None:
+        problems.append("No kickoff time has been picked.")
     return problems
 
 
@@ -454,9 +472,9 @@ def publish_programme(
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
     """FR-075 — validation blocks publication with an incomplete rubric, and
-    the start and end dates run again here, because the company is not the
-    only caller. The brief and applications-close date are the company's
-    judgement call, not a gate — see _setup_problems.
+    the start and end dates and kickoff time run again here, because the
+    company is not the only caller. The brief and applications-close date are
+    the company's judgement call, not a gate — see _setup_problems.
     """
     setup = _setup_problems(programme)
     if setup:

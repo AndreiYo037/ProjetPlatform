@@ -37,8 +37,7 @@ function OfferActions() {
       <div className="notice good">
         <strong>You&rsquo;re confirmed for {state.title}.</strong>
         <p className="small" style={{ margin: "0.5rem 0 0" }}>
-          Calendar invites for kickoff, the deadline and your judging session are on their
-          way.
+          You&rsquo;re on the programme. Times and Meet links are on your dashboard.
         </p>
       </div>
     );
@@ -55,8 +54,7 @@ function OfferActions() {
   return (
     <>
       <p>
-        Accepting confirms your place and sends your calendar invites. The offer expires 48
-        hours after it was sent.
+        Accepting confirms your place. The offer expires 48 hours after it was sent.
       </p>
       {error && <div className="notice bad">{error}</div>}
       <div className="row">

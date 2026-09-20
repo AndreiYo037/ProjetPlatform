@@ -1675,7 +1675,7 @@
           "programmes"
         ],
         "summary": "Publish Programme",
-        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric, and\nthe start and end dates run again here, because the company is not the\nonly caller. The brief and applications-close date are the company's\njudgement call, not a gate \u2014 see _setup_problems.",
+        "description": "FR-075 \u2014 validation blocks publication with an incomplete rubric, and\nthe start and end dates and kickoff time run again here, because the\ncompany is not the only caller. The brief and applications-close date are\nthe company's judgement call, not a gate \u2014 see _setup_problems.",
         "operationId": "publish_programme_programmes__programme_id__publish_post",
         "parameters": [
           {
@@ -3500,7 +3500,7 @@
           "public"
         ],
         "summary": "Platform Directory",
-        "description": "FR-105 \u2014 every active programme across companies, for a browse page.\n\nActive means the week is not over yet: both accepting applications (`open`)\nand still running with applications shut (`closed`). Complete programmes\ndrop off. The single-company listing above also shows complete ones, since\na company's own careers page is a different audience.",
+        "description": "FR-105 \u2014 every active programme across companies, for a browse page.\n\nActive means the week is not over yet: both accepting applications (`open`)\nand still running with applications shut (`closed`). A programme the company\nhas closed out, or whose week is over, drops off. The single-company\nlisting above also shows complete ones, since a company's own careers page\nis a different audience.",
         "operationId": "platform_directory_public_challenges_get",
         "parameters": [
           {
@@ -8858,6 +8858,18 @@
             ],
             "title": "Submit Deadline At"
           },
+          "kickoff_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff At"
+          },
           "pitch_starts_at": {
             "anyOf": [
               {
@@ -9038,6 +9050,19 @@
             "title": "Submit Deadline At",
             "description": "Last day. Stored as 23:59 in the programme timezone."
           },
+          "kickoff_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff At",
+            "description": "Kickoff call time. Stored on the start date in the programme timezone."
+          },
           "problem_statement": {
             "anyOf": [
               {
@@ -9159,6 +9184,18 @@
               }
             ],
             "title": "Submit Deadline At"
+          },
+          "kickoff_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff At"
           },
           "pitch_at": {
             "anyOf": [
@@ -9386,6 +9423,18 @@
             ],
             "title": "Submit Deadline At"
           },
+          "kickoff_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff At"
+          },
           "pitch_at": {
             "anyOf": [
               {
@@ -9579,6 +9628,18 @@
               }
             ],
             "title": "Submit Deadline At"
+          },
+          "kickoff_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff At"
           },
           "winners_count": {
             "anyOf": [
@@ -10233,6 +10294,18 @@
               }
             ],
             "title": "Submit Deadline At"
+          },
+          "kickoff_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kickoff At"
           },
           "pitch_at": {
             "anyOf": [

@@ -1,8 +1,8 @@
 """Calendar event creation for programme milestones.
 
-The kickoff event is created when a programme is published (start_at is
-confirmed at that point) and stored on the programme. Accepted participants
-are added as attendees via the provisioning chain's KICKOFF_INVITE effect.
+Kickoff and pitching Meets are created when those dates are set. Participants
+are not added as attendees — they get the Meet link in email and on the
+dashboard.
 """
 
 from __future__ import annotations
@@ -13,40 +13,33 @@ from sqlalchemy.orm import Session
 
 from projet.integrations.google.client import EventSpec, get_google_client
 from projet.models import Company, Programme
-from projet.services.schedule import kickoff_meeting_at
+from projet.services.schedule import KICKOFF_DURATION_HOURS, bind_kickoff
 
 
 def ensure_kickoff_event(session: Session, programme: Programme) -> str | None:
     """Create the kickoff Calendar event if it doesn't exist yet.
 
-    Returns the event_id, or None if the programme has no start_at.
+    Returns the event_id, or None if the kickoff time has not been picked.
     """
     if programme.kickoff_event_id:
         return programme.kickoff_event_id
-    if programme.start_at is None:
+    meeting = bind_kickoff(programme.start_at, programme.kickoff_at)
+    if meeting is None:
         return None
 
     company = session.get(Company, programme.company_id)
     company_name = company.name if company else "a company"
 
-    meeting = kickoff_meeting_at(programme.start_at)
     google = get_google_client()
     result = google.create_event(
         EventSpec(
             summary=f"Kickoff — {programme.title} ({company_name})",
             starts_at=meeting,
-            ends_at=meeting + timedelta(hours=1),
+            ends_at=meeting + timedelta(hours=KICKOFF_DURATION_HOURS),
             description=(
                 f"Kickoff call for {programme.title}.\n\n"
                 f"Company: {company_name}\n"
-                "You'll get the brief, meet the team, and ask questions.\n\n"
-                # The invite reaches people who have been offered a place but
-                # not yet taken it, and Yes here is an RSVP to Google, nothing
-                # more. Said on the invite itself because this is the screen
-                # where the mistake gets made.
-                "If you have been offered a place and not yet accepted it, "
-                "replying Yes here does not confirm it. Use the Accept link in "
-                "your offer email."
+                "You'll get the brief, meet the team, and ask questions."
             ),
             with_meet=True,
         )

@@ -19,7 +19,7 @@ import {
   type ProgrammeDetail,
   type SeatsOut,
 } from "@/lib/api";
-import { formatSlot } from "@/lib/dates";
+import { formatSlot, formatSlotTime } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 const CRITERIA = ["relevance", "specificity", "capability", "followthrough"] as const;
@@ -204,6 +204,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
           programmeId={programme.id}
           variant="company"
           kickoffMeetLink={programme.kickoff_meet_link}
+          kickoffAt={programme.kickoff_at}
         />
       )}
 
@@ -426,6 +427,12 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
               <dt>Starts</dt>
               <dd>{formatDay(programme.start_at, "00:00")}</dd>
+              <dt>Kickoff</dt>
+              <dd>
+                {programme.kickoff_at
+                  ? `${formatDay(programme.kickoff_at, formatSlotTime(programme.kickoff_at) ?? "")}`
+                  : "Not set"}
+              </dd>
               <dt>Ends</dt>
               <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
               {programme.kickoff_meet_link && (

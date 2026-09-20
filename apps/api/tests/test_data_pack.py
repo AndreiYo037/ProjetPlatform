@@ -23,7 +23,7 @@ from projet.models import DataPackResource, PlatformUser, Programme, Role
 from projet.models.enums import ActorType, Provenance
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import make_participant, next_end, next_kickoff
+from tests.conftest import make_participant, scheduled
 
 
 @pytest.fixture
@@ -75,8 +75,7 @@ def programme_id(client, session, admin, role_id) -> str:
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 views, plus a half-page memo.",
             "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
         },
     )
     assert created.status_code == 201, created.text

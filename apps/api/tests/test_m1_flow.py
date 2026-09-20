@@ -23,7 +23,7 @@ from projet.models.enums import ActorType
 from projet.outbox.worker import run_once
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from tests.conftest import next_end, next_kickoff
+from tests.conftest import scheduled
 
 
 @pytest.fixture
@@ -98,8 +98,7 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
             "slug": "churn",
             "capacity": 1,
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
@@ -315,8 +314,7 @@ def test_the_writeup_has_no_word_range(client, session, admin, seeded):
             "title": "Words",
             "slug": "words-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
@@ -364,8 +362,7 @@ def test_an_application_can_decline_both_consents(client, session, admin, seeded
             "title": "Consent",
             "slug": "consent-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },
@@ -419,8 +416,7 @@ def test_a_non_google_address_warns_without_blocking(client, session, admin, see
             "title": "Warn",
             "slug": "warn-prog",
             "applications_close_at": (now + timedelta(days=2)).isoformat(),
-            "start_at": next_kickoff().isoformat(),
-            "submit_deadline_at": next_end().isoformat(),
+            **scheduled(),
             "problem_statement": "How can Acme cut avoidable churn in its SME tier?",
             "deliverable_spec": "A dashboard with 3-4 decision-relevant views, plus a half-page memo.",
         },

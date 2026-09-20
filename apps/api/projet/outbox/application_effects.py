@@ -80,6 +80,13 @@ def offer_email(ctx: EffectContext) -> dict:
     if programme and programme.start_at:
         kickoff_date = programme.start_at.strftime("%A %d %B")
         kickoff_line = f"<p><strong>Starts:</strong> {kickoff_date}</p>"
+        if programme.kickoff_at:
+            from projet.services.schedule import in_programme_tz
+
+            when = in_programme_tz(programme.kickoff_at)
+            kickoff_line += (
+                f"<p><strong>Kickoff:</strong> {when.strftime('%A %d %B, %H:%M')} SGT</p>"
+            )
         if programme.kickoff_meet_link:
             # The URL is its own visible text: someone joining from a phone, a
             # plain-text client, or a forwarded copy needs the address itself,
@@ -105,13 +112,6 @@ def offer_email(ctx: EffectContext) -> dict:
             f"{pitch_line}"
             f'<p><a href="{url}"><strong>Accept your place</strong></a> — '
             f"this expires {expires}.</p>"
-            # The calendar invite arrives before acceptance so the dates can be
-            # checked against their own diary. That makes it look like the seat
-            # is already theirs, so the email has to say plainly that it is not:
-            # RSVPing to Google is not accepting, and the seat can still go.
-            "<p>You will also have a calendar invite for the kickoff. Replying "
-            "<em>Yes</em> to it does not take the place — only the link above "
-            "does. Until then the seat can go to someone else.</p>"
         ),
         thread_id=_thread_id(ctx, application),
     )
@@ -120,25 +120,8 @@ def offer_email(ctx: EffectContext) -> dict:
 
 @effect(OFFER_KICKOFF_INVITE)
 def offer_kickoff_invite(ctx: EffectContext) -> dict:
-    """The Calendar invite goes out with the offer, not on acceptance.
-
-    Someone deciding whether to take a place needs the kickoff already sitting
-    in their calendar to check it against. Accepting later adds nothing: they
-    are already on the event.
-    """
-    from projet.integrations.google.client import Attendee
-
-    application = _application(ctx)
-    programme, _ = _context(ctx, application)
-    if programme is None or not programme.kickoff_event_id:
-        raise PermanentEffectError("programme has no kickoff event to invite to")
-
-    person = application.person
-    ctx.google.patch_event_attendees(
-        programme.kickoff_event_id,
-        add=[Attendee(email=person.google_email or person.contact_email, display_name=person.name)],
-    )
-    return {"event_id": programme.kickoff_event_id}
+    """No longer sent. Meet links are in the offer email, not Calendar invites."""
+    return {"skipped": True}
 
 
 @effect(WAITLIST_EMAIL)

@@ -100,6 +100,24 @@ def test_a_programme_stays_active_until_its_deadline_passes():
     assert schedule.programme_is_past(no_dates_complete, now) is True
 
 
+def test_kickoff_is_the_time_the_company_picked_on_the_start_date():
+    start = datetime(2026, 10, 8, 0, 0, tzinfo=SGT)
+    picked = datetime(2026, 10, 1, 14, 30, tzinfo=SGT)
+    meeting = schedule.bind_kickoff(start, picked)
+    local = meeting.astimezone(SGT)
+    assert local.date() == start.date()
+    assert (local.hour, local.minute) == (14, 30)
+
+
+def test_kickoff_without_a_start_date_is_an_error():
+    with pytest.raises(schedule.ScheduleError):
+        schedule.bind_kickoff(None, thursday())
+
+
+def test_no_kickoff_time_is_not_a_schedule_error():
+    assert schedule.bind_kickoff(thursday(), None) is None
+
+
 def test_pitch_day_begins_at_midnight_on_the_pitch_date():
     first_slot = datetime(2026, 9, 23, 14, 0, tzinfo=SGT)
     begins = schedule.pitch_day_begins_at(first_slot)

@@ -1,19 +1,8 @@
 """The provisioning chain (FR-1400), fired on offer_accepted.
 
-Each step is a separate outbox row. That is the whole point: if step 2 times
-out, step 1 is already DONE and will not re-send when the sweep retries.
-
-  1. participant record and submission slots        (in-process, not an effect)
-  2. patch kickoff Calendar event with attendee
-  3. patch deadline-marker Calendar event
-  3a. assign judging session and run-order slot, patch that session's event
-  4. increment confirmed count
-
-The "You're in" email is the offer, not a second note on accept. Calendar
-invites are the only mail this chain still owes.
-
-Steps 2, 3 and 3a are the ones that leave the building, so they are the ones
-that live here.
+Participants are not added to Calendar events. Meet links go in email; joining
+is from the dashboard. Invite handlers stay registered so any already-queued
+row drains without mailing Google again.
 """
 
 from __future__ import annotations
@@ -22,8 +11,7 @@ import uuid
 
 from sqlalchemy import func, select
 
-from projet.integrations.google.client import Attendee
-from projet.models import JudgingSession, Participant, Person, Programme
+from projet.models import JudgingSession, Participant, Programme
 from projet.outbox.effects import EffectContext, PermanentEffectError, effect
 from projet.services.pitch import is_pickable_grid
 
@@ -46,47 +34,22 @@ def _participant(ctx: EffectContext) -> Participant:
     return participant
 
 
-def _attendee(person: Person) -> Attendee:
-    # The Google account, not the contact address: the Calendar invite has to
-    # land on an account that can open Meet (FR-204).
-    return Attendee(email=person.google_email or person.contact_email, display_name=person.name)
-
-
-def _patch_named_event(ctx: EffectContext, event_key: str) -> dict:
-    event_id = ctx.payload.get(event_key)
-    if not event_id:
-        raise PermanentEffectError(f"no {event_key} on payload; nothing to patch")
-    participant = _participant(ctx)
-    ctx.google.patch_event_attendees(event_id, add=[_attendee(participant.person)])
-    return {"event_id": event_id}
-
-
 @effect(KICKOFF_INVITE)
 def kickoff_invite(ctx: EffectContext) -> dict:
-    return _patch_named_event(ctx, "kickoff_event_id")
+    """No longer sent. Meet links are in email, not Calendar invites."""
+    return {"skipped": True}
 
 
 @effect(DEADLINE_MARKER_INVITE)
 def deadline_marker_invite(ctx: EffectContext) -> dict:
-    """The deadline marker carries Calendar's own 24h reminder, which is what
-    actually stops a participant missing the deadline — Projet sends nothing."""
-    return _patch_named_event(ctx, "deadline_event_id")
+    """No longer sent. Participants are not added to Calendar events."""
+    return {"skipped": True}
 
 
 @effect(JUDGING_SESSION_INVITE)
 def judging_session_invite(ctx: EffectContext) -> dict:
-    """FR-811b — the session is assigned at acceptance, so the invite goes out
-    now and the day-6 to day-7 gap has no human step in it."""
-    participant = _participant(ctx)
-    if participant.judging_session_id is None:
-        raise PermanentEffectError("participant has no judging session assigned")
-    session_row = ctx.session.get(JudgingSession, participant.judging_session_id)
-    if session_row is None or not session_row.google_event_id:
-        raise PermanentEffectError("judging session has no Calendar event yet")
-    ctx.google.patch_event_attendees(
-        session_row.google_event_id, add=[_attendee(participant.person)]
-    )
-    return {"event_id": session_row.google_event_id, "run_order": participant.run_order}
+    """No longer sent. Slot and Meet are on the dashboard and in the 00:00 mail."""
+    return {"skipped": True}
 
 
 @effect(PITCH_SLOT_EMAIL)
@@ -124,16 +87,8 @@ def welcome_email(ctx: EffectContext) -> dict:
 
 @effect(SESSION_REMOVAL)
 def judging_session_removal(ctx: EffectContext) -> dict:
-    """FR-811c — non-submitters come off their session at the deadline and the
-    remaining slots close up, with sendUpdates externalOnly so the cohort is
-    not re-notified."""
-    participant = _participant(ctx)
-    event_id = ctx.payload.get("event_id")
-    email = ctx.payload.get("email") or participant.person.contact_email
-    if not event_id:
-        raise PermanentEffectError("no event_id on payload")
-    ctx.google.patch_event_attendees(event_id, remove=[email])
-    return {"event_id": event_id, "removed": email}
+    """No longer sent. Participants were never on the Calendar event."""
+    return {"skipped": True}
 
 
 def _default_pitch_html(name: str) -> str:
@@ -239,62 +194,13 @@ def enqueue_provisioning_chain(
     kickoff_event_id: str | None = None,
     deadline_event_id: str | None = None,
 ) -> list:
-    """Queue the whole chain for one acceptance."""
-    from projet.models.enums import OutboxSubjectType
-    from projet.outbox.effects import enqueue
-
-    rows = []
-    if kickoff_event_id:
-        rows.append(
-            enqueue(
-                session,
-                subject_type=OutboxSubjectType.PARTICIPANT,
-                subject_id=participant.id,
-                participant_id=participant.id,
-                effect_type=KICKOFF_INVITE,
-                payload={"kickoff_event_id": kickoff_event_id},
-            )
-        )
-    if deadline_event_id:
-        rows.append(
-            enqueue(
-                session,
-                subject_type=OutboxSubjectType.PARTICIPANT,
-                subject_id=participant.id,
-                participant_id=participant.id,
-                effect_type=DEADLINE_MARKER_INVITE,
-                payload={"deadline_event_id": deadline_event_id},
-            )
-        )
-    if participant.judging_session_id:
-        rows.append(
-            enqueue(
-                session,
-                subject_type=OutboxSubjectType.PARTICIPANT,
-                subject_id=participant.id,
-                participant_id=participant.id,
-                effect_type=JUDGING_SESSION_INVITE,
-            )
-        )
-    return rows
+    """Acceptance used to queue Calendar attendee patches. Those are gone."""
+    return []
 
 
 def enqueue_pitch_booking(session, participant: Participant, row: JudgingSession) -> list:
-    """Add them to the session Calendar event. No email — that waits for 00:00."""
-    from projet.models.enums import OutboxSubjectType
-    from projet.outbox.effects import enqueue
-
-    if not row.google_event_id:
-        return []
-    return [
-        enqueue(
-            session,
-            subject_type=OutboxSubjectType.PARTICIPANT,
-            subject_id=participant.id,
-            participant_id=participant.id,
-            effect_type=JUDGING_SESSION_INVITE,
-        )
-    ]
+    """Slot is booked in-app. Meet is on the dashboard and in the 00:00 mail."""
+    return []
 
 
 def assign_judging_session(session, participant: Participant) -> JudgingSession | None:

@@ -25,7 +25,7 @@ import {
   type ProgrammeDetail,
   type PublicationCheck,
 } from "@/lib/api";
-import { fromDateInput, toDateInput } from "@/lib/dates";
+import { fromDateInput, fromTimeOnDate, formatSlotTime, toDateInput, toTimeInput } from "@/lib/dates";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
@@ -188,6 +188,7 @@ export default function ChallengeDetailPage({
           programmeId={programme.id}
           variant="company"
           kickoffMeetLink={programme.kickoff_meet_link}
+          kickoffAt={programme.kickoff_at}
         />
       )}
 
@@ -316,6 +317,7 @@ function ScheduleSection({
   const [capacity, setCapacity] = useState(String(programme.capacity ?? ""));
   const [appsCloseAt, setAppsCloseAt] = useState(toDateInput(programme.applications_close_at));
   const [startAt, setStartAt] = useState(toDateInput(programme.start_at));
+  const [kickoffTime, setKickoffTime] = useState(toTimeInput(programme.kickoff_at));
   const [endAt, setEndAt] = useState(toDateInput(programme.submit_deadline_at));
 
   const draft = {
@@ -323,6 +325,7 @@ function ScheduleSection({
     capacity,
     appsCloseAt,
     startAt,
+    kickoffTime,
     endAt,
   };
   const baseline = {
@@ -330,6 +333,7 @@ function ScheduleSection({
     capacity: String(programme.capacity ?? ""),
     appsCloseAt: toDateInput(programme.applications_close_at),
     startAt: toDateInput(programme.start_at),
+    kickoffTime: toTimeInput(programme.kickoff_at),
     endAt: toDateInput(programme.submit_deadline_at),
   };
 
@@ -343,6 +347,7 @@ function ScheduleSection({
         applications_close_at: fromDateInput(next.appsCloseAt),
         start_at: fromDateInput(next.startAt),
         submit_deadline_at: fromDateInput(next.endAt),
+        kickoff_at: fromTimeOnDate(next.startAt, next.kickoffTime),
       });
       onSaved();
     },
@@ -370,6 +375,12 @@ function ScheduleSection({
           <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
           <dt>Starts</dt>
           <dd>{formatDay(programme.start_at, "00:00")}</dd>
+          <dt>Kickoff</dt>
+          <dd>
+            {programme.kickoff_at
+              ? formatDay(programme.kickoff_at, formatSlotTime(programme.kickoff_at) ?? "")
+              : "Not set"}
+          </dd>
           <dt>Ends</dt>
           <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
         </dl>
@@ -422,6 +433,17 @@ function ScheduleSection({
             onChange={(e) => setStartAt(e.target.value)}
           />
           <p className="small muted">00:00 on that day.</p>
+        </div>
+        <div className="field" style={{ flex: 1 }}>
+          <label htmlFor="edit-kickoff">Kickoff</label>
+          <input
+            id="edit-kickoff"
+            type="time"
+            value={kickoffTime}
+            onChange={(e) => setKickoffTime(e.target.value)}
+            disabled={!startAt}
+          />
+          <p className="small muted">On the start date, SGT. One hour. Required to publish.</p>
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label htmlFor="edit-end">Ends</label>

@@ -14,6 +14,7 @@ import {
   postReply,
   type ThreadOut,
 } from "@/lib/api";
+import { formatSlot } from "@/lib/dates";
 
 /**
  * The programme channel.
@@ -95,11 +96,13 @@ export default function Channel({
   programmeId,
   variant = "participant",
   kickoffMeetLink = null,
+  kickoffAt = null,
   onChange,
 }: {
   programmeId: string;
   variant?: Variant;
   kickoffMeetLink?: string | null;
+  kickoffAt?: string | null;
   onChange?: () => void;
 }) {
   const [threads, setThreads] = useState<ThreadOut[] | null>(null);
@@ -164,6 +167,7 @@ export default function Channel({
   // Reading one announcement still means you are in the announcements channel.
   const inAnnouncements =
     !composing && (openId === ANNOUNCEMENTS || Boolean(open && isBroadcast(open)));
+  const kickoffWhen = formatSlot(kickoffAt);
 
   return (
     <div className="chat" data-pane={pane}>
@@ -229,7 +233,8 @@ export default function Channel({
       <div className="chat-main">
         {kickoffMeetLink && (
           <p className="chat-meet small">
-            Kick-off.{" "}
+            Kick-off
+            {kickoffWhen ? ` ${kickoffWhen} SGT` : ""}.{" "}
             <a
               href={externalHref(kickoffMeetLink) ?? kickoffMeetLink}
               target="_blank"
