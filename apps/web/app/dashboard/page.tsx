@@ -332,10 +332,10 @@ function PitchSection({
 
       <h2>How you're judged</h2>
       <p className="small muted">
-        The four criteria every pitch is scored against, with what each score means.
+        The criteria every pitch is scored against, with what each score means.
       </p>
       {data.criteria.map((criterion) => (
-        <div className="rubric" key={criterion.slot}>
+        <div className="rubric" key={String(criterion.slot)}>
           <strong>{criterion.name}</strong>
           <div className="anchors">
             <div>

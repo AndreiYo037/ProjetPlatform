@@ -12,11 +12,10 @@ students with no job to point at, and a question that reads as "list your
 professional experience" loses exactly the people this platform exists to
 reach — before anyone has seen what they can do.
 
-The role's own rubric supplies that vocabulary. Slots 2 and 3 are what a judge
-will actually mark the pitch on, so asking the applicant to speak to those same
-two things means the form and the scoring card agree on what matters. Deriving
-the prompt rather than storing a copy per role is what keeps them agreeing: an
-edited rubric changes the question on the form the same day.
+The role's own rubric still colours question 4, so the form and the scoring
+card agree on what they most want to get better at. Question 2 is the same
+for every role: something they have already done that is similar to this
+challenge, said so a student with no job can still answer.
 
 Question 3 quotes the deliverable the company wrote on the programme. The
 role default is only used before they have.
@@ -27,7 +26,10 @@ own wording - which is what `RoleTemplate.writeup_prompt` is for.
 
 from __future__ import annotations
 
-from projet.models import Role, RoleTemplate
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from projet.models import Programme, Role, RoleTemplate, RubricCriterion
 
 
 def _first_sentence(text: str) -> str:
@@ -46,16 +48,6 @@ COUNTS_AS_EXPERIENCE = (
     "A class project, a club, a hackathon, volunteering, or something you "
     "built for yourself all count — it does not have to be a job."
 )
-
-# Judge labels that read as jargon on an apply form.
-_PLAIN_SLOT2 = {
-    "system honesty": "what worked and what didn't",
-}
-
-
-def _slot2_in_plain_english(name: str) -> str:
-    key = " ".join(name.lower().split())
-    return _PLAIN_SLOT2.get(key, key)
 
 
 def _point_3(deliverable: str | None) -> str:
@@ -80,6 +72,100 @@ def _point_3(deliverable: str | None) -> str:
     )
 
 
+def writeup_prompt_for_programme(
+    *,
+    role_names: list[str],
+    craft3: list[str],
+    deliverable: str | None = None,
+    template_override: str | None = None,
+) -> str:
+    """Four questions. Question 2 is the same for every role; question 4 uses
+    the craft names from the scorecard when there are several."""
+    if template_override and len(role_names) <= 1:
+        return template_override.strip()
+
+    if len(role_names) <= 1:
+        label = role_names[0] if role_names else "this role"
+        intro = f"This is a {label} challenge."
+    else:
+        intro = f"This is a {join_names(role_names)} challenge."
+
+    spec = (deliverable or "").strip()
+    slot3 = _join_crafts(craft3)
+
+    lines = [
+        f"{intro} There are four questions below. "
+        "A few sentences each is plenty, and plain language is fine — we are "
+        "reading for what you have actually done and how you think, not for "
+        "polish.",
+        "",
+        "1. Why this problem? Tell us what draws you to this company and this "
+        "brief in particular, and anything you already know about it.",
+        "2. Tell us about something you have already done that is similar to "
+        f"this challenge. {COUNTS_AS_EXPERIENCE} What was the work, "
+        "what did you personally do, and how did it turn out?",
+        _point_3(spec),
+    ]
+    if slot3:
+        lines.append(
+            f"4. What do you most want to get better at this week? That might "
+            f"be {slot3.lower()}, or something else entirely. Naming something "
+            "real tells us more than saying nothing."
+        )
+    else:
+        lines.append(
+            "4. What do you most want to get better at this week? Naming "
+            "something real tells us more than saying nothing."
+        )
+    return "\n".join(lines)
+
+
+def join_names(names: list[str]) -> str:
+    """'A', 'A and B', 'A, B, and C'."""
+    cleaned = [name.strip() for name in names if name and name.strip()]
+    if not cleaned:
+        return ""
+    if len(cleaned) == 1:
+        return cleaned[0]
+    if len(cleaned) == 2:
+        return f"{cleaned[0]} and {cleaned[1]}"
+    return ", ".join(cleaned[:-1]) + f", and {cleaned[-1]}"
+
+
+def writeup_prompt_from_programme(session: Session, programme: Programme) -> str:
+    """The apply-form questions, using every role's craft names on this brief."""
+    from projet.services.rubric import programme_role_ids
+
+    role_ids = programme_role_ids(session, programme)
+    role_names: list[str] = []
+    for role_id in role_ids:
+        role = session.get(Role, role_id)
+        if role is not None:
+            role_names.append(role.name)
+    criteria = list(
+        session.scalars(
+            select(RubricCriterion)
+            .where(RubricCriterion.programme_id == programme.id)
+            .order_by(RubricCriterion.slot)
+        )
+    )
+    override = None
+    if len(role_ids) <= 1 and role_ids:
+        template = session.get(RoleTemplate, role_ids[0])
+        if template is not None and (template.writeup_prompt or "").strip():
+            override = template.writeup_prompt.strip()
+    return writeup_prompt_for_programme(
+        role_names=role_names,
+        craft3=[c.name for c in criteria if c.family == 3],
+        deliverable=programme.deliverable_spec,
+        template_override=override,
+    )
+
+
+def _join_crafts(names: list[str]) -> str:
+    return join_names(names)
+
+
 def derive_writeup_prompt(
     role: Role | None,
     template: RoleTemplate | None,
@@ -87,49 +173,12 @@ def derive_writeup_prompt(
     deliverable: str | None = None,
 ) -> str:
     """Four questions, one per scoring dimension, phrased for this role."""
-    role_name = role.name if role else "this role"
-    # The company writes the deliverable on the programme. The role default is
-    # only a stand-in before they have.
-    spec = (deliverable or "").strip()
-    if not spec and template is not None:
-        spec = _first_sentence(template.default_deliverable)
-
-    lines = [
-        f"This is a {role_name} challenge. There are four questions below. "
-        "A few sentences each is plenty, and plain language is fine — we are "
-        "reading for what you have actually done and how you think, not for "
-        "polish.",
-        "",
-        "1. Why this problem? Tell us what draws you to this company and this "
-        "brief in particular, and anything you already know about it.",
-    ]
-
-    if template is not None:
-        lines.append(
-            f"2. Tell us about something you have already done that shows "
-            f"{_slot2_in_plain_english(template.rubric_slot2_name)}. "
-            f"{COUNTS_AS_EXPERIENCE} What was the work, what did you "
-            "personally do, and how did it turn out?"
-        )
-        lines.append(_point_3(spec))
-        lines.append(
-            f"4. What do you most want to get better at this week? That might "
-            f"be {template.rubric_slot3_name.lower()}, or something else "
-            "entirely. Naming something real tells us more than saying nothing."
-        )
-    else:
-        lines.append(
-            f"2. Tell us about something you have already done that is close "
-            f"to this kind of work. {COUNTS_AS_EXPERIENCE} What was the work, "
-            "what did you personally do, and how did it turn out?"
-        )
-        lines.append(_point_3(spec))
-        lines.append(
-            "4. What do you most want to get better at this week? Naming "
-            "something real tells us more than saying nothing."
-        )
-
-    return "\n".join(lines)
+    return writeup_prompt_for_programme(
+        role_names=[role.name] if role else [],
+        craft3=[template.rubric_slot3_name] if template else [],
+        deliverable=deliverable
+        or (_first_sentence(template.default_deliverable) if template else None),
+    )
 
 
 def writeup_prompt_for(

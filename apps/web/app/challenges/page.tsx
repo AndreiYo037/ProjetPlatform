@@ -22,8 +22,18 @@ export default async function ChallengesPage({
   // FR-105 returns every active challenge (week not over), including those
   // whose application window has already closed.
   const all = await fetchOpenChallenges();
-  const clusters = Array.from(new Set(all.map((item) => item.cluster))).sort();
-  const items = cluster ? all.filter((item) => item.cluster === cluster) : all;
+  const clusters = Array.from(
+    new Set(
+      all.flatMap((item) =>
+        (item.clusters?.length ? item.clusters : [item.cluster]).filter(Boolean),
+      ),
+    ),
+  ).sort();
+  const items = cluster
+    ? all.filter((item) =>
+        (item.clusters?.length ? item.clusters : [item.cluster]).includes(cluster),
+      )
+    : all;
 
   return (
     <main>

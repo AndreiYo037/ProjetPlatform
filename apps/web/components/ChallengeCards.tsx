@@ -40,9 +40,15 @@ export default function ChallengeCards({ items }: { items: PublicListingSummary[
             <p className="small muted" style={{ margin: 0 }}>
               {item.company} · {item.role}
             </p>
-            <span className="tag" style={{ marginTop: "0.55rem" }}>
-              {item.cluster}
-            </span>
+            <div className="row" style={{ marginTop: "0.55rem", gap: "0.3rem", flexWrap: "wrap" }}>
+              {(item.clusters?.length ? item.clusters : [item.cluster])
+                .filter(Boolean)
+                .map((name) => (
+                  <span className="tag" key={name}>
+                    {name}
+                  </span>
+                ))}
+            </div>
             {appsOpen && item.applications_close_at ? (
               <p className="small" style={{ marginTop: "0.6rem" }}>
                 Apply by {formatDate(item.applications_close_at)}

@@ -13,7 +13,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -24,17 +24,18 @@ from projet.models import (
     Company,
     Participant,
     Programme,
+    ProgrammeRole,
     Role,
     RoleTemplate,
     RubricCriterion,
 )
 from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
+from projet.services.auth import Actor
 from projet.services.branding import logo_url
 from projet.services.people import google_email_warning, looks_like_email, resolve_person
 from projet.services.schedule import programme_is_past
-from projet.services.writeup import writeup_prompt_for
-from projet.services.auth import Actor
+from projet.services.writeup import join_names, writeup_prompt_from_programme
 from projet.storage import get_storage
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -44,11 +45,12 @@ ALLOWED_CV_TYPES = {"application/pdf"}
 
 
 class PublicCriterion(BaseModel):
-    slot: int
+    slot: str
     name: str
     anchor_5: str | None
     anchor_3: str | None
     anchor_1: str | None
+    role_name: str | None = None
 
 
 class PublicListing(BaseModel):
@@ -127,7 +129,9 @@ class PublicListingSummary(BaseModel):
     programme_slug: str
     title: str
     role: str
+    roles: list[str] = []
     cluster: str
+    clusters: list[str] = []
     state: str
     applications_close_at: datetime | None
     start_at: datetime | None
@@ -136,7 +140,11 @@ class PublicListingSummary(BaseModel):
 
 
 def _summarize(db: Session, programme: Programme, company: Company) -> PublicListingSummary:
-    role = db.get(Role, programme.role_id)
+    from projet.services.rubric import load_programme_roles
+
+    roles = load_programme_roles(db, programme)
+    names = [role.name for role in roles]
+    clusters = list(dict.fromkeys(role.cluster for role in roles))
     seats_remaining = None
     if programme.capacity is not None:
         taken = db.scalar(
@@ -151,8 +159,10 @@ def _summarize(db: Session, programme: Programme, company: Company) -> PublicLis
         company_logo_url=logo_url(company.id, company.logo_url),
         programme_slug=programme.slug,
         title=programme.title,
-        role=role.name if role else "",
-        cluster=role.cluster if role else "",
+        role=join_names(names),
+        roles=names,
+        cluster=clusters[0] if clusters else "",
+        clusters=clusters,
         state=_state(programme),
         applications_close_at=programme.applications_close_at,
         start_at=programme.start_at,
@@ -222,7 +232,8 @@ def platform_directory(
         role = db.scalar(select(Role).where(Role.slug == role_slug))
         if role is None:
             return []
-        query = query.where(Programme.role_id == role.id)
+        linked = select(ProgrammeRole.programme_id).where(ProgrammeRole.role_id == role.id)
+        query = query.where(or_(Programme.role_id == role.id, Programme.id.in_(linked)))
 
     companies = {c.id: c for c in db.scalars(select(Company))}
     summaries: list[PublicListingSummary] = []
@@ -233,7 +244,7 @@ def platform_directory(
         summary = _summarize(db, programme, company)
         if summary.state == "complete":
             continue
-        if cluster is not None and summary.cluster != cluster:
+        if cluster is not None and cluster not in summary.clusters:
             continue
         summaries.append(summary)
 
@@ -260,13 +271,20 @@ def listing(
         # A draft is not publicly reachable (FR-056).
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
 
-    role = db.get(Role, programme.role_id)
-    template = db.get(RoleTemplate, programme.role_id)
-    criteria = db.scalars(
-        select(RubricCriterion)
-        .where(RubricCriterion.programme_id == programme.id)
-        .order_by(RubricCriterion.slot)
+    from projet.services.rubric import display_slot, load_programme_roles, programme_role_ids
+
+    roles = load_programme_roles(db, programme)
+    names = [role.name for role in roles]
+    role_count = len(programme_role_ids(db, programme))
+    by_id = {role.id: role for role in roles}
+    criteria = list(
+        db.scalars(
+            select(RubricCriterion)
+            .where(RubricCriterion.programme_id == programme.id)
+            .order_by(RubricCriterion.slot)
+        )
     )
+    template = db.get(RoleTemplate, roles[0].id) if roles else None
 
 
     seats_remaining = None
@@ -296,7 +314,7 @@ def listing(
         company_logo_url=logo_url(company.id, company.logo_url),
         programme_slug=programme.slug,
         title=programme.title,
-        role=role.name if role else "",
+        role=join_names(names),
         problem_statement=programme.problem_statement,
         deliverable=programme.deliverable_spec
         or (template.default_deliverable if template else ""),
@@ -311,18 +329,21 @@ def listing(
         seats_remaining=seats_remaining,
         criteria=[
             PublicCriterion(
-                slot=c.slot,
-                name=c.name,
+                slot=display_slot(c, role_count),
+                name=(
+                    f"{c.name} · {by_id[c.role_id].name}"
+                    if role_count > 1 and c.role_id is not None and c.role_id in by_id
+                    else c.name
+                ),
                 anchor_5=c.anchor_5,
                 anchor_3=c.anchor_3,
                 anchor_1=c.anchor_1,
+                role_name=by_id[c.role_id].name if c.role_id in by_id else None,
             )
             for c in criteria
         ],
         data_pack_preview=[],
-        writeup_prompt=writeup_prompt_for(
-            role, template, deliverable=programme.deliverable_spec
-        ),
+        writeup_prompt=writeup_prompt_from_programme(db, programme),
         already_applied=already_applied,
     )
 
@@ -386,7 +407,6 @@ async def apply(
     # FR-800's fixed week, declared rather than assumed. Defaulted to false so a
     # form that simply omits it is refused, not silently taken as a yes.
     availability_confirmed: bool = Form(default=False),
-    availability_note: str | None = Form(default=None, max_length=2000),
     consent_share_company: bool = Form(default=False),
     consent_recording: bool = Form(default=False),
     cv: UploadFile | None = File(default=None),
@@ -394,10 +414,9 @@ async def apply(
 ) -> ApplicationAccepted:
     """FR-201 to FR-208.
 
-    Submission is allowed with either consent declined (FR-202): declining is a
-    real choice, not a soft block. No password here — applicants sign in later
-    via the offer / set-password path once they have a reason to. A signed-in
-    applicant may reuse the CV already on their profile.
+    Both consents must be ticked to apply. No password here — applicants sign
+    in later via the offer / set-password path once they have a reason to. A
+    signed-in applicant may reuse the CV already on their profile.
     """
     company = db.scalar(select(Company).where(Company.slug == company_slug))
     programme = (
@@ -424,6 +443,11 @@ async def apply(
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             _commitment_refusal(programme),
+        )
+    if not consent_share_company or not consent_recording:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Applications need both consents ticked.",
         )
 
     linkedin = (linkedin_url or "").strip() or None
@@ -483,7 +507,6 @@ async def apply(
         writeup=writeup,
         linkedin_url=linkedin,
         availability_confirmed=True,
-        availability_note=(availability_note or "").strip() or None,
         consent_share_company=consent_share_company,
         consent_recording=consent_recording,
         consent_captured_at=utcnow(),

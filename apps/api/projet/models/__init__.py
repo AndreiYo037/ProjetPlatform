@@ -25,6 +25,7 @@ from projet.models.programme import (
     JudgingSession,
     ProblemStatementDraft,
     Programme,
+    ProgrammeRole,
     RubricCriterion,
 )
 from projet.models.scoring import CriterionScore, Score, ScoreMember, ScoreSkillTag
@@ -60,6 +61,7 @@ __all__ = [
     "ProfileSkill",
     "Programme",
     "ProgrammeAssignment",
+    "ProgrammeRole",
     "ProjectEntry",
     "ProjectLink",
     "ProjectSkill",

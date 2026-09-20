@@ -368,15 +368,6 @@ export default function ApplyPage({
             )}
           </label>
         </div>
-        <div className="field">
-            <label htmlFor="availability_note">Anything in the way (optional)</label>
-          <textarea
-            id="availability_note"
-            name="availability_note"
-            rows={2}
-            placeholder="Exams, shifts, travel. Not a problem, we just plan around it."
-          />
-        </div>
 
         <h2>Consent</h2>
         <div className="check">
@@ -385,6 +376,7 @@ export default function ApplyPage({
             name="consent_share_company"
             type="checkbox"
             value="true"
+            required
           />
           <label htmlFor="consent_share_company">
             Share my profile, CV and contact details with this company for recruitment
@@ -392,15 +384,18 @@ export default function ApplyPage({
           </label>
         </div>
         <div className="check">
-          <input id="consent_recording" name="consent_recording" type="checkbox" value="true" />
+          <input
+            id="consent_recording"
+            name="consent_recording"
+            type="checkbox"
+            value="true"
+            required
+          />
           <label htmlFor="consent_recording">
             Record my pitch session so the company can review it afterwards.
           </label>
         </div>
-        <p className="small muted">
-          You can apply with either declined. Declining sharing means the company will not
-          see your details.
-        </p>
+        <p className="small muted">Both need to be ticked to apply.</p>
 
         {error && <div className="notice bad">{error}</div>}
 

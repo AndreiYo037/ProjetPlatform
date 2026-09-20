@@ -278,3 +278,42 @@ def test_the_directory_paginates(client, session, admin, roles):
     assert len(page1) == 2
     assert len(page2) == 2
     assert {r["programme_slug"] for r in page1}.isdisjoint({r["programme_slug"] for r in page2})
+
+
+def test_a_challenge_can_cover_two_roles(client, session, admin, roles):
+    analytics = roles["data-analytics"]
+    design = session.scalar(select(Role).where(Role.name == "UX / UI Design"))
+    assert design is not None
+    acme = make_company(client, session, admin, name="AcmeMulti", slug="acme-multi")
+    sign_in(client, session, ActorType.PLATFORM, admin.id)
+    now = datetime.now(UTC)
+    created = client.post(
+        "/programmes",
+        json={
+            "company_id": acme,
+            "role_ids": [str(analytics.id), str(design.id)],
+            "title": "Spans two crafts",
+            "slug": "two-crafts",
+            "applications_close_at": (now + timedelta(days=2)).isoformat(),
+            **scheduled(),
+            "problem_statement": "A brief that needs both data and design.",
+            "deliverable_spec": "A dashboard and a clickable flow.",
+        },
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert [c["slot"] for c in body["criteria"]] == ["1", "2a", "2b", "3a", "3b", "4"]
+    assert [r["name"] for r in body["roles"]] == ["Data Analytics", "UX / UI Design"]
+    published = client.post(f"/programmes/{body['id']}/publish")
+    assert published.status_code == 200, published.text
+
+    client.cookies.clear()
+    listing = client.get("/public/x/acme-multi/two-crafts").json()
+    assert listing["role"] == "Data Analytics and UX / UI Design"
+    assert [c["slot"] for c in listing["criteria"]] == ["1", "2a", "2b", "3a", "3b", "4"]
+    assert "UX / UI Design" in listing["writeup_prompt"]
+
+    by_design = client.get("/public/challenges", params={"role_slug": design.slug}).json()
+    assert any(row["programme_slug"] == "two-crafts" for row in by_design)
+    by_cluster = client.get("/public/challenges", params={"cluster": design.cluster}).json()
+    assert any(row["programme_slug"] == "two-crafts" for row in by_cluster)

@@ -52,6 +52,7 @@ from projet.services.branding import (
     new_logo_key,
 )
 from projet.services.people import looks_like_email
+from projet.services.rubric import programme_role_ids
 from projet.services.schedule import programme_is_past
 from projet.storage import StorageError, get_storage
 
@@ -273,12 +274,10 @@ def company_home(
     programmes = list(
         db.scalars(visible_programmes(db, actor).where(Programme.company_id == company.id))
     )
+    role_ids = {rid for p in programmes for rid in programme_role_ids(db, p)}
     roles = (
-        {
-            role.id: role
-            for role in db.scalars(select(Role).where(Role.id.in_([p.role_id for p in programmes])))
-        }
-        if programmes
+        {role.id: role for role in db.scalars(select(Role).where(Role.id.in_(role_ids)))}
+        if role_ids
         else {}
     )
     now = utcnow()
@@ -306,19 +305,22 @@ def company_home(
 
     return CompanyHome(
         company=CompanySummary.model_validate(company),
-        active_programmes=[_programme_out(p, roles) for p in active],
-        draft_programmes=[_programme_out(p, roles) for p in drafts],
-        past_programmes=[_programme_out(p, roles) for p in past],
+        active_programmes=[_programme_out(db, p, roles) for p in active],
+        draft_programmes=[_programme_out(db, p, roles) for p in drafts],
+        past_programmes=[_programme_out(db, p, roles) for p in past],
         team=[CompanyUserOut.model_validate(u) for u in team],
         candidate_pool_size=pool_size,
     )
 
 
-def _programme_out(programme: Programme, roles: dict) -> ProgrammeOut:
+def _programme_out(db: Session, programme: Programme, roles: dict) -> ProgrammeOut:
     data = ProgrammeOut.model_validate(programme)
-    role = roles.get(programme.role_id)
-    if role is not None:
-        data.role = RoleSummary.model_validate(role)
+    data.roles = [
+        RoleSummary.model_validate(roles[rid])
+        for rid in programme_role_ids(db, programme)
+        if rid in roles
+    ]
+    data.role = data.roles[0] if data.roles else None
     return data
 
 

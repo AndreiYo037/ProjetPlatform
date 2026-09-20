@@ -18,6 +18,8 @@ import {
   type ApplicationOut,
   type ProgrammeDetail,
   type SeatsOut,
+  criterionHeading,
+  roleLabel,
 } from "@/lib/api";
 import { formatSlot, formatSlotTime } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
@@ -160,7 +162,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
         <span className={`tag ${isOpen ? "open" : "closed"}`}>{programme.status}</span>
       </div>
       <p className="lede">
-        {programme.company?.name} · {programme.role?.name}
+        {programme.company?.name} · {roleLabel(programme)}
       </p>
 
       {seats && (
@@ -328,11 +330,6 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
                 <h3 style={{ marginTop: 0 }}>Writeup</h3>
                 <p style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>{detail.writeup}</p>
               </div>
-              {detail.availability_note && (
-                <div className="notice warn">
-                  <strong>Heads up for the week:</strong> {detail.availability_note}
-                </div>
-              )}
               {detail.cv_url && (
                 <p>
                   <a
@@ -380,9 +377,8 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
       {active === "rubric" && (
         <>
           <p className="small muted">
-            Published to applicants. Slots 1 and 4 are fixed so cohorts stay comparable.
-            Slot 2 is the prior-work question; slot 3 is named in question 4 of the
-            apply form.
+            Published to applicants. Slot 1 and slot 4 sit once. Every extra
+            role adds its own user-evidence and scoping rows.
           </p>
           {programme.criteria.length === 0 ? (
             <p className="muted small">No rubric on this programme yet.</p>
@@ -391,7 +387,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               <div className="rubric" key={criterion.id}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
                   <strong>
-                    {criterion.slot}. {criterion.name}
+                    {criterionHeading(criterion)}
                   </strong>
                   {criterion.is_universal && <span className="tag">universal</span>}
                 </div>

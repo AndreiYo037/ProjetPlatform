@@ -26,14 +26,13 @@ from projet.models import (
     Programme,
     ProjectEntry,
     ProjectLink,
-    Role,
     RoleTemplate,
     RubricCriterion,
     SubmissionLink,
     Thread,
 )
 from projet.models.base import utcnow
-from projet.models.enums import ArtifactVisibility, OrgType, ProgrammeStatus, SubmissionSlot
+from projet.models.enums import ArtifactVisibility, OrgType, SubmissionSlot
 from projet.models.people import normalise_email
 from projet.services.auth import Actor
 from projet.services.closeout import credentials_for
@@ -823,7 +822,7 @@ class DataPackEntry(BaseModel):
 
 
 class CriterionPublic(BaseModel):
-    slot: int
+    slot: str
     name: str
     anchor_5: str | None
     anchor_3: str | None
@@ -905,13 +904,16 @@ def _participations_for(db: Session, person_id: uuid.UUID) -> list[tuple[Partici
 
 
 def _programme_choice(db: Session, programme: Programme) -> ProgrammeChoice:
-    role = db.get(Role, programme.role_id)
+    from projet.services.rubric import load_programme_roles
+    from projet.services.writeup import join_names
+
+    roles = load_programme_roles(db, programme)
     company = db.get(Company, programme.company_id)
     return ProgrammeChoice(
         id=programme.id,
         title=programme.title,
         company=company.name if company else "",
-        role=role.name if role else "",
+        role=join_names([role.name for role in roles]),
         status=programme.status.value,
     )
 
@@ -1027,8 +1029,11 @@ def dashboard(
     programme = db.get(Programme, participant.programme_id)
     if programme is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That programme no longer exists.")
-    role = db.get(Role, programme.role_id)
-    template = db.get(RoleTemplate, programme.role_id)
+    from projet.services.rubric import display_slot, load_programme_roles, programme_role_ids
+    from projet.services.writeup import join_names
+
+    roles = load_programme_roles(db, programme)
+    template = db.get(RoleTemplate, roles[0].id) if roles else None
     company = db.get(Company, programme.company_id)
     active_programmes, past_programmes = _programme_lists(db, actor.id)
 
@@ -1100,7 +1105,7 @@ def dashboard(
             id=programme.id,
             title=programme.title,
             company=company.name if company else "",
-            role=role.name if role else "",
+            role=join_names([role.name for role in roles]),
             status=programme.status.value,
             problem_statement=programme.problem_statement,
             deliverable=programme.deliverable_spec
@@ -1121,8 +1126,12 @@ def dashboard(
         pitch_slots=pitch_slots,
         criteria=[
             CriterionPublic(
-                slot=c.slot,
-                name=c.name,
+                slot=display_slot(c, len(programme_role_ids(db, programme))),
+                name=(
+                    f"{c.name} · {next(r.name for r in roles if r.id == c.role_id)}"
+                    if c.role_id is not None and len(roles) > 1
+                    else c.name
+                ),
                 anchor_5=c.anchor_5,
                 anchor_3=c.anchor_3,
                 anchor_1=c.anchor_1,

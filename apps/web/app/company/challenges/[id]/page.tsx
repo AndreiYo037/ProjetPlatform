@@ -9,21 +9,25 @@ import DataPackPanel from "@/components/DataPackPanel";
 import JudgingPanel from "@/components/JudgingPanel";
 import PitchingSection from "@/components/PitchingSection";
 import {
+  criterionHeading,
   deleteProgramme,
   disposition,
   draftProblemStatements,
   getApplication,
   getProgramme,
   getPublicationCheck,
+  getRoleClusters,
   listApplications,
   listProblemStatementDrafts,
   publishProgramme,
+  roleLabel,
   updateProgramme,
   type ApplicationDetail,
   type ApplicationOut,
   type ProblemStatementAngle,
   type ProgrammeDetail,
   type PublicationCheck,
+  type ClusterGroup,
 } from "@/lib/api";
 import { fromDateInput, fromTimeOnDate, formatSlotTime, toDateInput, toTimeInput } from "@/lib/dates";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
@@ -157,7 +161,7 @@ export default function ChallengeDetailPage({
       </div>
 
       <p className="lede">
-        {programme.company?.name} &middot; {programme.role?.name}
+        {programme.company?.name} &middot; {roleLabel(programme)}
       </p>
 
       {flash && <div className="notice good">{flash}</div>}
@@ -219,13 +223,18 @@ export default function ChallengeDetailPage({
       {active === "rubric" && (
         <>
           <p className="small muted">
-            The four criteria judges will score each pitch against.
+            Judges score each pitch against these boxes. Problem understanding and
+            defence sit once; every extra role adds its own user-evidence and
+            scoping rows.
           </p>
+          {isDraft && (
+            <RolesEditor programme={programme} onSaved={load} />
+          )}
           {programme.criteria.map((criterion) => (
             <div className="rubric" key={criterion.id}>
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <strong>
-                  {criterion.slot}. {criterion.name}
+                  {criterionHeading(criterion)}
                 </strong>
                 {criterion.is_universal && <span className="tag">universal</span>}
               </div>
@@ -512,7 +521,7 @@ function BriefSection({
 
       <AnglePicker
         programmeId={programme.id}
-        roleName={programme.role?.name ?? ""}
+        roleName={roleLabel(programme)}
         onUse={(angle) => {
           setProblemStatement(angle.rendered);
           // The angle's five outputs are the deliverable, written out. Dropping
@@ -803,11 +812,6 @@ function ApplicantsPanel({
             )}
           </div>
           <p style={{ whiteSpace: "pre-wrap" }}>{detail.writeup}</p>
-          {detail.availability_note && (
-            <div className="notice warn">
-              <strong>Heads up for the week:</strong> {detail.availability_note}
-            </div>
-          )}
           {detail.cv_url && (
             <p>
               <a
@@ -835,5 +839,124 @@ function ApplicantsPanel({
         </div>
       )}
     </>
+  );
+}
+
+function RolesEditor({
+  programme,
+  onSaved,
+}: {
+  programme: ProgrammeDetail;
+  onSaved: () => void;
+}) {
+  const [clusters, setClusters] = useState<ClusterGroup[]>([]);
+  const [openCluster, setOpenCluster] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    getRoleClusters().then(setClusters).catch(() => setClusters([]));
+  }, []);
+
+  const selected = programme.roles?.length
+    ? programme.roles
+    : programme.role
+      ? [programme.role]
+      : [];
+  const selectedIds = selected.map((role) => role.id);
+
+  async function setRoles(nextIds: string[]) {
+    if (!nextIds.length) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await updateProgramme(programme.id, { role_ids: nextIds });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update roles.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const filtered = search.trim()
+    ? clusters
+        .map((cluster) => ({
+          ...cluster,
+          roles: cluster.roles.filter(
+            (role) =>
+              role.name.toLowerCase().includes(search.toLowerCase()) ||
+              role.aliases.some((alias) =>
+                alias.toLowerCase().includes(search.toLowerCase()),
+              ),
+          ),
+        }))
+        .filter((cluster) => cluster.roles.length > 0)
+    : clusters;
+
+  return (
+    <div className="panel" style={{ marginBottom: "1rem" }}>
+      <p className="small muted" style={{ marginTop: 0 }}>
+        Add every role the brief covers. Removing a role drops only that
+        role&apos;s scoring pair.
+      </p>
+      {selected.map((role) => (
+        <span className="tag" key={role.id} style={{ margin: "0 0.3rem 0.3rem 0" }}>
+          {role.name}
+          {selectedIds.length > 1 && (
+            <>
+              {" "}
+              <button
+                className="secondary"
+                disabled={busy}
+                style={{ padding: "0 0.4rem", fontSize: "0.8rem" }}
+                onClick={() => setRoles(selectedIds.filter((id) => id !== role.id))}
+              >
+                Remove
+              </button>
+            </>
+          )}
+        </span>
+      ))}
+      <div className="field" style={{ marginTop: "0.75rem" }}>
+        <input
+          type="text"
+          placeholder="Add another role…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      {filtered.map((cluster) => (
+        <div key={cluster.cluster} style={{ marginBottom: "0.4rem" }}>
+          <button
+            className="secondary"
+            style={{ width: "100%", textAlign: "left", justifyContent: "space-between" }}
+            onClick={() =>
+              setOpenCluster(openCluster === cluster.cluster ? null : cluster.cluster)
+            }
+          >
+            <span>{cluster.cluster}</span>
+            <span className="small muted">{cluster.roles.length} roles</span>
+          </button>
+          {(openCluster === cluster.cluster || search.trim()) && (
+            <div style={{ padding: "0.4rem 0 0 0.4rem" }}>
+              {cluster.roles.map((role) => (
+                <button
+                  key={role.id}
+                  className={selectedIds.includes(role.id) ? "" : "secondary"}
+                  disabled={busy || selectedIds.includes(role.id)}
+                  style={{ margin: "0.2rem 0.3rem", fontSize: "0.88rem" }}
+                  onClick={() => setRoles([...selectedIds, role.id])}
+                >
+                  {role.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      {error && <div className="notice bad">{error}</div>}
+    </div>
   );
 }

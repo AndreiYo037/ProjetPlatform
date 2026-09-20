@@ -31,8 +31,8 @@ export default function NewChallengePage() {
 
   const [step, setStep] = useState<Step>("role");
   const [clusters, setClusters] = useState<ClusterGroup[]>([]);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  const [implications, setImplications] = useState<RoleImplications | null>(null);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [implications, setImplications] = useState<Record<string, RoleImplications>>({});
   const [loadingImplications, setLoadingImplications] = useState(false);
 
   const [title, setTitle] = useState("");
@@ -54,21 +54,21 @@ export default function NewChallengePage() {
     getRoleClusters().then(setClusters).catch(() => setClusters([]));
   }, [gate.status]);
 
-  const selectRole = useCallback(
-    async (roleId: string) => {
-      setSelectedRoleId(roleId);
-      setLoadingImplications(true);
-      try {
-        const imp = await getRoleImplications(roleId);
-        setImplications(imp);
-      } catch {
-        setImplications(null);
-      } finally {
-        setLoadingImplications(false);
-      }
-    },
-    [],
-  );
+  const toggleRole = useCallback(async (roleId: string) => {
+    setSelectedRoleIds((prev) =>
+      prev.includes(roleId) ? prev.filter((id) => id !== roleId) : [...prev, roleId],
+    );
+    if (implications[roleId]) return;
+    setLoadingImplications(true);
+    try {
+      const imp = await getRoleImplications(roleId);
+      setImplications((prev) => ({ ...prev, [roleId]: imp }));
+    } catch {
+      /* picker still works; the review step skips a role with no details */
+    } finally {
+      setLoadingImplications(false);
+    }
+  }, [implications]);
 
   function handleTitleChange(value: string) {
     setTitle(value);
@@ -76,12 +76,13 @@ export default function NewChallengePage() {
   }
 
   async function submit() {
-    if (!selectedRoleId || !title.trim() || !slug.trim()) return;
+    if (!selectedRoleIds.length || !title.trim() || !slug.trim()) return;
     setBusy(true);
     setError(null);
     try {
       const programme = await createProgramme({
-        role_id: selectedRoleId,
+        role_id: selectedRoleIds[0],
+        role_ids: selectedRoleIds,
         title: title.trim(),
         slug: slug.trim(),
         capacity: capacity ? Number(capacity) : null,
@@ -114,8 +115,8 @@ export default function NewChallengePage() {
       </Link>
       <h1 style={{ marginTop: "0.5rem" }}>New challenge</h1>
       <p className="lede">
-        One challenge, one role. Pick the role, pick the dates, and publish when
-        the brief is ready.
+        One challenge, one brief. Pick every role the problem actually covers —
+        each extra role adds that craft&apos;s scoring rows.
       </p>
 
       {error && <div className="notice bad">{error}</div>}
@@ -123,12 +124,14 @@ export default function NewChallengePage() {
       {step === "role" && (
         <RolePicker
           clusters={clusters}
-          selectedRoleId={selectedRoleId}
+          selectedRoleIds={selectedRoleIds}
           implications={implications}
           loadingImplications={loadingImplications}
-          onSelect={selectRole}
+          onToggle={toggleRole}
           onNext={() => {
-            if (selectedRoleId && implications) setStep("details");
+            if (selectedRoleIds.length && selectedRoleIds.every((id) => implications[id])) {
+              setStep("details");
+            }
           }}
         />
       )}
@@ -163,9 +166,11 @@ export default function NewChallengePage() {
         />
       )}
 
-      {step === "review" && implications && (
+      {step === "review" && selectedRoleIds.length > 0 && (
         <ReviewStep
-          implications={implications}
+          implications={selectedRoleIds
+            .map((id) => implications[id])
+            .filter((item): item is RoleImplications => Boolean(item))}
           title={title}
           slug={slug}
           capacity={capacity}
@@ -186,17 +191,17 @@ export default function NewChallengePage() {
 
 function RolePicker({
   clusters,
-  selectedRoleId,
+  selectedRoleIds,
   implications,
   loadingImplications,
-  onSelect,
+  onToggle,
   onNext,
 }: {
   clusters: ClusterGroup[];
-  selectedRoleId: string | null;
-  implications: RoleImplications | null;
+  selectedRoleIds: string[];
+  implications: Record<string, RoleImplications>;
   loadingImplications: boolean;
-  onSelect: (id: string) => void;
+  onToggle: (id: string) => void;
   onNext: () => void;
 }) {
   const [openCluster, setOpenCluster] = useState<string | null>(null);
@@ -217,7 +222,11 @@ function RolePicker({
 
   return (
     <>
-      <h2>1. Pick a role</h2>
+      <h2>1. Pick the roles this brief covers</h2>
+      <p className="small muted">
+        One is enough. Add another if the problem spans crafts — each one adds
+        its own user-evidence and scoping rows to the scorecard.
+      </p>
       <div className="field">
         <input
           type="text"
@@ -246,9 +255,9 @@ function RolePicker({
               {cluster.roles.map((role) => (
                 <button
                   key={role.id}
-                  className={selectedRoleId === role.id ? "" : "secondary"}
+                  className={selectedRoleIds.includes(role.id) ? "" : "secondary"}
                   style={{ margin: "0.2rem 0.3rem", fontSize: "0.88rem" }}
-                  onClick={() => onSelect(role.id)}
+                  onClick={() => onToggle(role.id)}
                 >
                   {role.name}
                 </button>
@@ -260,57 +269,55 @@ function RolePicker({
 
       {loadingImplications && <p className="muted small">Loading role details…</p>}
 
-      {implications && selectedRoleId && !loadingImplications && (
-        <div className="panel" style={{ marginTop: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>What this role means</h3>
-          <dl className="facts">
-            <dt>Deliverable</dt>
-            <dd>{implications.default_deliverable}</dd>
-            <dt>Student tools</dt>
-            <dd>
-              {implications.student_tools.length > 0
-                ? implications.student_tools.join(", ")
-                : "—"}
-            </dd>
-          </dl>
-          {implications.delivery_risk_note && (
-            <div className="notice warn">{implications.delivery_risk_note}</div>
-          )}
-          <h3>Judging criteria</h3>
-          {implications.judging_criteria.map((c, i) => {
-            const slot = String((c as Record<string, unknown>).slot ?? "");
-            const name = String((c as Record<string, unknown>).name ?? "");
-            const anchor5 = String((c as Record<string, unknown>).anchor_5 ?? "");
-            const universal = Boolean((c as Record<string, unknown>).universal);
-            return (
-              <div className="rubric" key={i}>
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <strong>{slot}. {name}</strong>
-                  {universal && <span className="tag">universal</span>}
-                </div>
-                {anchor5 && (
-                  <p className="small muted" style={{ margin: "0.3rem 0 0" }}>
-                    5 — {anchor5}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-          {implications.company_asks_easy.length > 0 && (
-            <>
-              <h3>Easy asks for a better challenge</h3>
-              <ul className="small">
-                {implications.company_asks_easy.map((ask, i) => (
-                  <li key={i}>{ask}</li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      )}
+      {selectedRoleIds.map((id) => {
+        const picked = implications[id];
+        if (!picked) return null;
+        return (
+          <div className="panel" style={{ marginTop: "1rem" }} key={id}>
+            <h3 style={{ marginTop: 0 }}>What {picked.role.name} means</h3>
+            <dl className="facts">
+              <dt>Deliverable</dt>
+              <dd>{picked.default_deliverable}</dd>
+              <dt>Student tools</dt>
+              <dd>
+                {picked.student_tools.length > 0
+                  ? picked.student_tools.join(", ")
+                  : "—"}
+              </dd>
+            </dl>
+            {picked.delivery_risk_note && (
+              <div className="notice warn">{picked.delivery_risk_note}</div>
+            )}
+            <h3>Craft criteria this role adds</h3>
+            {picked.judging_criteria
+              .filter((c) => !Boolean((c as Record<string, unknown>).universal))
+              .map((c, i) => {
+                const slot = String((c as Record<string, unknown>).slot ?? "");
+                const name = String((c as Record<string, unknown>).name ?? "");
+                const anchor5 = String((c as Record<string, unknown>).anchor_5 ?? "");
+                return (
+                  <div className="rubric" key={i}>
+                    <strong>{slot}. {name}</strong>
+                    {anchor5 && (
+                      <p className="small muted" style={{ margin: "0.3rem 0 0" }}>
+                        5 — {anchor5}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        );
+      })}
 
       <div className="row" style={{ marginTop: "1.5rem" }}>
-        <button disabled={!selectedRoleId || !implications} onClick={onNext}>
+        <button
+          disabled={
+            !selectedRoleIds.length ||
+            !selectedRoleIds.every((id) => implications[id])
+          }
+          onClick={onNext}
+        >
           Next: details
         </button>
       </div>
@@ -507,7 +514,7 @@ function ReviewStep({
   onBack,
   onSubmit,
 }: {
-  implications: RoleImplications;
+  implications: RoleImplications[];
   title: string;
   slug: string;
   capacity: string;
@@ -530,10 +537,12 @@ function ReviewStep({
           <dd>{title}</dd>
           <dt>Slug</dt>
           <dd>{slug}</dd>
-          <dt>Role</dt>
+          <dt>Roles</dt>
           <dd>
-            {implications.role.name}{" "}
-            <span className="muted small">({implications.role.cluster})</span>
+            {implications.map((item) => item.role.name).join(" · ")}{" "}
+            <span className="muted small">
+              ({[...new Set(implications.map((item) => item.role.cluster))].join(" · ")})
+            </span>
           </dd>
           <dt>Seats</dt>
           <dd>{capacity || "Uncapped"}</dd>

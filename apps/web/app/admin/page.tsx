@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
-import { listProgrammes, type ProgrammeOut } from "@/lib/api";
+import { listProgrammes, roleLabel, type ProgrammeOut } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
 
 function isPast(programme: ProgrammeOut) {
@@ -31,7 +31,7 @@ function ProgrammeRows({ items }: { items: ProgrammeOut[] }) {
             <tr key={programme.id}>
               <td>{programme.title}</td>
               <td className="muted">{programme.company?.name ?? "—"}</td>
-              <td className="muted">{programme.role?.name ?? "—"}</td>
+              <td className="muted">{roleLabel(programme) || "—"}</td>
               <td>
                 <span className={`tag ${programme.status === "open" ? "open" : "closed"}`}>
                   {programme.status}

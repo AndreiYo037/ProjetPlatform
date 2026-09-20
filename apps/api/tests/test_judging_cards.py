@@ -159,7 +159,7 @@ def test_the_scoring_card_carries_the_submission_and_the_anchors(
     assert card["name"] == "Sam Student"
     # The judge should not have to hold two tabs open during a pitch.
     assert card["submission"]["links"][0]["slot"] == "artifact"
-    assert [c["slot"] for c in card["criteria"]] == [1, 2, 3, 4]
+    assert [c["slot"] for c in card["criteria"]] == ["1", "2", "3", "4"]
     assert all(c["value"] is None for c in card["criteria"])
     assert card["complete"] is False
     assert card["total"] is None

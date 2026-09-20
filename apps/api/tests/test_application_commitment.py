@@ -24,7 +24,12 @@ from projet.models import PlatformUser, Role, RoleTemplate
 from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
-from projet.services.writeup import _first_sentence, derive_writeup_prompt, writeup_prompt_for
+from projet.services.writeup import (
+    _first_sentence,
+    derive_writeup_prompt,
+    writeup_prompt_for,
+    writeup_prompt_for_programme,
+)
 from tests.conftest import scheduled
 
 
@@ -92,6 +97,8 @@ def application(**overrides) -> dict:
         "google_email": "sam@gmail.com",
         "writeup": " ".join(["analysis"] * 220),
         "availability_confirmed": "true",
+        "consent_share_company": "true",
+        "consent_recording": "true",
     }
     payload.update(overrides)
     return {k: v for k, v in payload.items() if v is not None}
@@ -130,19 +137,6 @@ def test_the_declaration_is_stored_with_the_application(client, listing, session
     assert detail["availability_confirmed"] is True
 
 
-def test_a_conflict_during_the_week_is_recorded_without_blocking(client, listing, session, admin):
-    """The two fixed dates are the hard part; a Thursday clash is worth knowing."""
-    assert apply(client, availability_note="I have an exam on the Friday morning.").status_code == 201
-
-    _, raw = start_session(session, actor_type=ActorType.PLATFORM, subject_id=admin.id)
-    client.cookies.set(SESSION_COOKIE, raw)
-    applications = client.get(f"/programmes/{listing['id']}/applications").json()
-    detail = client.get(
-        f"/programmes/{listing['id']}/applications/{applications[0]['id']}"
-    ).json()
-    assert "exam" in detail["availability_note"]
-
-
 def test_a_linkedin_profile_is_kept(client, listing, session, admin):
     assert apply(client, linkedin_url="https://linkedin.com/in/sam").status_code == 201
 
@@ -174,10 +168,10 @@ def test_the_listing_carries_the_dates_and_the_prompt(client, listing):
 
 
 def test_the_prompt_asks_in_the_words_of_the_rubric(session, role, content_dir):
-    """Form and scoring card agree because both read the same two slots."""
+    """Question 4 names the craft; question 2 is the same for every role."""
     template = session.get(RoleTemplate, role.id)
     prompt = derive_writeup_prompt(role, template)
-    assert template.rubric_slot2_name.lower() in prompt
+    assert "similar to this challenge" in prompt
     assert template.rubric_slot3_name.lower() in prompt
 
 
@@ -202,6 +196,17 @@ def test_the_prompt_says_a_job_is_not_required(session, role, content_dir):
     for prompt in (derive_writeup_prompt(role, template), writeup_prompt_for(role, None)):
         assert "does not have to be a job" in prompt
         assert "class project" in prompt
+
+
+def test_question_two_is_the_same_for_every_role():
+    """Craft labels stay on the scorecard. The apply form asks in English."""
+    prompt = writeup_prompt_for_programme(
+        role_names=["AI / AI Engineering", "Business Strategy"],
+        craft3=["Production judgement", "Strategic choice"],
+    )
+    assert "similar to this challenge" in prompt
+    assert "system honesty" not in prompt.lower()
+    assert "does not have to be a job" in prompt
 
 
 def test_the_deliverable_reads_as_a_sentence(session, role, content_dir):

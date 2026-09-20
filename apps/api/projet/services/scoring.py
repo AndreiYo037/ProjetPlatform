@@ -7,8 +7,8 @@ than making a judge pick a person out of a group first.
 
 A score is written the way a judge actually works: a value at a time, while
 someone is still talking. So this is an upsert over partial input rather than a
-submit, the total recomputes only once all four criteria carry a value, and a
-card with two of four filled in is a legitimate state rather than an error.
+submit, the total recomputes only once every criterion on this programme carries
+a value, and a half-filled card is a legitimate state rather than an error.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from projet.models import (
     CriterionScore,
     Participant,
+    Programme,
     RubricCriterion,
     Score,
     ScoreMember,
@@ -32,8 +33,6 @@ from projet.models import (
 )
 from projet.models.base import utcnow
 from projet.models.enums import ReferralIntent, ScorerType
-
-CRITERIA_PER_PROGRAMME = 4
 
 
 class ScoringError(RuntimeError):
@@ -100,14 +99,20 @@ def record_criterion(db: Session, score: Score, criterion: RubricCriterion, valu
 def refresh_total(db: Session, score: Score) -> None:
     """Null until the card is whole.
 
-    A running total over two of four criteria would be ranked against a
-    complete one, and the half-scored pitch would lose on arithmetic rather
-    than on the work.
+    A running total over some of the boxes would be ranked against a complete
+    one, and the half-scored pitch would lose on arithmetic rather than on the
+    work.
     """
+    needed = 0
+    team = db.get(Team, score.team_id)
+    if team is not None:
+        programme = db.get(Programme, team.programme_id)
+        if programme is not None:
+            needed = len(criteria_for(db, programme.id))
     values = list(
         db.scalars(select(CriterionScore.value).where(CriterionScore.score_id == score.id))
     )
-    score.total = sum(values) if len(values) == CRITERIA_PER_PROGRAMME else None
+    score.total = sum(values) if needed and len(values) == needed else None
     score.updated_at = utcnow()
 
 

@@ -83,10 +83,7 @@ class ApplicationDetail(ApplicationOut):
     writeup: str | None = None
     cv_url: str | None = None
     linkedin_url: str | None = None
-    # The declaration, shown alongside the writeup: a named conflict during the
-    # week is something to read before offering a seat, not after.
     availability_confirmed: bool = False
-    availability_note: str | None = None
     # The same link the offer email carries. FR-401 keeps acceptance
     # tokenised and passwordless by email; this surfaces it here too so a
     # company or admin can hand it to someone directly, or step through it
@@ -173,7 +170,6 @@ def get_application(
     detail.writeup = application.writeup
     detail.linkedin_url = application.linkedin_url
     detail.availability_confirmed = application.availability_confirmed
-    detail.availability_note = application.availability_note
     detail.google_email = application.person.google_email
     detail.phone = application.person.phone
     if application.offer_token:

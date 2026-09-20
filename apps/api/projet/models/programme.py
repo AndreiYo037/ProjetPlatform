@@ -52,6 +52,7 @@ class Programme(Base):
     event_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("event.id", ondelete="SET NULL"))
     title: Mapped[str] = mapped_column(String(300))
     slug: Mapped[str] = mapped_column(String(160))
+    # First role on the challenge. Extra roles live on programme_role.
     role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id"))
     brief_url: Mapped[str | None] = mapped_column(Text)
     # FR-067 — the company can rewrite this and change the deliverables. The
@@ -101,6 +102,11 @@ class Programme(Base):
     criteria: Mapped[list[RubricCriterion]] = relationship(
         back_populates="programme", cascade="all, delete-orphan"
     )
+    role_links: Mapped[list[ProgrammeRole]] = relationship(
+        back_populates="programme",
+        cascade="all, delete-orphan",
+        order_by="ProgrammeRole.position",
+    )
     judging_sessions: Mapped[list[JudgingSession]] = relationship(
         back_populates="programme", cascade="all, delete-orphan"
     )
@@ -114,6 +120,25 @@ class Programme(Base):
         still talk about the pitch without a second column.
         """
         return self.submit_deadline_at
+
+
+class ProgrammeRole(Base):
+    """A challenge can cover more than one role. Position is pick order."""
+
+    __tablename__ = "programme_role"
+    __table_args__ = (
+        UniqueConstraint("programme_id", "role_id", name="uq_programme_role_pair"),
+        UniqueConstraint("programme_id", "position", name="uq_programme_role_position"),
+    )
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    programme_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("programme.id", ondelete="CASCADE")
+    )
+    role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id"))
+    position: Mapped[int] = mapped_column(Integer)
+
+    programme: Mapped[Programme] = relationship(back_populates="role_links")
 
 
 class JudgingSession(Base):
@@ -138,17 +163,20 @@ class JudgingSession(Base):
 
 
 class RubricCriterion(Base):
-    """FR-071 — exactly four per programme, stored as data, never as code."""
+    """One scoring box. Family 1 and 4 are universal; 2 and 3 repeat per role."""
 
     __tablename__ = "rubric_criterion"
-    __table_args__ = (
-        UniqueConstraint("programme_id", "slot"),
-        CheckConstraint("slot between 1 and 4", name="slot_range"),
-    )
+    __table_args__ = (UniqueConstraint("programme_id", "slot"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
     programme_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("programme.id", ondelete="CASCADE"))
+    # Display order: 1, then every 2, then every 3, then 4.
     slot: Mapped[int] = mapped_column(Integer)
+    # 1 = problem understanding, 2 = craft A, 3 = craft B, 4 = defence.
+    family: Mapped[int] = mapped_column(Integer, default=2)
+    role_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("role.id"))
+    # 0 = a, 1 = b, … among rows of the same family.
+    lane: Mapped[int] = mapped_column(Integer, default=0)
     name: Mapped[str] = mapped_column(String(160))
     anchor_5: Mapped[str | None] = mapped_column(Text)
     anchor_3: Mapped[str | None] = mapped_column(Text)
@@ -159,8 +187,8 @@ class RubricCriterion(Base):
 
     @property
     def is_universal(self) -> bool:
-        """Slots 1 and 4 are fixed; they are what makes cohorts comparable."""
-        return self.slot in (1, 4)
+        """Families 1 and 4 are fixed; they are what makes cohorts comparable."""
+        return self.family in (1, 4)
 
     @property
     def is_complete(self) -> bool:

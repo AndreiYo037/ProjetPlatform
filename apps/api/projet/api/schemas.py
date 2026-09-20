@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from projet.services.branding import logo_url
 
@@ -89,12 +89,18 @@ class CriterionOut(BaseModel):
     model_config = ORM
 
     id: uuid.UUID
-    slot: int
+    slot: str
     name: str
     anchor_5: str | None = None
     anchor_3: str | None = None
     anchor_1: str | None = None
     is_universal: bool = False
+    role_name: str | None = None
+
+    @field_validator("slot", mode="before")
+    @classmethod
+    def _slot_as_label(cls, value: object) -> object:
+        return str(value) if isinstance(value, int) else value
 
 
 class ProgrammeOut(BaseModel):
@@ -121,6 +127,7 @@ class ProgrammeOut(BaseModel):
     pitch_meet_link: str | None = None
     company: CompanySummary | None = None
     role: RoleSummary | None = None
+    roles: list[RoleSummary] = []
 
 
 class ProgrammeDetail(ProgrammeOut):

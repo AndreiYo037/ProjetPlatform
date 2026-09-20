@@ -144,7 +144,7 @@ def test_the_dashboard_publishes_the_rubric(client, signed_in, content_dir, sess
     session.flush()
 
     criteria = client.get("/me/dashboard").json()["criteria"]
-    assert [c["slot"] for c in criteria] == [1, 2, 3, 4]
+    assert [c["slot"] for c in criteria] == ["1", "2", "3", "4"]
     assert all(c["anchor_5"] for c in criteria)
 
 

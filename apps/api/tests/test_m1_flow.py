@@ -108,7 +108,7 @@ def test_the_full_funnel(client, session, google, admin, seeded, content_dir):
 
     # The rubric arrives pre-filled: universal slots 1 and 4, role slots 2 and 3.
     criteria = programme.json()["criteria"]
-    assert [c["slot"] for c in criteria] == [1, 2, 3, 4]
+    assert [c["slot"] for c in criteria] == ["1", "2", "3", "4"]
     assert criteria[0]["name"] == "Problem understanding"
     assert criteria[1]["name"] == "Data handling"
     assert all(c["anchor_5"] for c in criteria)
@@ -331,6 +331,7 @@ def test_the_writeup_has_no_word_range(client, session, admin, seeded):
             "writeup": "Too short.",
             "availability_confirmed": "true",
             "consent_share_company": "true",
+            "consent_recording": "true",
             "password": "hunter22",
         },
         files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
@@ -338,9 +339,8 @@ def test_the_writeup_has_no_word_range(client, session, admin, seeded):
     assert response.status_code == 201, response.text
 
 
-def test_an_application_can_decline_both_consents(client, session, admin, seeded):
-    """FR-202 — submission is allowed with either declined. Declining is a real
-    choice, not a soft block."""
+def test_an_application_without_both_consents_is_refused(client, session, admin, seeded):
+    """Both boxes have to be ticked. A declined consent is not an application."""
     sign_in(client, session, ActorType.PLATFORM, admin.id)
     company = client.post(
         "/companies",
@@ -384,13 +384,8 @@ def test_an_application_can_decline_both_consents(client, session, admin, seeded
         },
         files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
     )
-    assert response.status_code == 201
-
-    # And they must not appear in anything company-facing.
-    from projet.access import company_visible_applications
-
-    visible = list(session.scalars(company_visible_applications(uuid.UUID(programme["id"]))))
-    assert visible == []
+    assert response.status_code == 422
+    assert "consent" in response.json()["detail"].lower()
 
 
 def test_a_non_google_address_warns_without_blocking(client, session, admin, seeded):
@@ -433,6 +428,7 @@ def test_a_non_google_address_warns_without_blocking(client, session, admin, see
             "writeup": writeup(),
             "availability_confirmed": "true",
             "consent_share_company": "true",
+            "consent_recording": "true",
             "password": "hunter22",
         },
         files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},

@@ -47,8 +47,12 @@ from projet.services.data_pack import (
 from projet.services.rubric import (
     RubricError,
     compose_rubric,
+    display_slot,
     edit_criterion,
+    load_programme_roles,
+    programme_role_ids,
     publish,
+    set_programme_roles,
     validate_for_publication,
 )
 from projet.services.schedule import (
@@ -56,6 +60,7 @@ from projet.services.schedule import (
     bind_dates,
     bind_kickoff,
 )
+from projet.services.writeup import join_names
 from projet.storage import get_storage
 
 router = APIRouter(tags=["programmes"])
@@ -64,7 +69,8 @@ log = logging.getLogger(__name__)
 
 class ProgrammeCreate(BaseModel):
     company_id: uuid.UUID | None = None
-    role_id: uuid.UUID
+    role_id: uuid.UUID | None = None
+    role_ids: list[uuid.UUID] = []
     title: str = Field(min_length=1, max_length=300)
     slug: str = Field(min_length=1, max_length=160)
     delivery_mode: str = DeliveryMode.ONLINE.value
@@ -105,6 +111,7 @@ class ProgrammeUpdate(BaseModel):
     submit_deadline_at: datetime | None = None
     kickoff_at: datetime | None = None
     winners_count: int | None = None
+    role_ids: list[uuid.UUID] | None = None
 
 
 class CriterionUpdate(BaseModel):
@@ -191,31 +198,44 @@ def _resource_or_404(
     return resource
 
 
+def _roles_out(db: Session, programme: Programme) -> list[RoleSummary]:
+    return [RoleSummary.model_validate(role) for role in load_programme_roles(db, programme)]
+
+
+def _role_label(db: Session, programme: Programme) -> str:
+    return join_names([role.name for role in load_programme_roles(db, programme)])
+
+
+def _criterion_out(db: Session, programme: Programme, criterion: RubricCriterion) -> CriterionOut:
+    role_name = None
+    if criterion.role_id is not None:
+        role = db.get(Role, criterion.role_id)
+        role_name = role.name if role else None
+    return CriterionOut(
+        id=criterion.id,
+        slot=display_slot(criterion, len(programme_role_ids(db, programme))),
+        name=criterion.name,
+        anchor_5=criterion.anchor_5,
+        anchor_3=criterion.anchor_3,
+        anchor_1=criterion.anchor_1,
+        is_universal=criterion.is_universal,
+        role_name=role_name,
+    )
+
+
 def _detail(db: Session, programme: Programme) -> ProgrammeDetail:
     data = ProgrammeDetail.model_validate(programme)
     company = db.get(Company, programme.company_id)
-    role = db.get(Role, programme.role_id)
     if company:
         data.company = CompanySummary.model_validate(company)
-    if role:
-        data.role = RoleSummary.model_validate(role)
+    data.roles = _roles_out(db, programme)
+    data.role = data.roles[0] if data.roles else None
     criteria = db.scalars(
         select(RubricCriterion)
         .where(RubricCriterion.programme_id == programme.id)
         .order_by(RubricCriterion.slot)
     )
-    data.criteria = [
-        CriterionOut(
-            id=c.id,
-            slot=c.slot,
-            name=c.name,
-            anchor_5=c.anchor_5,
-            anchor_3=c.anchor_3,
-            anchor_1=c.anchor_1,
-            is_universal=c.is_universal,
-        )
-        for c in criteria
-    ]
+    data.criteria = [_criterion_out(db, programme, c) for c in criteria]
     return data
 
 
@@ -228,9 +248,8 @@ def list_programmes(
     out = []
     for programme in programmes:
         item = ProgrammeOut.model_validate(programme)
-        role = db.get(Role, programme.role_id)
-        if role:
-            item.role = RoleSummary.model_validate(role)
+        item.roles = _roles_out(db, programme)
+        item.role = item.roles[0] if item.roles else None
         out.append(item)
     return out
 
@@ -253,10 +272,21 @@ def create_programme(
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "company_id is required for platform users."
         )
+    role_ids = list(payload.role_ids or [])
+    if not role_ids and payload.role_id is not None:
+        role_ids = [payload.role_id]
+    if not role_ids:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Pick at least one role.")
+    seen: list[uuid.UUID] = []
+    for role_id in role_ids:
+        if role_id not in seen:
+            seen.append(role_id)
+    role_ids = seen
     if db.get(Company, company_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Company not found.")
-    if db.get(Role, payload.role_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found.")
+    for role_id in role_ids:
+        if db.get(Role, role_id) is None:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Role not found.")
     clash = db.scalar(
         select(Programme)
         .where(Programme.company_id == company_id)
@@ -275,7 +305,7 @@ def create_programme(
 
     programme = Programme(
         company_id=company_id,
-        role_id=payload.role_id,
+        role_id=role_ids[0],
         title=payload.title,
         slug=payload.slug,
         delivery_mode=DeliveryMode(payload.delivery_mode),
@@ -296,6 +326,7 @@ def create_programme(
     db.flush()
 
     try:
+        set_programme_roles(db, programme, role_ids)
         compose_rubric(db, programme)
     except RubricError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
@@ -337,8 +368,22 @@ def update_programme(
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
     changes = payload.model_dump(exclude_unset=True)
+    role_ids = changes.pop("role_ids", None)
     for field, value in changes.items():
         setattr(programme, field, value)
+
+    if role_ids is not None:
+        try:
+            set_programme_roles(db, programme, role_ids)
+            compose_rubric(db, programme)
+        except RubricError as error:
+            db.rollback()
+            code = (
+                status.HTTP_409_CONFLICT
+                if "draft" in str(error)
+                else status.HTTP_422_UNPROCESSABLE_ENTITY
+            )
+            raise HTTPException(code, str(error)) from error
 
     if {"start_at", "submit_deadline_at", "applications_close_at"} & changes.keys():
         try:
@@ -398,15 +443,7 @@ def update_criterion(
     except RubricError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     db.commit()
-    return CriterionOut(
-        id=criterion.id,
-        slot=criterion.slot,
-        name=criterion.name,
-        anchor_5=criterion.anchor_5,
-        anchor_3=criterion.anchor_3,
-        anchor_1=criterion.anchor_1,
-        is_universal=criterion.is_universal,
-    )
+    return _criterion_out(db, programme, criterion)
 
 
 class PublicationCheck(BaseModel):
@@ -807,16 +844,17 @@ def draft_problem_statement_endpoint(
     from projet.models import RoleTemplate
 
     company = db.get(Company, programme.company_id)
-    role = db.get(Role, programme.role_id)
-    template = db.get(RoleTemplate, programme.role_id)
-    if company is None or role is None or template is None:
+    roles = load_programme_roles(db, programme)
+    template = db.get(RoleTemplate, roles[0].id) if roles else None
+    if company is None or not roles or template is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Programme is not fully configured.")
+    role_name = join_names([role.name for role in roles])
 
     try:
         angles = draft_problem_statements(
             company_name=company.name,
             company_url=payload.company_url or company.website_url,
-            role_name=role.name,
+            role_name=role_name,
             deliverable=programme.deliverable_spec or template.default_deliverable,
             admin_notes=payload.admin_notes,
         )
@@ -846,7 +884,7 @@ def draft_problem_statement_endpoint(
     ]
     db.add_all(rows)
     db.commit()
-    return [_draft_out(row, role.name) for row in rows]
+    return [_draft_out(row, role_name) for row in rows]
 
 
 @router.get("/programmes/{programme_id}/problem-statement/drafts", response_model=list[DraftOut])
@@ -856,7 +894,7 @@ def list_drafts(
     actor: Actor = Depends(require_company_manager),
 ) -> list[DraftOut]:
     """Every angle drafted so far, newest run first, angles in offered order."""
-    role = db.get(Role, programme.role_id)
+    role_name = _role_label(db, programme)
     drafts = db.scalars(
         select(ProblemStatementDraft)
         .where(ProblemStatementDraft.programme_id == programme.id)
@@ -865,7 +903,7 @@ def list_drafts(
             ProblemStatementDraft.angle.asc(),
         )
     )
-    return [_draft_out(d, role.name if role else "") for d in drafts]
+    return [_draft_out(d, role_name) for d in drafts]
 
 
 class ProblemStatementUpdate(BaseModel):

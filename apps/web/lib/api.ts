@@ -220,6 +220,27 @@ export const listProgrammes = () => api.get<ProgrammeOut[]>("/programmes");
 
 export type ClusterGroup = { cluster: string; roles: RoleSummary[] };
 export type RoleSummary = { id: string; name: string; slug: string; cluster: string; aliases: string[] };
+
+export function roleLabel(item: {
+  roles?: { name: string }[] | string[] | null;
+  role?: { name: string } | string | null;
+}): string {
+  const roles = item.roles ?? [];
+  if (roles.length) {
+    return roles.map((role) => (typeof role === "string" ? role : role.name)).join(" · ");
+  }
+  if (!item.role) return "";
+  return typeof item.role === "string" ? item.role : item.role.name;
+}
+
+export function criterionHeading(criterion: {
+  slot: string | number;
+  name: string;
+  role_name?: string | null;
+}): string {
+  const extra = criterion.role_name ? ` · ${criterion.role_name}` : "";
+  return `${criterion.slot}. ${criterion.name}${extra}`;
+}
 export const getRoleClusters = () => api.get<ClusterGroup[]>("/roles/clusters");
 export const getRoleImplications = (roleId: string) =>
   api.get<RoleImplications>(`/roles/${roleId}/implications`);
@@ -227,7 +248,8 @@ export const getRoleImplications = (roleId: string) =>
 // The company picks the days. Times of day are pinned on the server:
 // start at 00:00, end (and applications close) at 23:59.
 export type CreateProgrammeInput = {
-  role_id: string;
+  role_id?: string;
+  role_ids?: string[];
   title: string;
   slug: string;
   delivery_mode?: string;

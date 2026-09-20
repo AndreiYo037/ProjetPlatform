@@ -7,6 +7,7 @@ import {
   assetUrl,
   deleteProgramme,
   getCompanyHome,
+  roleLabel,
   type CompanyHome,
 } from "@/lib/api";
 import { useActor } from "@/lib/useActor";
@@ -66,7 +67,7 @@ export default function CompanyProgrammesPage() {
               <div>
                 <strong>{programme.title}</strong>
                 <div className="small muted">
-                  {programme.role?.name}
+                  {roleLabel(programme)}
                   {programme.submit_deadline_at
                     ? ` · due ${new Date(programme.submit_deadline_at).toLocaleDateString()}`
                     : null}
@@ -90,7 +91,7 @@ export default function CompanyProgrammesPage() {
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <div>
                   <strong>{programme.title}</strong>
-                  <div className="small muted">{programme.role?.name}</div>
+                  <div className="small muted">{roleLabel(programme)}</div>
                 </div>
                 <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
                   Open
@@ -146,7 +147,7 @@ function DraftsList({
             <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <strong>{programme.title}</strong>
-                <div className="small muted">{programme.role?.name ?? "Draft"}</div>
+                <div className="small muted">{roleLabel(programme) || "Draft"}</div>
               </div>
               <div className="row" style={{ gap: "0.5rem" }}>
                 {confirmId === programme.id ? (

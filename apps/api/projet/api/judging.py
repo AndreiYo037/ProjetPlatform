@@ -33,7 +33,6 @@ from projet.models import (
     Participant,
     Person,
     Programme,
-    Role,
     ScoreMember,
     ScoreSkillTag,
     Skill,
@@ -56,7 +55,7 @@ from projet.services.scoring import (
     submission_for,
     team_for_participant,
 )
-from projet.services.skills import options_for_role
+from projet.services.skills import options_for_roles
 from projet.services.testimonial_pdf import render_testimonial_pdf
 from projet.storage import get_storage, sign_key
 
@@ -111,7 +110,7 @@ class SubmissionCard(BaseModel):
 
 
 class ScoringAnchor(BaseModel):
-    slot: int
+    slot: str
     criterion_id: uuid.UUID
     name: str
     is_universal: bool
@@ -119,6 +118,7 @@ class ScoringAnchor(BaseModel):
     anchor_3: str | None
     anchor_1: str | None
     value: int | None
+    role_name: str | None = None
 
 
 class SkillOption(BaseModel):
@@ -274,9 +274,14 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
             for row in db.scalars(select(CriterionScore).where(CriterionScore.score_id == score.id))
         }
 
+    from projet.services.rubric import display_slot, load_programme_roles, programme_role_ids
+
+    roles = load_programme_roles(db, programme)
+    by_id = {role.id: role for role in roles}
+    role_count = len(programme_role_ids(db, programme))
     criteria = [
         ScoringAnchor(
-            slot=criterion.slot,
+            slot=display_slot(criterion, role_count),
             criterion_id=criterion.id,
             name=criterion.name,
             is_universal=criterion.is_universal,
@@ -284,6 +289,7 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
             anchor_3=criterion.anchor_3,
             anchor_1=criterion.anchor_1,
             value=values.get(criterion.id),
+            role_name=by_id[criterion.role_id].name if criterion.role_id in by_id else None,
         )
         for criterion in criteria_for(db, programme.id)
     ]
@@ -314,7 +320,7 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
             type=ranked.skill.type.value,
             suggested=ranked.suggested,
         )
-        for ranked in options_for_role(db, programme.role_id)
+        for ranked in options_for_roles(db, [role.id for role in roles])
     ]
 
     return ScoringCard(
@@ -606,11 +612,14 @@ def draft_testimonial_endpoint(
             "to ground a testimonial in.",
         )
 
+    from projet.services.rubric import load_programme_roles
+    from projet.services.writeup import join_names
+
     person = db.get(Person, participant.person_id)
     author = db.get(CompanyUser, actor.id)
     company = db.get(Company, programme.company_id)
-    role = db.get(Role, programme.role_id)
-    if person is None or author is None or company is None or role is None:
+    roles = load_programme_roles(db, programme)
+    if person is None or author is None or company is None or not roles:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Programme is not fully configured.")
 
     try:
@@ -623,7 +632,7 @@ def draft_testimonial_endpoint(
             author_title=author.title,
             company_name=company.name,
             programme_title=programme.title,
-            role_name=role.name,
+            role_name=join_names([role.name for role in roles]),
             problem_statement=brief or None,
             deliverable_spec=deliverable or None,
             skill_names=skills,

@@ -151,7 +151,7 @@ export default function ScoringCardPage({
       <h2>Score</h2>
       <p className="small muted">
         Saves as you go{savedAt && ` · last saved ${savedAt}`}. The total appears once
-        all four are rated.
+        every box is rated.
       </p>
       {error && <div className="notice bad">{error}</div>}
 
@@ -160,6 +160,7 @@ export default function ScoringCardPage({
           <div className="row" style={{ justifyContent: "space-between" }}>
             <strong>
               {criterion.slot}. {criterion.name}
+              {criterion.role_name ? ` · ${criterion.role_name}` : ""}
             </strong>
             {criterion.is_universal && <span className="tag">universal</span>}
           </div>

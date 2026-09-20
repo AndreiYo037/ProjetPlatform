@@ -26,13 +26,31 @@ class RankedSkill:
     suggested: bool
 
 
+def options_for_roles(session: Session, role_ids: list[uuid.UUID]) -> list[RankedSkill]:
+    """Every skill, ranked ones from each role first, then the rest."""
+    ranked: list[str] = []
+    seen: set[str] = set()
+    for role_id in role_ids:
+        template = session.get(RoleTemplate, role_id)
+        if template is None:
+            continue
+        for name in [*(template.ranked_hard_skills or []), *(template.ranked_soft_skills or [])]:
+            if name not in seen:
+                seen.add(name)
+                ranked.append(name)
+    return _options_from_ranked(session, ranked)
+
+
 def options_for_role(session: Session, role_id: uuid.UUID | None) -> list[RankedSkill]:
     """Every skill, the role's ranked ones first and in their ranked order."""
     template = session.get(RoleTemplate, role_id) if role_id else None
     ranked: list[str] = []
     if template is not None:
         ranked = [*(template.ranked_hard_skills or []), *(template.ranked_soft_skills or [])]
+    return _options_from_ranked(session, ranked)
 
+
+def _options_from_ranked(session: Session, ranked: list[str]) -> list[RankedSkill]:
     by_name = {skill.name: skill for skill in session.scalars(select(Skill))}
 
     ordered: list[RankedSkill] = []
@@ -48,5 +66,4 @@ def options_for_role(session: Session, role_id: uuid.UUID | None) -> list[Ranked
     for skill in sorted(by_name.values(), key=lambda s: s.name):
         if skill.id not in taken:
             ordered.append(RankedSkill(skill=skill, suggested=False))
-
     return ordered

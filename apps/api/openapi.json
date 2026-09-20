@@ -3660,7 +3660,7 @@
           "public"
         ],
         "summary": "Apply",
-        "description": "FR-201 to FR-208.\n\nSubmission is allowed with either consent declined (FR-202): declining is a\nreal choice, not a soft block. No password here \u2014 applicants sign in later\nvia the offer / set-password path once they have a reason to. A signed-in\napplicant may reuse the CV already on their profile.",
+        "description": "FR-201 to FR-208.\n\nBoth consents must be ticked to apply. No password here \u2014 applicants sign\nin later via the offer / set-password path once they have a reason to. A\nsigned-in applicant may reuse the CV already on their profile.",
         "operationId": "apply_public_x__company_slug___programme_slug__apply_post",
         "parameters": [
           {
@@ -6277,17 +6277,6 @@
             "title": "Availability Confirmed",
             "default": false
           },
-          "availability_note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Availability Note"
-          },
           "offer_url": {
             "anyOf": [
               {
@@ -6704,18 +6693,6 @@
             "type": "boolean",
             "title": "Availability Confirmed",
             "default": false
-          },
-          "availability_note": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 2000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Availability Note"
           },
           "consent_share_company": {
             "type": "boolean",
@@ -7385,7 +7362,7 @@
             "title": "Id"
           },
           "slot": {
-            "type": "integer",
+            "type": "string",
             "title": "Slot"
           },
           "name": {
@@ -7429,6 +7406,17 @@
             "type": "boolean",
             "title": "Is Universal",
             "default": false
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name"
           }
         },
         "type": "object",
@@ -7442,7 +7430,7 @@
       "CriterionPublic": {
         "properties": {
           "slot": {
-            "type": "integer",
+            "type": "string",
             "title": "Slot"
           },
           "name": {
@@ -8968,9 +8956,25 @@
             "title": "Company Id"
           },
           "role_id": {
-            "type": "string",
-            "format": "uuid",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Role Id"
+          },
+          "role_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Role Ids",
+            "default": []
           },
           "title": {
             "type": "string",
@@ -9093,7 +9097,6 @@
         },
         "type": "object",
         "required": [
-          "role_id",
           "title",
           "slug"
         ],
@@ -9273,6 +9276,14 @@
                 "type": "null"
               }
             ]
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleSummary"
+            },
+            "type": "array",
+            "title": "Roles",
+            "default": []
           },
           "brief_url": {
             "anyOf": [
@@ -9511,6 +9522,14 @@
                 "type": "null"
               }
             ]
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/RoleSummary"
+            },
+            "type": "array",
+            "title": "Roles",
+            "default": []
           }
         },
         "type": "object",
@@ -9651,6 +9670,21 @@
               }
             ],
             "title": "Winners Count"
+          },
+          "role_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Ids"
           }
         },
         "type": "object",
@@ -10156,7 +10190,7 @@
       "PublicCriterion": {
         "properties": {
           "slot": {
-            "type": "integer",
+            "type": "string",
             "title": "Slot"
           },
           "name": {
@@ -10195,6 +10229,17 @@
               }
             ],
             "title": "Anchor 1"
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name"
           }
         },
         "type": "object",
@@ -10422,9 +10467,25 @@
             "type": "string",
             "title": "Role"
           },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Roles",
+            "default": []
+          },
           "cluster": {
             "type": "string",
             "title": "Cluster"
+          },
+          "clusters": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Clusters",
+            "default": []
           },
           "state": {
             "type": "string",
@@ -11062,7 +11123,7 @@
       "ScoringAnchor": {
         "properties": {
           "slot": {
-            "type": "integer",
+            "type": "string",
             "title": "Slot"
           },
           "criterion_id": {
@@ -11121,6 +11182,17 @@
               }
             ],
             "title": "Value"
+          },
+          "role_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role Name"
           }
         },
         "type": "object",

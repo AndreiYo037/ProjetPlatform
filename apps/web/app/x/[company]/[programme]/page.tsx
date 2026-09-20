@@ -114,11 +114,13 @@ export default async function ListingPage({
 
       <h2>How you are judged</h2>
       <p className="small muted">
-        All four criteria, published up front. There is no advantage in concealing them.
+        All criteria, published up front. There is no advantage in concealing them.
       </p>
       {listing.criteria.map((criterion) => (
-        <div className="rubric" key={criterion.slot}>
-          <strong>{criterion.name}</strong>
+        <div className="rubric" key={String(criterion.slot)}>
+          <strong>
+            {criterion.slot}. {criterion.name}
+          </strong>
           <div className="anchors">
             <div>
               <b>5</b>
