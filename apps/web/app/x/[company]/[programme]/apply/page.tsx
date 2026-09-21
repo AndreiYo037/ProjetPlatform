@@ -323,10 +323,10 @@ export default function ApplyPage({
 
         <div className="field">
           <label htmlFor="writeup">Your writeup</label>
+          {/* Instructions, not a field. In a white bordered box directly above
+              the real textarea it read as a pre-filled input to clear out. */}
           {listing?.writeup_prompt && (
-            <div className="rubric" style={{ whiteSpace: "pre-wrap", marginBottom: "0.5rem" }}>
-              {listing.writeup_prompt}
-            </div>
+            <div className="prompt">{listing.writeup_prompt}</div>
           )}
           <textarea
             id="writeup"

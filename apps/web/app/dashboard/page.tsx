@@ -127,6 +127,11 @@ function ProgrammePageInner() {
         ← Home
       </Link>
 
+      <h1 style={{ marginTop: "0.4rem" }}>{data.programme.title}</h1>
+      <p className="lede" style={{ marginBottom: showSwitcher ? "0.85rem" : undefined }}>
+        {data.programme.company} · {data.programme.role}
+      </p>
+
       {showSwitcher && (
         <ProgrammeSwitcher
           active={data.active_programmes}
@@ -134,11 +139,6 @@ function ProgrammePageInner() {
           currentId={data.programme.id}
         />
       )}
-
-      <h1 style={{ marginTop: "0.4rem" }}>{data.programme.title}</h1>
-      <p className="lede">
-        {data.programme.company} · {data.programme.role}
-      </p>
 
       {/* FR-703 — a required acknowledgement blocks until it is acknowledged,
           so it stays above the section nav rather than inside one section. */}
@@ -164,11 +164,11 @@ function ProgrammePageInner() {
         timezone={data.programme.timezone}
       />
 
-      <nav className="row" style={{ margin: "1.25rem 0" }}>
+      <nav className="tabs">
         {SECTIONS.map((s) => (
           <button
             key={s.key}
-            className={section === s.key ? "" : "secondary"}
+            className="tab"
             aria-current={section === s.key ? "page" : undefined}
             onClick={() => setSection(s.key)}
           >
@@ -365,46 +365,24 @@ function ProgrammeSwitcher({
   past: Dashboard["past_programmes"];
   currentId: string;
 }) {
+  /* One row of chips rather than two headed lists of full-size buttons: this
+     is a switcher, not four calls to action, and it sits under the title it
+     switches. Finished weeks stay reachable but read as past. */
   return (
-    <div style={{ margin: "0.75rem 0 0.25rem" }}>
-      {active.length > 0 && (
-        <>
-          <p className="small muted" style={{ marginBottom: "0.35rem" }}>
-            Active programmes
-          </p>
-          <nav className="row" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
-            {active.map((programme) => (
-              <Link
-                key={programme.id}
-                className={`btn small ${programme.id === currentId ? "" : "secondary"}`}
-                href={`/dashboard?programme=${programme.id}`}
-                aria-current={programme.id === currentId ? "page" : undefined}
-              >
-                {programme.title}
-              </Link>
-            ))}
-          </nav>
-        </>
+    <nav className="switcher" aria-label="Your programmes">
+      <span className="switcher-label">Switch</span>
+      {[...active.map((p) => [p, false] as const), ...past.map((p) => [p, true] as const)].map(
+        ([programme, isPast]) => (
+          <Link
+            key={programme.id}
+            className={`chip${isPast ? " is-past" : ""}`}
+            href={`/dashboard?programme=${programme.id}`}
+            aria-current={programme.id === currentId ? "page" : undefined}
+          >
+            {programme.title}
+          </Link>
+        ),
       )}
-      {past.length > 0 && (
-        <>
-          <p className="small muted" style={{ margin: "0.75rem 0 0.35rem" }}>
-            Past programmes
-          </p>
-          <nav className="row" style={{ flexWrap: "wrap", gap: "0.4rem" }}>
-            {past.map((programme) => (
-              <Link
-                key={programme.id}
-                className={`btn small ${programme.id === currentId ? "" : "secondary"}`}
-                href={`/dashboard?programme=${programme.id}`}
-                aria-current={programme.id === currentId ? "page" : undefined}
-              >
-                {programme.title}
-              </Link>
-            ))}
-          </nav>
-        </>
-      )}
-    </div>
+    </nav>
   );
 }

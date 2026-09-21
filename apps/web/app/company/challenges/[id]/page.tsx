@@ -174,11 +174,11 @@ export default function ChallengeDetailPage({
         </div>
       )}
 
-      <nav className="row" style={{ margin: "1.25rem 0" }}>
+      <nav className="tabs">
         {sections.map((s) => (
           <button
             key={s.key}
-            className={active === s.key ? "" : "secondary"}
+            className="tab"
             aria-current={active === s.key ? "page" : undefined}
             onClick={() => setSection(s.key)}
           >

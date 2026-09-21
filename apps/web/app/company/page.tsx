@@ -10,6 +10,7 @@ import {
   roleLabel,
   type CompanyHome,
 } from "@/lib/api";
+import { formatDay } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 export default function CompanyProgrammesPage() {
@@ -69,7 +70,7 @@ export default function CompanyProgrammesPage() {
                 <div className="small muted">
                   {roleLabel(programme)}
                   {programme.submit_deadline_at
-                    ? ` · due ${new Date(programme.submit_deadline_at).toLocaleDateString()}`
+                    ? ` · due ${formatDay(programme.submit_deadline_at)}`
                     : null}
                 </div>
               </div>

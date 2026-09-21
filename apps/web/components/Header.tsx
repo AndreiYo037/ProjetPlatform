@@ -48,62 +48,78 @@ export default function Header() {
     router.refresh();
   }
 
+  /* A nav where every item is a bordered button reads as five things to do.
+     Destinations are quiet links marked by where you are; only sign-in — the
+     one thing a signed-out visitor is here to do — stays a button. */
+  function navLink(href: string, label: string) {
+    return (
+      <Link
+        key={href}
+        className="navlink"
+        href={href}
+        aria-current={
+          pathname === href || pathname.startsWith(`${href}/`) ? "page" : undefined
+        }
+      >
+        {label}
+      </Link>
+    );
+  }
+
   return (
     <header className="bar">
-      {actor ? (
-        <span className="brand">Projet</span>
-      ) : (
-        <Link href="/" className="brand">
-          Projet
-        </Link>
-      )}
-      <nav className="bar-links">
-        {!checked ? null : actor ? (
-          <>
-            <span className="small muted">
-              {actor.name} · {actor.actor_type.replace("_", " ")}
-            </span>
-            {actor.actor_type === "platform" && (
-              <Link className="btn secondary small" href="/admin">
-                Admin
-              </Link>
-            )}
-            {actor.company_id && (
-              <>
-                <Link className="btn secondary small" href="/company">
-                  Programmes
-                </Link>
-                <Link className="btn secondary small" href="/company/profile">
-                  Profile
-                </Link>
-              </>
-            )}
-            {actor.actor_type === "participant" && (
-              <>
-                <Link className="btn secondary small" href="/home">
-                  Home
-                </Link>
-                <Link className="btn secondary small" href="/challenges">
-                  Challenges
-                </Link>
-                <Link className="btn secondary small" href="/profile">
-                  Update profile
-                </Link>
-                <Link className="btn secondary small" href="/dashboard">
-                  My programmes
-                </Link>
-              </>
-            )}
-            <button className="secondary" onClick={signOut}>
-              Sign out
-            </button>
-          </>
+      <div className="bar-inner">
+        {actor ? (
+          <span className="brand">Projet</span>
         ) : (
-          <Link className="btn secondary" href={signInPathFor(pathname)}>
-            Sign in
+          <Link href="/" className="brand">
+            Projet
           </Link>
         )}
-      </nav>
+        <nav className="bar-links">
+          {!checked ? null : actor ? (
+            <>
+              {actor.actor_type === "platform" && navLink("/admin", "Admin")}
+              {actor.company_id && (
+                <>
+                  {navLink("/company", "Programmes")}
+                  {navLink("/company/profile", "Profile")}
+                </>
+              )}
+              {actor.actor_type === "participant" && (
+                <>
+                  {navLink("/home", "Home")}
+                  {navLink("/challenges", "Challenges")}
+                  {navLink("/dashboard", "My programmes")}
+                  {navLink("/profile", "Profile")}
+                </>
+              )}
+              <span className="bar-who">
+                <span className="avatar small" aria-hidden="true">
+                  {initials(actor.name)}
+                </span>
+                <span className="bar-who-name">{actor.name}</span>
+              </span>
+              <button className="ghost small" onClick={signOut}>
+                Sign out
+              </button>
+            </>
+          ) : (
+            <Link className="btn secondary" href={signInPathFor(pathname)}>
+              Sign in
+            </Link>
+          )}
+        </nav>
+      </div>
     </header>
   );
+}
+
+/** Two letters is enough to recognise yourself and never overflows the chip. */
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0][0] ?? "";
+  const last = parts.length > 1 ? (parts[parts.length - 1][0] ?? "") : "";
+  return (first + last).toUpperCase();
 }
