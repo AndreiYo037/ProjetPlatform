@@ -75,9 +75,10 @@ def offer_email(ctx: EffectContext) -> dict:
 
     kickoff_line = ""
     if programme and programme.start_at:
-        starts = format_sgt_datetime(programme.start_at)
+        starts = format_sgt_date(programme.start_at)
         kickoff_line = f"<p><strong>Starts:</strong> {starts}</p>"
         if programme.kickoff_at:
+            # The call is the time the company picked, not midnight on the start date.
             kickoff_line += (
                 f"<p><strong>Kickoff:</strong> {format_sgt_datetime(programme.kickoff_at)}</p>"
             )
@@ -92,7 +93,7 @@ def offer_email(ctx: EffectContext) -> dict:
 
     pitch_line = ""
     if programme and programme.pitch_at:
-        pitch_line = f"<p><strong>Ends:</strong> {format_sgt_datetime(programme.pitch_at)}</p>"
+        pitch_line = f"<p><strong>Ends:</strong> {format_sgt_date(programme.pitch_at)}</p>"
 
     sent = ctx.google.send_email(
         to=application.person.contact_email,

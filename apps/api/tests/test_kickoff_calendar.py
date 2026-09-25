@@ -238,8 +238,11 @@ def test_the_offer_carries_the_meet_link_without_a_calendar_invite(
     )
     assert prog.kickoff_meet_link in offer.payload["html_body"]
     assert "Offer invite test" in offer.payload["html_body"]
-    assert "14:00 SGT" in offer.payload["html_body"]
-    assert "calendar invite" not in offer.payload["html_body"].lower()
+    body = offer.payload["html_body"]
+    assert "<strong>Kickoff:</strong>" in body
+    assert "14:00 SGT" in body
+    assert "00:00" not in body
+    assert "calendar invite" not in body.lower()
     assert google.calls_of("patch_event_attendees") == []
 
 
