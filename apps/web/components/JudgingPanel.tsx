@@ -134,7 +134,7 @@ export default function JudgingPanel({
                 {card.name}
               </strong>
               <div className="small muted">
-                {card.pitch_at ? `${formatSlot(card.pitch_at)} SGT · ` : ""}
+                {card.pitch_at ? `${formatSlot(card.pitch_at)} · ` : ""}
                 {card.organisation ?? "—"} · {card.links.length} file
                 {card.links.length === 1 ? "" : "s"}
               </div>

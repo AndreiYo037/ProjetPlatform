@@ -29,7 +29,7 @@ import {
   type PublicationCheck,
   type ClusterGroup,
 } from "@/lib/api";
-import { fromDateInput, fromTimeOnDate, formatSlotTime, toDateInput, toTimeInput } from "@/lib/dates";
+import { fromDateInput, fromTimeOnDate, formatDayClock, formatSlot, toDateInput, toTimeInput } from "@/lib/dates";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
@@ -363,13 +363,7 @@ function ScheduleSection({
   );
 
   function formatDay(iso: string | null | undefined, time: string) {
-    if (!iso) return "Not set";
-    const day = new Date(iso).toLocaleDateString(undefined, {
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-    });
-    return `${day} · ${time}`;
+    return formatDayClock(iso, time) ?? "Not set";
   }
 
   if (!isDraft) {
@@ -385,11 +379,7 @@ function ScheduleSection({
           <dt>Starts</dt>
           <dd>{formatDay(programme.start_at, "00:00")}</dd>
           <dt>Kickoff</dt>
-          <dd>
-            {programme.kickoff_at
-              ? formatDay(programme.kickoff_at, formatSlotTime(programme.kickoff_at) ?? "")
-              : "Not set"}
-          </dd>
+          <dd>{programme.kickoff_at ? formatSlot(programme.kickoff_at) : "Not set"}</dd>
           <dt>Ends</dt>
           <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
         </dl>
@@ -430,7 +420,7 @@ function ScheduleSection({
           value={appsCloseAt}
           onChange={(e) => setAppsCloseAt(e.target.value)}
         />
-        <p className="small muted">Closes at 23:59 on that day.</p>
+        <p className="small muted">Closes at 23:59 SGT on that day.</p>
       </div>
       <div className="row" style={{ gap: "1rem" }}>
         <div className="field" style={{ flex: 1 }}>
@@ -441,7 +431,7 @@ function ScheduleSection({
             value={startAt}
             onChange={(e) => setStartAt(e.target.value)}
           />
-          <p className="small muted">00:00 on that day.</p>
+          <p className="small muted">00:00 SGT on that day.</p>
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label htmlFor="edit-kickoff">Kickoff</label>
@@ -462,7 +452,7 @@ function ScheduleSection({
             value={endAt}
             onChange={(e) => setEndAt(e.target.value)}
           />
-          <p className="small muted">23:59 on that day.</p>
+          <p className="small muted">23:59 SGT on that day.</p>
         </div>
       </div>
       {saveError && <div className="notice bad">{saveError}</div>}

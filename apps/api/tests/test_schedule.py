@@ -124,3 +124,13 @@ def test_pitch_day_begins_at_midnight_on_the_pitch_date():
     local = begins.astimezone(SGT)
     assert local.date() == datetime(2026, 9, 23, tzinfo=SGT).date()
     assert (local.hour, local.minute) == (0, 0)
+
+
+def test_printed_times_are_singapore_and_say_so():
+    """UTC storage must not leak into mail or refusals."""
+    utc = datetime(2026, 9, 26, 16, 0, tzinfo=ZoneInfo("UTC"))
+    assert schedule.format_sgt_date(utc) == "Sunday 27 September SGT"
+    assert schedule.format_sgt_day(utc) == "27 September SGT"
+    assert schedule.format_sgt_datetime(utc) == "Sunday 27 September, 00:00 SGT"
+    kickoff = datetime(2026, 9, 27, 5, 0, tzinfo=ZoneInfo("UTC"))
+    assert schedule.format_sgt_datetime(kickoff) == "Sunday 27 September, 13:00 SGT"

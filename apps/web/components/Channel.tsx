@@ -234,7 +234,7 @@ export default function Channel({
         {kickoffMeetLink && (
           <p className="chat-meet small">
             Kick-off
-            {kickoffWhen ? ` ${kickoffWhen} SGT` : ""}.{" "}
+            {kickoffWhen ? ` ${kickoffWhen}` : ""}.{" "}
             <a
               href={externalHref(kickoffMeetLink) ?? kickoffMeetLink}
               target="_blank"

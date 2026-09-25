@@ -21,7 +21,7 @@ import {
   criterionHeading,
   roleLabel,
 } from "@/lib/api";
-import { formatSlot, formatSlotTime } from "@/lib/dates";
+import { formatDayClock, formatSlot } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 const CRITERIA = ["relevance", "specificity", "capability", "followthrough"] as const;
@@ -57,13 +57,7 @@ function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
 }
 
 function formatDay(iso: string | null | undefined, time: string) {
-  if (!iso) return "Not set";
-  const day = new Date(iso).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-  return `${day} · ${time}`;
+  return formatDayClock(iso, time) ?? "Not set";
 }
 
 export default function ProgrammePage({ params }: { params: Promise<{ id: string }> }) {
@@ -424,11 +418,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               <dt>Starts</dt>
               <dd>{formatDay(programme.start_at, "00:00")}</dd>
               <dt>Kickoff</dt>
-              <dd>
-                {programme.kickoff_at
-                  ? `${formatDay(programme.kickoff_at, formatSlotTime(programme.kickoff_at) ?? "")}`
-                  : "Not set"}
-              </dd>
+              <dd>{programme.kickoff_at ? formatSlot(programme.kickoff_at) : "Not set"}</dd>
               <dt>Ends</dt>
               <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
               {programme.kickoff_meet_link && (
@@ -440,7 +430,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               {programme.pitch_starts_at && (
                 <>
                   <dt>First pitch</dt>
-                  <dd>{formatSlot(programme.pitch_starts_at)} SGT</dd>
+                  <dd>{formatSlot(programme.pitch_starts_at)}</dd>
                 </>
               )}
             </dl>

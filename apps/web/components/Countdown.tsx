@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { formatSlot } from "@/lib/dates";
 
 /**
- * FR-501 — the deadline, in the participant's own timezone.
+ * FR-501 — the deadline, always Singapore time.
  *
  * Rendered client-side on purpose: a server-rendered countdown is wrong the
  * moment it reaches the browser, and this is the single most time-critical
@@ -11,10 +12,9 @@ import { useEffect, useState } from "react";
  */
 export default function Countdown({
   deadline,
-  timezone,
 }: {
   deadline: string | null;
-  timezone: string;
+  timezone?: string;
 }) {
   const [now, setNow] = useState<number | null>(null);
 
@@ -27,14 +27,7 @@ export default function Countdown({
   if (!deadline) return null;
 
   const target = new Date(deadline);
-  const local = target.toLocaleString(undefined, {
-    timeZone: timezone,
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const local = formatSlot(deadline);
 
   // Until the clock has mounted, show the date without a relative figure
   // rather than a figure that flashes and corrects itself.
@@ -64,7 +57,7 @@ export default function Countdown({
       <div style={{ fontSize: "1.15rem", fontWeight: 600 }}>{local}</div>
       {remaining && (
         <div className="small" style={{ color: urgent ? "var(--warn)" : "var(--muted)" }}>
-          {remaining} · {timezone.replace("_", " ")}
+          {remaining}
         </div>
       )}
     </div>

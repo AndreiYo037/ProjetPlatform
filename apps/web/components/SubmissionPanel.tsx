@@ -9,6 +9,7 @@ import {
   uploadSubmissionFile,
   type SubmissionOut,
 } from "@/lib/api";
+import { formatSlot } from "@/lib/dates";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 
 const SLOT_LABELS: Record<string, string> = {
@@ -234,13 +235,7 @@ export default function SubmissionPanel({
 }
 
 function formatSubmittedAt(value: string) {
-  return new Date(value).toLocaleString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatSlot(value) ?? value;
 }
 
 function SlotLinkInput({

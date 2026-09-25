@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { assetUrl, type PublicListingSummary } from "@/lib/api";
+import { formatDay } from "@/lib/dates";
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  return formatDay(value);
 }
 
 function stateLabel(state: string) {

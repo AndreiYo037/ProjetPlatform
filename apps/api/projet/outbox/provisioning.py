@@ -106,9 +106,9 @@ def pitch_slot_email_html(
     starts_at,
     meet_link: str | None,
 ) -> str:
-    from projet.services.schedule import in_programme_tz
+    from projet.services.schedule import format_sgt_datetime
 
-    when = in_programme_tz(starts_at).strftime("%A %d %B, %H:%M")
+    when = format_sgt_datetime(starts_at)
     meet = (
         f'<p>Join the judging call: <a href="{meet_link}">{meet_link}</a></p>'
         if meet_link
@@ -117,7 +117,7 @@ def pitch_slot_email_html(
     return (
         f"<p>Hi {name},</p>"
         f"<p>Your pitch slot for <strong>{title}</strong> is "
-        f"<strong>{when} SGT</strong>.</p>"
+        f"<strong>{when}</strong>.</p>"
         f"{meet}"
         "<p>First come, first served — this time is yours. You can pick a different "
         "open slot later if one is still free.</p>"
@@ -131,9 +131,9 @@ def pitch_day_email_html(
     starts_at,
     meet_link: str | None,
 ) -> str:
-    from projet.services.schedule import in_programme_tz
+    from projet.services.schedule import format_sgt_datetime
 
-    when = in_programme_tz(starts_at).strftime("%A %d %B, %H:%M")
+    when = format_sgt_datetime(starts_at)
     meet = (
         f'<p><strong>Google Meet:</strong> <a href="{meet_link}">{meet_link}</a></p>'
         if meet_link
@@ -142,7 +142,7 @@ def pitch_day_email_html(
     return (
         f"<p>Hi {name},</p>"
         f"<p>Judging is today. Your slot for <strong>{title}</strong> is "
-        f"<strong>{when} SGT</strong>.</p>"
+        f"<strong>{when}</strong>.</p>"
         f"{meet}"
         "<p>Same room for the whole cohort. Join at your time.</p>"
     )

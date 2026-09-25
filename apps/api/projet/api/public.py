@@ -376,7 +376,9 @@ def _readable(value: datetime | None) -> str | None:
     if value is None:
         return None
     # Avoid %-d / %#d — neither is portable across Windows and Unix.
-    return value.strftime(f"%a {value.day} %b, %H:%M UTC")
+    from projet.services.schedule import format_sgt_datetime
+
+    return format_sgt_datetime(value)
 
 
 class ApplicationAccepted(BaseModel):

@@ -96,7 +96,7 @@ export default function ScoringCardPage({
       </div>
       {card.submission.pitch_at && (
         <p className="small muted" style={{ marginTop: "0.4rem" }}>
-          {formatSlot(card.submission.pitch_at)} SGT
+          {formatSlot(card.submission.pitch_at)}
         </p>
       )}
       {card.submission.meet_link && (

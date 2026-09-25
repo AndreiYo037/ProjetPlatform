@@ -71,7 +71,7 @@ export default function PitchingSection({
       </div>
       {programme.pitch_starts_at && (
         <p className="small muted" style={{ marginBottom: 0 }}>
-          First slot {formatSlot(programme.pitch_starts_at)} SGT
+          First slot {formatSlot(programme.pitch_starts_at)}
           {programme.pitch_duration_minutes
             ? ` · ${programme.pitch_duration_minutes} min each`
             : ""}

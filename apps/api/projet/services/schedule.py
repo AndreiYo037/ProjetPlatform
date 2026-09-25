@@ -99,6 +99,30 @@ def validate_applications_close(close_at: datetime | None, start_at: datetime) -
         )
 
 
+def format_sgt_date(moment: datetime | None) -> str | None:
+    """Calendar day in Singapore: Sunday 27 September SGT."""
+    if moment is None:
+        return None
+    local = in_programme_tz(moment)
+    return f"{local.strftime(f'%A {local.day} %B')} SGT"
+
+
+def format_sgt_day(moment: datetime | None) -> str | None:
+    """Shorter calendar day: 27 September SGT."""
+    if moment is None:
+        return None
+    local = in_programme_tz(moment)
+    return f"{local.strftime(f'{local.day} %B')} SGT"
+
+
+def format_sgt_datetime(moment: datetime | None) -> str | None:
+    """Date, clock, and region. Always Singapore time."""
+    if moment is None:
+        return None
+    local = in_programme_tz(moment)
+    return f"{local.strftime(f'%A {local.day} %B, %H:%M')} SGT"
+
+
 def programme_is_past(programme, now: datetime | None = None) -> bool:
     """Whether the challenge is over.
 

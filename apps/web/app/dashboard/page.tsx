@@ -284,7 +284,7 @@ function PitchSection({
       ) : booked ? (
         <dl className="facts">
           <dt>When</dt>
-          <dd>{formatSlot(booked.starts_at)} SGT</dd>
+          <dd>{formatSlot(booked.starts_at)}</dd>
           {booked.location_or_meet_link && (
             <>
               <dt>Meeting</dt>
@@ -299,7 +299,7 @@ function PitchSection({
       ) : (
         <p className="small muted">
           First to pick a time gets it. Your confirmed slot and the Meet are
-          emailed at 00:00 on judging day.
+          emailed at 00:00 SGT on judging day.
         </p>
       )}
       {slots.length > 0 && canChange && (

@@ -11,19 +11,18 @@ import {
   type PersonProfile,
   type PublicListing,
 } from "@/lib/api";
-import { formatSlot } from "@/lib/dates";
+import { formatDayClock, formatSlot } from "@/lib/dates";
 
 /**
  * The calendar day. Times of day are fixed (start 00:00, end 23:59), so the
  * commitment is the date the company picked.
  */
-function formatMoment(value: string | null | undefined) {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString(undefined, {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+function formatStart(value: string | null | undefined) {
+  return formatDayClock(value, "00:00");
+}
+
+function formatEnd(value: string | null | undefined) {
+  return formatDayClock(value, "23:59");
 }
 
 /**
@@ -90,9 +89,9 @@ export default function ApplyPage({
     };
   }, []);
 
-  const kickoff = formatMoment(listing?.start_at);
+  const kickoff = formatStart(listing?.start_at);
   const kickoffCall = formatSlot(listing?.kickoff_at);
-  const pitch = formatMoment(listing?.pitch_at);
+  const pitch = formatEnd(listing?.submit_deadline_at ?? listing?.pitch_at);
   const isStudent = orgType === "school";
   const hasProfileCv = Boolean(profile?.cv_url);
 
@@ -346,7 +345,7 @@ export default function ApplyPage({
           <dt>Starts</dt>
           <dd>{kickoff ?? "To be confirmed"}</dd>
           <dt>Kickoff</dt>
-          <dd>{kickoffCall ? `${kickoffCall} SGT` : "To be confirmed"}</dd>
+          <dd>{kickoffCall ?? "To be confirmed"}</dd>
           <dt>Ends</dt>
           <dd>{pitch ?? "To be confirmed"}</dd>
         </dl>

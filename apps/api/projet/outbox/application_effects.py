@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from projet.models import Application, Company, Participant, Programme
 from projet.outbox.effects import EffectContext, PermanentEffectError, effect
+from projet.services.schedule import format_sgt_date, format_sgt_datetime
 
 APPLICATION_RECEIVED_EMAIL = "application_received_email"
 OFFER_EMAIL = "offer_email"
@@ -47,7 +48,7 @@ def application_received(ctx: EffectContext) -> dict:
     application = _application(ctx)
     programme, company_name = _context(ctx, application)
     decision_by = (
-        programme.start_at.strftime("%d %B") if programme and programme.start_at else "shortly"
+        format_sgt_date(programme.start_at) if programme and programme.start_at else "shortly"
     )
     sent = ctx.google.send_email(
         to=application.person.contact_email,
@@ -69,23 +70,16 @@ def offer_email(ctx: EffectContext) -> dict:
     url = ctx.payload.get("accept_url")
     if not url:
         raise PermanentEffectError("no acceptance url on payload")
-    expires = (
-        application.offer_expires_at.strftime("%d %B, %H:%M")
-        if application.offer_expires_at
-        else "48 hours"
-    )
+    expires = format_sgt_datetime(application.offer_expires_at) or "48 hours"
     title = programme.title if programme else "your programme"
 
     kickoff_line = ""
     if programme and programme.start_at:
-        kickoff_date = programme.start_at.strftime("%A %d %B")
-        kickoff_line = f"<p><strong>Starts:</strong> {kickoff_date}</p>"
+        starts = format_sgt_datetime(programme.start_at)
+        kickoff_line = f"<p><strong>Starts:</strong> {starts}</p>"
         if programme.kickoff_at:
-            from projet.services.schedule import in_programme_tz
-
-            when = in_programme_tz(programme.kickoff_at)
             kickoff_line += (
-                f"<p><strong>Kickoff:</strong> {when.strftime('%A %d %B, %H:%M')} SGT</p>"
+                f"<p><strong>Kickoff:</strong> {format_sgt_datetime(programme.kickoff_at)}</p>"
             )
         if programme.kickoff_meet_link:
             # The URL is its own visible text: someone joining from a phone, a
@@ -98,9 +92,7 @@ def offer_email(ctx: EffectContext) -> dict:
 
     pitch_line = ""
     if programme and programme.pitch_at:
-        pitch_line = (
-            f"<p><strong>Ends:</strong> {programme.pitch_at.strftime('%A %d %B')}</p>"
-        )
+        pitch_line = f"<p><strong>Ends:</strong> {format_sgt_datetime(programme.pitch_at)}</p>"
 
     sent = ctx.google.send_email(
         to=application.person.contact_email,

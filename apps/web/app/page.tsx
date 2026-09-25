@@ -80,7 +80,8 @@ export default async function Landing() {
         </div>
         <p className="small muted" style={{ marginTop: "0.9rem" }}>
           Already here? <Link href="/signin">Participant sign in</Link> ·{" "}
-          <Link href="/company/signin">Company sign in</Link>
+          <Link href="/company/signin">Company sign in</Link> ·{" "}
+          <Link href="/admin/login">Admin</Link>
         </p>
       </section>
 

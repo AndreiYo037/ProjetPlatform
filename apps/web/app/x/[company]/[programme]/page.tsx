@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { API_BASE_URL, assetUrl, type PublicListing } from "@/lib/api";
+import { formatDayClock, formatSlot } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -18,13 +19,12 @@ async function fetchListing(company: string, programme: string): Promise<PublicL
   return (await response.json()) as PublicListing;
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+function formatClose(value: string | null | undefined) {
+  return formatDayClock(value, "23:59");
+}
+
+function formatStart(value: string | null | undefined) {
+  return formatDayClock(value, "00:00");
 }
 
 export default async function ListingPage({
@@ -89,19 +89,25 @@ export default async function ListingPage({
         {listing.applications_close_at && (
           <>
             <dt>Applications close</dt>
-            <dd>{formatDate(listing.applications_close_at)}</dd>
+            <dd>{formatClose(listing.applications_close_at)}</dd>
           </>
         )}
         {listing.start_at && (
           <>
             <dt>Starts</dt>
-            <dd>{formatDate(listing.start_at)}</dd>
+            <dd>{formatStart(listing.start_at)}</dd>
+          </>
+        )}
+        {listing.kickoff_at && (
+          <>
+            <dt>Kickoff</dt>
+            <dd>{formatSlot(listing.kickoff_at)}</dd>
           </>
         )}
         {listing.submit_deadline_at && (
           <>
             <dt>Ends</dt>
-            <dd>{formatDate(listing.submit_deadline_at)}</dd>
+            <dd>{formatClose(listing.submit_deadline_at)}</dd>
           </>
         )}
         <dt>Time</dt>

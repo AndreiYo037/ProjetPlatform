@@ -19,12 +19,14 @@ export function fromDateInput(value: string): string | null {
 
 export function formatDay(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("en-GB", {
+  const day = new Intl.DateTimeFormat("en-GB", {
     timeZone: PROGRAMME_TZ,
+    weekday: "short",
     day: "numeric",
     month: "short",
     year: "numeric",
   }).format(new Date(iso));
+  return `${day} SGT`;
 }
 
 export function formatDayRange(
@@ -33,7 +35,7 @@ export function formatDayRange(
 ): string | null {
   const from = formatDay(start);
   const to = formatDay(end);
-  if (from && to && from !== to) return `${from} – ${to}`;
+  if (from && to && from !== to) return `${from.replace(/ SGT$/, "")} – ${to}`;
   return from ?? to;
 }
 
@@ -86,7 +88,7 @@ export function fromTimeOnDate(dateValue: string, timeValue: string): string | n
 
 export function formatSlot(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("en-GB", {
+  const when = new Intl.DateTimeFormat("en-GB", {
     timeZone: PROGRAMME_TZ,
     weekday: "short",
     day: "numeric",
@@ -95,14 +97,26 @@ export function formatSlot(iso: string | null | undefined): string | null {
     minute: "2-digit",
     hourCycle: "h23",
   }).format(new Date(iso));
+  return `${when} SGT`;
 }
 
 export function formatSlotTime(iso: string | null | undefined): string | null {
   if (!iso) return null;
-  return new Intl.DateTimeFormat("en-GB", {
+  const clock = new Intl.DateTimeFormat("en-GB", {
     timeZone: PROGRAMME_TZ,
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
   }).format(new Date(iso));
+  return `${clock} SGT`;
+}
+
+/** A calendar day plus a fixed clock, always Singapore. */
+export function formatDayClock(
+  iso: string | null | undefined,
+  time: string,
+): string | null {
+  const day = formatDay(iso);
+  if (!day) return null;
+  return `${day.replace(/ SGT$/, "")} · ${time} SGT`;
 }

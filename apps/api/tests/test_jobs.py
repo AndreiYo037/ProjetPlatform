@@ -283,7 +283,7 @@ def test_pitch_day_email_sends_slot_and_meet_at_midnight(
     send = google.calls_of("send_email")[0]
     assert send.payload["to"] == booked.person.contact_email
     assert send.payload["subject"].startswith("Judging today")
-    assert "Wednesday 23 September, 14:00" in send.payload["html_body"]
+    assert "Wednesday 23 September, 14:00 SGT" in send.payload["html_body"]
     assert "https://meet.google.com/pitch-room" in send.payload["html_body"]
     assert unbooked.person.contact_email not in [
         call.payload["to"] for call in google.calls_of("send_email")

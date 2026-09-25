@@ -12,7 +12,7 @@ import {
   type ClusterGroup,
   type RoleImplications,
 } from "@/lib/api";
-import { fromDateInput, fromDateTimeLocal, fromTimeOnDate, formatSlot } from "@/lib/dates";
+import { fromDateInput, fromDateTimeLocal, fromTimeOnDate, formatDayClock, formatSlot } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 type Step = "role" | "details" | "review";
@@ -418,7 +418,7 @@ function DetailsForm({
           value={appsCloseAt}
           onChange={(e) => onAppsCloseAtChange(e.target.value)}
         />
-        <div className="hint">Closes at 23:59 on that day.</div>
+        <div className="hint">Closes at 23:59 SGT on that day.</div>
       </div>
       <div className="row" style={{ gap: "1rem" }}>
         <div className="field" style={{ flex: 1 }}>
@@ -429,7 +429,7 @@ function DetailsForm({
             value={startAt}
             onChange={(e) => onStartAtChange(e.target.value)}
           />
-          <div className="hint">00:00 on that day.</div>
+          <div className="hint">00:00 SGT on that day.</div>
         </div>
         <div className="field" style={{ flex: 1 }}>
           <label htmlFor="ch-kickoff">Kickoff</label>
@@ -450,7 +450,7 @@ function DetailsForm({
             value={endAt}
             onChange={(e) => onEndAtChange(e.target.value)}
           />
-          <div className="hint">23:59 on that day.</div>
+          <div className="hint">23:59 SGT on that day.</div>
         </div>
       </div>
       <div className="row" style={{ gap: "1rem" }}>
@@ -490,13 +490,8 @@ function DetailsForm({
   );
 }
 
-function formatDay(value: string) {
-  if (!value) return "Not set";
-  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
+function asSgtDay(value: string) {
+  return `${value}T00:00:00+08:00`;
 }
 
 function ReviewStep({
@@ -547,21 +542,21 @@ function ReviewStep({
           <dt>Seats</dt>
           <dd>{capacity || "Uncapped"}</dd>
           <dt>Apps close</dt>
-          <dd>{appsCloseAt ? `${formatDay(appsCloseAt)} · 23:59` : "Not set"}</dd>
+          <dd>{formatDayClock(appsCloseAt ? asSgtDay(appsCloseAt) : null, "23:59") ?? "Not set"}</dd>
           <dt>Starts</dt>
-          <dd>{startAt ? `${formatDay(startAt)} · 00:00` : "Not set"}</dd>
+          <dd>{formatDayClock(startAt ? asSgtDay(startAt) : null, "00:00") ?? "Not set"}</dd>
           <dt>Kickoff</dt>
           <dd>
             {startAt && kickoffTime
-              ? `${formatDay(startAt)} · ${kickoffTime}`
+              ? formatDayClock(asSgtDay(startAt), kickoffTime)
               : "Not set"}
           </dd>
           <dt>Ends</dt>
-          <dd>{endAt ? `${formatDay(endAt)} · 23:59` : "Not set"}</dd>
+          <dd>{formatDayClock(endAt ? asSgtDay(endAt) : null, "23:59") ?? "Not set"}</dd>
           <dt>First pitch</dt>
           <dd>
             {pitchStartsAt
-              ? `${formatSlot(`${pitchStartsAt}:00+08:00`)} SGT · ${pitchDuration || "10"} min each`
+              ? `${formatSlot(`${pitchStartsAt}:00+08:00`)} · ${pitchDuration || "10"} min each`
               : "Not set"}
           </dd>
         </dl>

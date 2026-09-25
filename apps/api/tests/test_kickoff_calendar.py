@@ -147,6 +147,8 @@ def test_accept_does_not_add_participant_to_kickoff_event(
             "google_email": "sam-cal@gmail.com",
             "writeup": " ".join(["analysis"] * 220),
             "availability_confirmed": "true",
+            "consent_share_company": "true",
+            "consent_recording": "true",
             "password": "hunter22",
         },
         files={"cv": ("sam.pdf", io.BytesIO(b"%PDF-1.4 cv"), "application/pdf")},
@@ -216,6 +218,8 @@ def test_the_offer_carries_the_meet_link_without_a_calendar_invite(
             "google_email": "sam-offer@gmail.com",
             "writeup": " ".join(["analysis"] * 220),
             "availability_confirmed": "true",
+            "consent_share_company": "true",
+            "consent_recording": "true",
             "password": "hunter22",
         },
         files={"cv": ("sam.pdf", io.BytesIO(b"%PDF-1.4 cv"), "application/pdf")},
@@ -234,7 +238,7 @@ def test_the_offer_carries_the_meet_link_without_a_calendar_invite(
     )
     assert prog.kickoff_meet_link in offer.payload["html_body"]
     assert "Offer invite test" in offer.payload["html_body"]
-    assert "14:00" in offer.payload["html_body"]
+    assert "14:00 SGT" in offer.payload["html_body"]
     assert "calendar invite" not in offer.payload["html_body"].lower()
     assert google.calls_of("patch_event_attendees") == []
 
