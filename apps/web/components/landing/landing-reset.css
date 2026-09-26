@@ -15,6 +15,21 @@ body:has(.landing-root) {
   background: #ffffff;
   color: #14130f;
   font-family: Satoshi, -apple-system, BlinkMacSystemFont, sans-serif;
+  /* landing.css is ported from a standalone site and sets `overflow-x:
+     hidden` on `:scope` (this element) to stop full-bleed sections causing
+     a horizontal scrollbar. In the original site :scope was <body>, where
+     that is harmless. Here it lands on a plain div nested inside the real
+     <body>, and setting only one axis to non-visible forces the browser to
+     compute the other as `auto` (CSS Overflow spec), making this div a
+     scroll container of its own even though it never actually scrolls --
+     its height is unconstrained, so nothing overflows it. `position:
+     sticky` inside still binds to the nearest scroll-container ANCESTOR
+     regardless of whether that ancestor ever scrolls, so every pinned
+     scroll-scrub section (How it works, About's story beats) froze at its
+     static position instead of tracking the page: this is that bug's
+     actual source. <body> already clips x-overflow (below), so nothing
+     needs this element to as well. */
+  overflow: visible !important;
 }
 
 .landing-root main {
@@ -34,4 +49,22 @@ body:has(.landing-root) {
 
 .landing-root a:hover {
   color: inherit;
+}
+
+/* .btn-white loses its own `color: var(--ink)` to app/globals.css's
+   unscoped `button, .btn { color: var(--accent-fg) }` -- both are one-class
+   specificity, and something in how @scope interacts with cascade order
+   here favours the app rule, leaving these buttons plain white text on a
+   white background (invisible). Every other .btn-* variant already sets
+   color to white, so the collision is silent there; only .btn-white shows
+   it. Two classes beats one regardless of the mechanism actually at fault. */
+.landing-root .btn-white {
+  background: #fff;
+  color: #14130f;
+}
+
+.landing-root .btn-white:hover,
+.landing-root .btn-white:focus-visible {
+  background: var(--accent, #ff5b24);
+  color: #fff;
 }
