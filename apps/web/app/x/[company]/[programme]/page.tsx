@@ -6,6 +6,17 @@ import { formatDayClock, formatSlot } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
+async function participantSignedIn(): Promise<boolean> {
+  const jar = await cookies();
+  const response = await fetch(`${API_BASE_URL}/auth/session`, {
+    cache: "no-store",
+    headers: { cookie: jar.toString() },
+  });
+  if (!response.ok) return false;
+  const actor = (await response.json()) as { actor_type?: string } | null;
+  return actor?.actor_type === "participant";
+}
+
 async function fetchListing(company: string, programme: string): Promise<PublicListing | null> {
   const jar = await cookies();
   const response = await fetch(
@@ -37,6 +48,10 @@ export default async function ListingPage({
   if (!listing) notFound();
 
   const open = listing.state === "open";
+  const applyPath = `/x/${company}/${programme}/apply`;
+  const applyHref = (await participantSignedIn())
+    ? applyPath
+    : `/signin?next=${encodeURIComponent(applyPath)}`;
 
   return (
     <main>
@@ -154,8 +169,8 @@ export default async function ListingPage({
             </p>
           </div>
         ) : open ? (
-          <Link className="btn" href={`/x/${company}/${programme}/apply`}>
-            Apply
+          <Link className="btn" href={applyHref}>
+            {applyHref === applyPath ? "Apply" : "Sign in to apply"}
           </Link>
         ) : (
           <div className="panel">

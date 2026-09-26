@@ -977,9 +977,14 @@ export function mountLanding() {
       if (cta) {
         var href = ticket.getAttribute("data-brief-href");
         if (href) {
+          var signedIn = landingRoot.getAttribute("data-signed-in") === "1";
+          var dest = href;
+          if (!signedIn && href.charAt(0) === "/") {
+            dest = "/signin?next=" + encodeURIComponent(href);
+          }
           cta.hidden = false;
-          cta.setAttribute("href", href);
-          cta.textContent = ticket.getAttribute("data-brief-cta") || "Sign up to take part";
+          cta.setAttribute("href", dest);
+          cta.textContent = signedIn ? "Apply" : (ticket.getAttribute("data-brief-cta") || "Sign in to apply");
         } else {
           cta.hidden = true;
         }

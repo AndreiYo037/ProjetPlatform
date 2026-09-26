@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { signup, type Actor, type ActorTypeParam } from "@/lib/api";
+import { safeNext } from "@/lib/safe-next";
 import AuthStage from "./AuthStage";
 
 type CrossLink = { label: string; href: string };
@@ -31,7 +32,7 @@ export default function MarketingSignUp({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setNext(new URLSearchParams(window.location.search).get("next"));
+    setNext(safeNext(new URLSearchParams(window.location.search).get("next")));
   }, []);
 
   async function submit(event: React.FormEvent) {

@@ -6,7 +6,6 @@ import ActorGateNotice from "@/components/ActorGateNotice";
 import SkillPicker from "@/components/SkillPicker";
 import {
   assetUrl,
-  draftTestimonial,
   externalHref,
   getScoringCard,
   getTestimonial,
@@ -214,7 +213,6 @@ export default function ScoringCardPage({
       <TestimonialBox
         programmeId={id}
         participantId={participantId}
-        skillsTagged={card.skill_ids.length > 0}
         skillsSaving={saving}
       />
 
@@ -254,19 +252,16 @@ export default function ScoringCardPage({
 function TestimonialBox({
   programmeId,
   participantId,
-  skillsTagged,
   skillsSaving,
 }: {
   programmeId: string;
   participantId: string;
-  skillsTagged: boolean;
   skillsSaving: boolean;
 }) {
   const [existing, setExisting] = useState<TestimonialOut | null>(null);
   const [body, setBody] = useState("");
   const [baseline, setBaseline] = useState("");
   const [busy, setBusy] = useState(false);
-  const [drafting, setDrafting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -296,23 +291,6 @@ function TestimonialBox({
     900,
   );
 
-  async function draft() {
-    setDrafting(true);
-    setError(null);
-    setFlash(null);
-    try {
-      const drafted = await draftTestimonial(programmeId, participantId);
-      setBody(drafted.body);
-      setFlash(
-        "Drafted from the skills you tagged and this challenge's brief. It saves as you edit — generate a PDF when you mean it.",
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not draft that.");
-    } finally {
-      setDrafting(false);
-    }
-  }
-
   async function publish() {
     setBusy(true);
     setError(null);
@@ -334,7 +312,7 @@ function TestimonialBox({
 
   const published = existing?.published_at != null;
   const hasPdf = Boolean(existing?.pdf_url);
-  const locked = busy || drafting || skillsSaving;
+  const locked = busy || skillsSaving;
 
   return (
     <>
@@ -345,9 +323,6 @@ function TestimonialBox({
         {published
           ? " PDF generated. You can still edit the wording."
           : " A draft stays private and saves as you type. Generate a PDF when the wording is finished — it goes on their profile only when you Close and issue."}
-        {" "}
-        Drafting uses the skills you tagged above and this challenge's brief. It will
-        not invent anything you did not tag.
       </p>
       <div className="field">
         <textarea
@@ -357,14 +332,6 @@ function TestimonialBox({
           onChange={(e) => setBody(e.target.value)}
           placeholder="I am pleased to recommend…"
         />
-        <button
-          className="secondary"
-          disabled={locked || !skillsTagged}
-          onClick={draft}
-          style={{ marginTop: "0.5rem" }}
-        >
-          {drafting ? "Drafting…" : "Draft from skills"}
-        </button>
       </div>
       {hasPdf && existing?.pdf_url && (
         <p>

@@ -14,7 +14,15 @@
    leaving the hero indented far more than every section below it. Line
    length for the intro paragraph is already handled on .page-hero-sub's own
    max-width, not here. */
-.page-hero{padding-top:64px; padding-bottom:12px;}
+.page-hero{position:relative; padding-top:64px; padding-bottom:12px;}
+.page-hero::before{
+  content:''; position:absolute; z-index:0; pointer-events:none;
+  top:0; bottom:-42vh; left:50%; width:100vw; margin-left:-50vw;
+  background:
+    var(--grad-glow),
+    var(--grad-soft);
+}
+.page-hero > *{position:relative; z-index:1;}
 .page-hero h1{font-size:clamp(38px,5.4vw,58px); margin:14px 0 18px;}
 .page-hero-sub{font-size:17.5px; line-height:1.6; color:var(--ink-soft); max-width:56ch;}
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { login, type Actor, type ActorTypeParam } from "@/lib/api";
+import { safeNext } from "@/lib/safe-next";
 import AuthStage from "./AuthStage";
 
 type CrossLink = { label: string; href: string };
@@ -16,6 +17,7 @@ export default function MarketingSignIn(props: {
   forgotHref: string;
   signupHref?: string;
   crossLink?: CrossLink;
+  adminLink?: boolean;
   extra?: React.ReactNode;
 }) {
   return <SignInForm {...props} />;
@@ -41,6 +43,7 @@ function SignInForm({
   forgotHref,
   signupHref,
   crossLink,
+  adminLink,
   extra,
 }: {
   actorType: ActorTypeParam;
@@ -50,13 +53,14 @@ function SignInForm({
   forgotHref: string;
   signupHref?: string;
   crossLink?: CrossLink;
+  adminLink?: boolean;
   extra?: React.ReactNode;
 }) {
   const router = useRouter();
   const [next, setNext] = useState<string | null>(null);
 
   useEffect(() => {
-    setNext(new URLSearchParams(window.location.search).get("next"));
+    setNext(safeNext(new URLSearchParams(window.location.search).get("next")));
   }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -126,6 +130,11 @@ function SignInForm({
       {crossLink ? (
         <p className="auth-alt">
           <Link href={withNext(crossLink.href, next)}>{crossLink.label}</Link>
+        </p>
+      ) : null}
+      {adminLink ? (
+        <p className="auth-alt">
+          <Link href={withNext("/admin/login", next)}>Admin sign in</Link>
         </p>
       ) : null}
       {extra}

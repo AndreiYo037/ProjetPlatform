@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import LandingHome from "@/components/landing/LandingHome";
 
 export const metadata: Metadata = {
-  title: { absolute: "Projet: Deferred projects, worked in parallel." },
+  title: { absolute: "Projet: Build your portfolio with real companies." },
   description:
-    "Projet turns deferred company projects into structured challenges, giving teams multiple independent approaches and a synthesis of the strongest ideas at the end.",
+    "We help students build portfolios with real company projects. Pitch directly to companies, top performers get signed testimonials, and open doors to job opportunities.",
   openGraph: {
-    title: "Projet: Deferred projects, worked in parallel.",
+    title: "Projet: Build your portfolio with real companies.",
     description:
-      "Projet turns deferred company projects into structured challenges, giving teams multiple independent approaches and a synthesis of the strongest ideas at the end.",
+      "We help students build portfolios with real company projects. Pitch directly to companies, top performers get signed testimonials, and open doors to job opportunities.",
     images: [{ url: "/landing/og-cover.jpg", width: 1200, height: 630 }],
   },
 };

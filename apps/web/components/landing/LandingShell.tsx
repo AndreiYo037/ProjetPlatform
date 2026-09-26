@@ -105,9 +105,14 @@ export default function LandingShell({
                 Dashboard
               </Link>
             ) : (
-              <Link href={signupFor("builder")} className="btn btn-primary btn-sm">
-                Sign up
-              </Link>
+              <>
+                <Link href="/admin/login" className="nav-admin">
+                  Admin log in
+                </Link>
+                <Link href={signupFor("builder")} className="btn btn-primary btn-sm">
+                  Sign up
+                </Link>
+              </>
             )}
           </div>
           <button
@@ -145,9 +150,14 @@ export default function LandingShell({
                 Dashboard
               </Link>
             ) : (
-              <Link href={signupFor("builder")} className="btn btn-primary">
-                Sign up
-              </Link>
+              <>
+                <Link href="/admin/login" className="btn btn-ghost">
+                  Admin log in
+                </Link>
+                <Link href={signupFor("builder")} className="btn btn-primary">
+                  Sign up
+                </Link>
+              </>
             )}
           </div>
         </div>
@@ -166,7 +176,13 @@ export default function LandingShell({
                 width={267}
                 height={88}
               />
-              <p>Deferred company projects, turned into structured challenges.</p>
+              <p
+                data-mode-copy
+                data-business="Company projects, turned into structured challenges."
+                data-builder="Students build a portfolio on 1–2 week projects with actual companies."
+              >
+                Students build a portfolio on 1–2 week projects with actual companies.
+              </p>
               <form id="footerNotify" data-endpoint="">
                 <label htmlFor="footerNotifyEmail" className="footer-notify-label">
                   Get notified about new challenges
@@ -207,6 +223,7 @@ export default function LandingShell({
               <h3>Account</h3>
               <Link href="/signin">Log in</Link>
               <Link href="/signup">Sign up</Link>
+              <Link href="/admin/login">Admin log in</Link>
               <span className="footer-pending">Privacy</span>
               <span className="footer-pending">Terms</span>
             </div>

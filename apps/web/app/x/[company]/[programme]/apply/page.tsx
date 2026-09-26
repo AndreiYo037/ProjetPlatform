@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ApiError,
   apiUrl,
@@ -35,6 +36,8 @@ export default function ApplyPage({
   params: Promise<{ company: string; programme: string }>;
 }) {
   const { company, programme } = use(params);
+  const router = useRouter();
+  const [allowed, setAllowed] = useState(false);
   const [listing, setListing] = useState<PublicListing | null>(null);
   const [profile, setProfile] = useState<PersonProfile | null>(null);
   const [name, setName] = useState("");
@@ -52,6 +55,27 @@ export default function ApplyPage({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ warning: string | null } | null>(null);
   const [alreadyApplied, setAlreadyApplied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getSession()
+      .then((session) => {
+        if (cancelled) return;
+        if (!session || session.actor_type !== "participant") {
+          const next = window.location.pathname + window.location.search;
+          router.replace(`/signin?next=${encodeURIComponent(next)}`);
+          return;
+        }
+        setAllowed(true);
+      })
+      .catch(() => {
+        const next = window.location.pathname + window.location.search;
+        router.replace(`/signin?next=${encodeURIComponent(next)}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   useEffect(() => {
     getListing(company, programme)
@@ -151,6 +175,15 @@ export default function ApplyPage({
           You have already applied to this challenge. We will email you when there is a
           decision — there is nothing more to submit.
         </div>
+      </main>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <main className="narrow">
+        <h1>Apply</h1>
+        <p className="lede">Sign in to apply to this challenge.</p>
       </main>
     );
   }

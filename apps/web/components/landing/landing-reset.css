@@ -32,6 +32,20 @@ body:has(.landing-root) {
   overflow: visible !important;
 }
 
+/* The app balances every heading into even line lengths, which splits
+   "Build your portfolio." across two lines. Landing headings keep the
+   breaks written into the copy. */
+.landing-root h1,
+.landing-root h2,
+.landing-root h3 {
+  text-wrap: wrap;
+}
+
+/* App heading color is dark, so the closing headline disappeared on the dark band. */
+.landing-root .final h2 {
+  color: #fff;
+}
+
 .landing-root main {
   max-width: none;
   margin: 0;
@@ -51,6 +65,34 @@ body:has(.landing-root) {
   color: inherit;
 }
 
+/* Those link rules beat .btn-primary's white text (two classes vs one),
+   so "Sign up" inherited the nav's dark color and sat on the black pill. */
+.landing-root a.btn-primary,
+.landing-root a.btn-accent {
+  color: #fff;
+}
+
+.landing-root a.btn-primary {
+  background: #14130f;
+}
+
+.landing-root a.btn-primary:hover,
+.landing-root a.btn-accent:hover {
+  color: #fff;
+}
+
+.landing-root a.btn-primary:hover {
+  background: var(--accent, #ff5b24);
+}
+
+.landing-root a.btn-ghost {
+  color: #14130f;
+}
+
+.landing-root a.btn-ghost:hover {
+  color: var(--accent-deep, #c73e10);
+}
+
 /* .btn-white loses its own `color: var(--ink)` to app/globals.css's
    unscoped `button, .btn { color: var(--accent-fg) }` -- both are one-class
    specificity, and something in how @scope interacts with cascade order
@@ -67,4 +109,50 @@ body:has(.landing-root) {
 .landing-root .btn-white:focus-visible {
   background: var(--accent, #ff5b24);
   color: #fff;
+}
+
+/* App `button { white-space: nowrap }` lands on these chips. The quote is
+   meant to wrap to two lines and the name under it is meant to wrap, so
+   both were running out of the card and getting covered by the next one. */
+.landing-root .t-chip {
+  white-space: normal;
+  align-items: flex-start;
+  box-shadow: none;
+  font-weight: 450;
+  letter-spacing: 0;
+  line-height: 1.45;
+  height: auto;
+}
+
+.landing-root .t-chip-who {
+  display: block;
+  min-width: 0;
+  white-space: normal;
+}
+
+/* App `a { color: inherit }` beats the scoped white link, so "Post a
+   challenge" sat as dark type on the bright artwork. The scrim in
+   landing.css is darkened with it so the rest of this panel stays readable. */
+.landing-root .flow-step h3,
+.landing-root .flow-step p {
+  color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+}
+
+.landing-root a.flow-step-link,
+.landing-root a.flow-step-link:hover {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+}
+
+.landing-root[data-audience="business"] .final-fineprint {
+  display: none;
+}
+
+.landing-root .t-chip-tag {
+  display: inline-block;
+  margin-left: 7px;
+  vertical-align: 1px;
 }
