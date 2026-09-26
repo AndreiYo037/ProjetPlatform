@@ -352,7 +352,9 @@ function MessageList({
                   <ul className="small" style={{ margin: "0.3rem 0 0" }}>
                     {post.attachments.map((a) => (
                       <li key={a.url}>
-                        <a href={assetUrl(a.url)}>{a.filename}</a>
+                        <a href={assetUrl(a.url)} target="_blank" rel="noreferrer">
+                          {a.filename}
+                        </a>
                       </li>
                     ))}
                   </ul>
@@ -603,9 +605,11 @@ function NewThread({
   const [type, setType] = useState(ASK_TYPES[0].value);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [file, setFile] = useState<File | null>(null);
   const [similar, setSimilar] = useState<{ id: string; title: string; status: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
 
   // FR-611b — the same question already asked and answered is shown while they
   // type, so the channel does not fill with eight copies of one question.
@@ -628,12 +632,17 @@ function NewThread({
     setBusy(true);
     setError(null);
     try {
+      const text = body.trim() || (file ? `Attached ${file.name}` : "");
       const result = await createThread(programmeId, {
         type,
         title: title.trim(),
-        body: body.trim(),
+        body: text,
       });
-      onPosted(result.thread);
+      let thread = result.thread;
+      if (file && thread.posts[0]) {
+        thread = await attachToThread(thread.id, file, thread.posts[0].id);
+      }
+      onPosted(thread);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not post that.");
     } finally {
@@ -708,22 +717,53 @@ function NewThread({
             rows={4}
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            required
+            required={!file}
           />
         </div>
 
+        <input
+          ref={picker}
+          type="file"
+          hidden
+          onChange={(e) => {
+            setFile(e.target.files?.[0] ?? null);
+            e.target.value = "";
+          }}
+        />
+        {file ? (
+          <div className="chat-attachment" style={{ margin: "0 0 0.75rem" }}>
+            <span className="small">📎 {file.name}</span>
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => setFile(null)}
+              disabled={busy}
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <p className="small" style={{ margin: "0 0 0.75rem" }}>
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => picker.current?.click()}
+              disabled={busy}
+            >
+              Attach a file
+            </button>
+          </p>
+        )}
+
         {error && <div className="notice bad">{error}</div>}
         <div className="row">
-          <button type="submit" disabled={busy || !title.trim() || !body.trim()}>
+          <button type="submit" disabled={busy || !title.trim() || (!body.trim() && !file)}>
             {busy ? "Posting…" : "Post"}
           </button>
           <button type="button" className="secondary" onClick={onCancel}>
             Cancel
           </button>
         </div>
-        <p className="small muted" style={{ marginBottom: 0 }}>
-          You can attach files once the question is posted.
-        </p>
       </form>
     </>
   );

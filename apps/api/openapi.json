@@ -5654,7 +5654,7 @@
           "threads"
         ],
         "summary": "Add Attachment",
-        "description": "FR-608/609 \u2014 served from platform storage, scoped to the programme.",
+        "description": "FR-608/609 \u2014 served from platform storage, scoped to the programme.\n\n`post_id` hangs the file on an existing message (the opening one, when\nsomeone attaches as they ask). Without it, the file is its own message.",
         "operationId": "add_attachment_threads__thread_id__attachments_post",
         "parameters": [
           {
@@ -6651,6 +6651,18 @@
             "type": "string",
             "contentMediaType": "application/octet-stream",
             "title": "File"
+          },
+          "post_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Id"
           }
         },
         "type": "object",

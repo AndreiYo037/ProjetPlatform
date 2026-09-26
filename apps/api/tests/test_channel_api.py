@@ -304,6 +304,34 @@ def test_a_participant_can_attach_a_file_to_their_own_question(
     assert [a["filename"] for a in attached.json()["posts"][-1]["attachments"]] == ["error.png"]
 
 
+def test_a_file_can_ride_on_the_opening_message(
+    client, session, programme, participant_factory
+):
+    """Asking a question and attaching a screenshot is one message, not a
+    follow-up after the question is already posted."""
+    import io
+
+    participant = participant_factory()
+    sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
+    opened = client.post(
+        f"/programmes/{programme.id}/threads",
+        json={"type": "question_challenge", "title": "Is this expected?", "body": "See attached."},
+    )
+    thread = opened.json()["thread"]
+    first = thread["posts"][0]["id"]
+
+    attached = client.post(
+        f"/threads/{thread['id']}/attachments",
+        data={"post_id": first},
+        files={"file": ("error.png", io.BytesIO(b"\x89PNG\r\n\x1a\n"), "image/png")},
+    )
+    assert attached.status_code == 201, attached.text
+    posts = attached.json()["posts"]
+    assert len(posts) == 1
+    assert posts[0]["body"] == "See attached."
+    assert [a["filename"] for a in posts[0]["attachments"]] == ["error.png"]
+
+
 def test_a_participant_can_reply_in_the_announcements_thread(
     client, session, programme, participant_factory, assigned_rep
 ):

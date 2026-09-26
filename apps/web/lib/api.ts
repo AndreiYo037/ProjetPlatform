@@ -634,9 +634,14 @@ export async function postAnnouncement(
   return body as ThreadOut;
 }
 
-export async function attachToThread(threadId: string, file: File): Promise<ThreadOut> {
+export async function attachToThread(
+  threadId: string,
+  file: File,
+  postId?: string,
+): Promise<ThreadOut> {
   const form = new FormData();
   form.set("file", file);
+  if (postId) form.set("post_id", postId);
   const response = await fetch(apiUrl(`/threads/${threadId}/attachments`), {
     method: "POST",
     body: form,

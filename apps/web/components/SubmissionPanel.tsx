@@ -173,7 +173,9 @@ export default function SubmissionPanel({
                 {slot.file_url && (
                   <div className="small" style={{ color: "var(--ok)", marginTop: "0.4rem" }}>
                     We have this —{" "}
-                    <a href={assetUrl(slot.file_url)}>{slot.filename ?? "view PDF"}</a>
+                    <a href={assetUrl(slot.file_url)} target="_blank" rel="noreferrer">
+                      {slot.filename ?? "view PDF"}
+                    </a>
                   </div>
                 )}
               </>

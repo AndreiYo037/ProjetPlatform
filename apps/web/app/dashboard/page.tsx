@@ -223,7 +223,13 @@ function ProgrammePageInner() {
               <ul className="small">
                 {data.data_pack.map((entry) => (
                   <li key={entry.label}>
-                    {entry.url ? <a href={entry.url}>{entry.label}</a> : entry.label}{" "}
+                    {entry.url ? (
+                      <a href={entry.url} target="_blank" rel="noreferrer">
+                        {entry.label}
+                      </a>
+                    ) : (
+                      entry.label
+                    )}{" "}
                     {entry.provenance === "company_supplied" && (
                       <span className="tag">from the company</span>
                     )}

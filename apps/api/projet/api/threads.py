@@ -382,22 +382,32 @@ def post_reply(
 async def add_attachment(
     thread_id: uuid.UUID,
     file: UploadFile = File(),
+    post_id: uuid.UUID | None = Form(default=None),
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_actor),
 ) -> ThreadOut:
-    """FR-608/609 — served from platform storage, scoped to the programme."""
+    """FR-608/609 — served from platform storage, scoped to the programme.
+
+    `post_id` hangs the file on an existing message (the opening one, when
+    someone attaches as they ask). Without it, the file is its own message.
+    """
     thread = _thread_or_404(db, actor, thread_id)
     content = await file.read()
     _check_attachment(file, content)
 
-    post = Post(
-        thread_id=thread.id,
-        author_id=actor.id,
-        author_role=_actor_role(actor),
-        body=f"Attached {file.filename}",
-    )
-    db.add(post)
-    db.flush()
+    if post_id is not None:
+        post = db.get(Post, post_id)
+        if post is None or post.thread_id != thread.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "That message is not in this thread.")
+    else:
+        post = Post(
+            thread_id=thread.id,
+            author_id=actor.id,
+            author_role=_actor_role(actor),
+            body=f"Attached {file.filename}",
+        )
+        db.add(post)
+        db.flush()
     _store_attachment(db, thread, post, file, content)
     db.commit()
     return _thread_out(db, thread)
