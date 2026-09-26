@@ -1,16 +1,19 @@
+import type { Metadata } from "next";
 import AdminCodeSignIn from "@/components/AdminCodeSignIn";
-import PortalLogin from "@/components/PortalLogin";
+import MarketingSignIn from "@/components/auth/MarketingSignIn";
+
+export const metadata: Metadata = {
+  title: { absolute: "Log in to Projet" },
+};
 
 export default function AdminSignInPage() {
   return (
-    <PortalLogin
+    <MarketingSignIn
       actorType="platform"
-      portalLabel="Admin"
-      badge="Projet staff"
+      eyebrow="Admin"
       lede="Platform administration."
       defaultHome="/admin"
       forgotHref="/admin/forgot-password"
-      crossLinks={[]}
       extra={<AdminCodeSignIn />}
     />
   );

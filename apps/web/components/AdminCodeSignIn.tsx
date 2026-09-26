@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { signInWithAdminCode } from "@/lib/api";
 
 /**
@@ -12,10 +12,8 @@ import { signInWithAdminCode } from "@/lib/api";
  * Deliberately not offered on the participant or company portals: it signs
  * in as platform admin only, so it has no business appearing anywhere else.
  */
-function CodeForm() {
-  const params = useSearchParams();
+export default function AdminCodeSignIn() {
   const router = useRouter();
-  const next = params.get("next") ?? undefined;
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -27,6 +25,7 @@ function CodeForm() {
     setError(null);
     try {
       await signInWithAdminCode(code);
+      const next = new URLSearchParams(window.location.search).get("next");
       router.push(next ?? "/admin");
       router.refresh();
     } catch (err) {
@@ -38,8 +37,8 @@ function CodeForm() {
 
   if (!open) {
     return (
-      <p className="small" style={{ marginTop: "1.5rem" }}>
-        <button type="button" className="secondary small" onClick={() => setOpen(true)}>
+      <p className="auth-alt">
+        <button type="button" className="auth-text" onClick={() => setOpen(true)}>
           Use an access code instead
         </button>
       </p>
@@ -47,30 +46,26 @@ function CodeForm() {
   }
 
   return (
-    <form onSubmit={submit} className="panel" style={{ marginTop: "1.5rem" }}>
+    <form className="auth-code" onSubmit={submit} noValidate>
+      {error ? (
+        <div className="auth-status" role="alert">
+          {error}
+        </div>
+      ) : null}
       <div className="field">
         <label htmlFor="admin-code">Access code</label>
         <input
           id="admin-code"
           type="password"
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(event) => setCode(event.target.value)}
           autoComplete="off"
           autoFocus
         />
       </div>
-      {error && <div className="notice bad">{error}</div>}
-      <button type="submit" disabled={busy || !code}>
+      <button type="submit" className="btn btn-primary auth-submit" disabled={busy || !code}>
         {busy ? "Checking…" : "Sign in with code"}
       </button>
     </form>
-  );
-}
-
-export default function AdminCodeSignIn() {
-  return (
-    <Suspense fallback={null}>
-      <CodeForm />
-    </Suspense>
   );
 }

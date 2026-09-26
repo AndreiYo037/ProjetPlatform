@@ -1,17 +1,20 @@
-import PortalLogin from "@/components/PortalLogin";
+import type { Metadata } from "next";
+import MarketingSignIn from "@/components/auth/MarketingSignIn";
+
+export const metadata: Metadata = {
+  title: { absolute: "Log in to Projet" },
+};
 
 export default function CompanySignInPage() {
   return (
-    <PortalLogin
+    <MarketingSignIn
       actorType="company_user"
-      portalLabel="Company"
-      badge="Company accounts"
-      lede="For the company running a challenge — programmes, applicants and results."
+      eyebrow="Companies"
+      lede="Pick up where your challenges left off."
       defaultHome="/company"
       forgotHref="/company/forgot-password"
-      crossLinks={[
-        { label: "Applying to a challenge? Participant sign in →", href: "/signin" },
-      ]}
+      signupHref="/company/signup"
+      crossLink={{ href: "/signin", label: "Signing in as a student?" }}
     />
   );
 }

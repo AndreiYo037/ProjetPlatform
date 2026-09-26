@@ -10,6 +10,15 @@ export default function Header() {
   const [checked, setChecked] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const marketing =
+    pathname === "/" ||
+    pathname === "/about" ||
+    pathname === "/faq" ||
+    pathname === "/signin" ||
+    pathname === "/company/signin" ||
+    pathname === "/signup" ||
+    pathname === "/company/signup" ||
+    pathname === "/admin/login";
 
   useEffect(() => {
     // Header lives in the root layout and never remounts on client-side
@@ -65,6 +74,8 @@ export default function Header() {
       </Link>
     );
   }
+
+  if (marketing) return null;
 
   return (
     <header className="bar">
