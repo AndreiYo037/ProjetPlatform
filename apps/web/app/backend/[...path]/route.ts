@@ -36,6 +36,7 @@ async function proxy(
   const responseHeaders = new Headers(upstream.headers);
   responseHeaders.delete("transfer-encoding");
   responseHeaders.delete("content-encoding");
+  responseHeaders.delete("content-length");
   responseHeaders.delete("set-cookie");
   // Buffer before building the response. Appending Set-Cookie onto a streamed
   // body is ignored on Vercel, so the login succeeds and the next page has
