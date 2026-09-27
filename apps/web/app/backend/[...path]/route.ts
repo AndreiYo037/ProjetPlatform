@@ -35,17 +35,58 @@ async function proxy(
 
   const responseHeaders = new Headers(upstream.headers);
   responseHeaders.delete("transfer-encoding");
+  responseHeaders.delete("content-encoding");
   responseHeaders.delete("set-cookie");
-  const response = new NextResponse(upstream.body, {
+  // Buffer before building the response. Appending Set-Cookie onto a streamed
+  // body is ignored on Vercel, so the login succeeds and the next page has
+  // no session cookie and sends the browser back to sign-in.
+  const payload = await upstream.arrayBuffer();
+  const response = new NextResponse(payload, {
     status: upstream.status,
     headers: responseHeaders,
   });
-  // Node fetch hides Set-Cookie on the Headers iterator; forward it explicitly
-  // or the browser never stores the session and admin login bounces.
-  for (const cookie of upstream.headers.getSetCookie()) {
-    response.headers.append("set-cookie", cookie);
+  for (const line of upstream.headers.getSetCookie()) {
+    const parsed = parseSetCookie(line);
+    if (!parsed) continue;
+    response.cookies.set(parsed.name, parsed.value, parsed.options);
   }
   return response;
+}
+
+function parseSetCookie(line: string): {
+  name: string;
+  value: string;
+  options: {
+    path: string;
+    httpOnly: boolean;
+    secure: boolean;
+    sameSite: "lax" | "strict" | "none";
+    maxAge?: number;
+  };
+} | null {
+  const [pair, ...attrs] = line.split(";").map((part) => part.trim());
+  const eq = pair.indexOf("=");
+  if (eq < 1) return null;
+  const options: {
+    path: string;
+    httpOnly: boolean;
+    secure: boolean;
+    sameSite: "lax" | "strict" | "none";
+    maxAge?: number;
+  } = { path: "/", httpOnly: false, secure: false, sameSite: "lax" };
+  for (const attr of attrs) {
+    const [rawKey, rawValue] = attr.split("=");
+    const key = rawKey.toLowerCase();
+    if (key === "path" && rawValue) options.path = rawValue;
+    else if (key === "httponly") options.httpOnly = true;
+    else if (key === "secure") options.secure = true;
+    else if (key === "max-age" && rawValue) options.maxAge = Number(rawValue);
+    else if (key === "samesite" && rawValue) {
+      const site = rawValue.toLowerCase();
+      if (site === "lax" || site === "strict" || site === "none") options.sameSite = site;
+    }
+  }
+  return { name: pair.slice(0, eq), value: pair.slice(eq + 1), options };
 }
 
 export const GET = proxy;
