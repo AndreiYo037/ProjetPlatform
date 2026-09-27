@@ -16,6 +16,7 @@ export default function CompanySignInPage() {
       signupHref="/company/signup"
       crossLink={{ href: "/signin", label: "Signing in as a student?" }}
       adminLink
+      requireAccessCode
     />
   );
 }

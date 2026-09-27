@@ -458,6 +458,26 @@ def test_platform_staff_do_not_write_the_company_s_testimonial(
     assert refused.status_code == 403
 
 
+def test_a_company_can_attach_its_own_testimonial_pdf(client, session, programme, manager, sat):
+    sign_in_company(client, session, manager)
+    base = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+    pdf = b"%PDF-1.4\ncompany letter\n%%EOF"
+    uploaded = client.post(f"{base}/file", files={"file": ("letter.pdf", pdf, "application/pdf")})
+    assert uploaded.status_code == 200, uploaded.text
+    body = uploaded.json()
+    assert body["own_file"] is True
+    assert body["pdf_url"]
+    assert body["published_at"] is not None
+
+    saved = client.put(base, json={"body": "Wording kept beside the file."})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["own_file"] is True
+    assert saved.json()["body"] == "Wording kept beside the file."
+
+    refused = client.post(f"{base}/file", files={"file": ("note.txt", b"hello", "text/plain")})
+    assert refused.status_code == 422
+
+
 def test_a_participant_cannot_write_their_own_testimonial(client, session, programme, sat):
     sign_in_participant(client, session, sat["sam"])
     refused = client.put(

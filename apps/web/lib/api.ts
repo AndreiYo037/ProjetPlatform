@@ -135,8 +135,18 @@ export const api = {
 export type ActorTypeParam = "participant" | "company_user" | "platform";
 
 export const getSession = () => api.get<Actor | null>("/auth/session");
-export const login = (email: string, password: string, actorType: ActorTypeParam) =>
-  api.post<Actor>("/auth/login", { email, password, actor_type: actorType });
+export const login = (
+  email: string,
+  password: string,
+  actorType: ActorTypeParam,
+  accessCode?: string,
+) =>
+  api.post<Actor>("/auth/login", {
+    email,
+    password,
+    actor_type: actorType,
+    access_code: accessCode,
+  });
 export const signup = (input: {
   actorType: Exclude<ActorTypeParam, "platform">;
   email: string;
@@ -545,6 +555,14 @@ export const writeTestimonial = (
     `/programmes/${programmeId}/participants/${participantId}/testimonial`,
     body,
   );
+export const uploadTestimonialFile = (programmeId: string, participantId: string, file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return api.post<TestimonialOut>(
+    `/programmes/${programmeId}/participants/${participantId}/testimonial/file`,
+    form,
+  );
+};
 /** Fills the box from endorsed skills and the brief. Does not save or publish. */
 export const draftTestimonial = (programmeId: string, participantId: string) =>
   api.post<TestimonialDraftOut>(

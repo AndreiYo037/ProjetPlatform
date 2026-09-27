@@ -16,6 +16,20 @@ from projet.models.enums import AccountActionPurpose, ActorType
 from projet.outbox.worker import run_once
 from projet.services.auth import SESSION_COOKIE, issue_account_action_token, set_password
 
+COMPANY_CODE = "let-me-in"
+
+
+@pytest.fixture(autouse=True)
+def _company_access_code(monkeypatch):
+    """Company login requires the shared code. Pin it so a local .env cannot
+    change what these tests send."""
+    from projet.config import get_settings
+
+    monkeypatch.setenv("PROJET_ADMIN_ACCESS_CODE", COMPANY_CODE)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
 
 @pytest.fixture
 def client(session, google):
@@ -48,7 +62,7 @@ def test_logging_in_with_the_right_password_signs_you_in(client, session, rep):
 
     response = client.post(
         "/auth/login",
-        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user", "access_code": "let-me-in"},
     )
 
     assert response.status_code == 200
@@ -60,12 +74,24 @@ def test_logging_in_with_the_right_password_signs_you_in(client, session, rep):
     assert me.json()["id"] == str(rep.id)
 
 
+def test_company_login_without_the_access_code_is_refused(client, session, rep):
+    set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
+    session.commit()
+
+    response = client.post(
+        "/auth/login",
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "That access code is not right."
+
+
 def test_the_wrong_password_is_refused(client, session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     session.commit()
 
     response = client.post(
-        "/auth/login", json={"email": rep.email, "password": "wrong", "actor_type": "company_user"}
+        "/auth/login", json={"email": rep.email, "password": "wrong", "actor_type": "company_user", "access_code": "let-me-in"}
     )
     assert response.status_code == 401
 
@@ -73,7 +99,7 @@ def test_the_wrong_password_is_refused(client, session, rep):
 def test_an_account_with_no_password_yet_cannot_log_in(client, rep):
     response = client.post(
         "/auth/login",
-        json={"email": rep.email, "password": "anything", "actor_type": "company_user"},
+        json={"email": rep.email, "password": "anything", "actor_type": "company_user", "access_code": "let-me-in"},
     )
     assert response.status_code == 401
 
@@ -82,7 +108,7 @@ def test_an_unknown_address_gets_the_same_error_as_a_wrong_password(client):
     """The point is that the two cases are indistinguishable from outside."""
     response = client.post(
         "/auth/login",
-        json={"email": "nobody@nowhere.test", "password": "anything", "actor_type": "company_user"},
+        json={"email": "nobody@nowhere.test", "password": "anything", "actor_type": "company_user", "access_code": "let-me-in"},
     )
     assert response.status_code == 401
 
@@ -102,7 +128,7 @@ def test_logging_out_ends_the_session(client, session, rep):
     session.commit()
     client.post(
         "/auth/login",
-        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user", "access_code": "let-me-in"},
     )
     assert client.get("/auth/me").status_code == 200
 
@@ -128,7 +154,7 @@ def test_setting_the_initial_password_signs_you_in(client, session, rep):
     client.post("/auth/logout")
     login = client.post(
         "/auth/login",
-        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user", "access_code": "let-me-in"},
     )
     assert login.status_code == 200
 
@@ -170,7 +196,7 @@ def test_requesting_a_reset_queues_an_email_for_a_known_address(client, session,
     session.commit()
 
     response = client.post(
-        "/auth/password/forgot", json={"email": rep.email, "actor_type": "company_user"}
+        "/auth/password/forgot", json={"email": rep.email, "actor_type": "company_user", "access_code": "let-me-in"}
     )
     assert response.status_code == 200
     assert response.json()["sent"] is True
@@ -183,7 +209,7 @@ def test_requesting_a_reset_queues_an_email_for_a_known_address(client, session,
 
 def test_requesting_a_reset_for_an_unknown_address_sends_nothing(client, session, google):
     response = client.post(
-        "/auth/password/forgot", json={"email": "nobody@nowhere.test", "actor_type": "company_user"}
+        "/auth/password/forgot", json={"email": "nobody@nowhere.test", "actor_type": "company_user", "access_code": "let-me-in"}
     )
     assert response.status_code == 200
     assert response.json()["sent"] is True  # identical response either way
@@ -206,11 +232,11 @@ def test_resetting_with_a_valid_token_changes_the_password(client, session, rep)
     client.post("/auth/logout")
     old = client.post(
         "/auth/login",
-        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
+        json={"email": rep.email, "password": "hunter22", "actor_type": "company_user", "access_code": "let-me-in"},
     )
     new = client.post(
         "/auth/login",
-        json={"email": rep.email, "password": "hunter23", "actor_type": "company_user"},
+        json={"email": rep.email, "password": "hunter23", "actor_type": "company_user", "access_code": "let-me-in"},
     )
     assert old.status_code == 401
     assert new.status_code == 200
@@ -317,7 +343,7 @@ def test_a_company_can_sign_up_over_http(client):
     response = client.post(
         "/auth/signup",
         json={
-            "actor_type": "company_user",
+            "actor_type": "company_user", "access_code": "let-me-in",
             "email": "dana@startup.test",
             "password": "hunter22",
         },
@@ -392,7 +418,7 @@ def test_a_participant_can_edit_their_profile_after_signup(client):
 def test_a_company_can_edit_its_profile_after_signup(client):
     created = client.post(
         "/auth/signup",
-        json={"actor_type": "company_user", "email": "dana@startup.test", "password": "hunter22"},
+        json={"actor_type": "company_user", "access_code": "let-me-in", "email": "dana@startup.test", "password": "hunter22"},
     )
     company_id = created.json()["company_id"]
     response = client.patch(

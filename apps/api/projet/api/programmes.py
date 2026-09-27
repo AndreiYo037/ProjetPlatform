@@ -407,6 +407,17 @@ def update_programme(
             db.rollback()
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
+    # Publish is the only other place a kickoff Meet is created. A time picked
+    # or changed after the challenge is already live has to create it here, or
+    # the offer email goes out with the call time and no link.
+    if programme.status != ProgrammeStatus.DRAFT and programme.kickoff_at and not programme.kickoff_event_id:
+        from projet.services.calendar import ensure_kickoff_event
+
+        try:
+            ensure_kickoff_event(db, programme)
+        except Exception:
+            log.exception("kickoff event not created for programme %s", programme.id)
+
     if programme.pitch_starts_at and programme.pitch_duration_minutes:
         from projet.services.pitch import PitchError, sync_pitch_schedule
 

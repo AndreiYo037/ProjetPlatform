@@ -18,7 +18,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -432,6 +432,8 @@ class TestimonialOut(BaseModel):
     author_name: str | None
     author_title: str | None
     pdf_url: str | None
+    # True when the file is one the company attached, not the letter we typeset.
+    own_file: bool = False
     published_at: datetime | None
     created_at: datetime
 
@@ -458,6 +460,7 @@ def _testimonial_out(db: Session, row: Testimonial) -> TestimonialOut:
         author_name=author.name if author else None,
         author_title=author.title if author else None,
         pdf_url=_pdf_url(row.pdf_storage_key),
+        own_file=_is_own_file(row.pdf_storage_key),
         published_at=row.published_at,
         created_at=row.created_at,
     )
@@ -526,7 +529,9 @@ def write_testimonial(
     # put it on a CV, so unpublishing would retract something in use. Editing
     # the wording stays open; we regenerate the downloadable PDF from it.
     db.flush()
-    if payload.publish or row.published_at is not None:
+    # An attached file stays until they explicitly generate a letter. Saving
+    # the wording must not typeset over a PDF they reformatted themselves.
+    if payload.publish or (row.published_at is not None and not _is_own_file(row.pdf_storage_key)):
         if not row.body:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -556,6 +561,68 @@ def _store_generated_pdf(
     key = f"testimonials/{participant.id}/{row.id}.pdf"
     get_storage().put(key, pdf, "application/pdf")
     row.pdf_storage_key = key
+
+
+_OWN_PDF_MAX_BYTES = 8 * 1024 * 1024
+
+
+def _is_own_file(key: str | None) -> bool:
+    return bool(key and key.endswith("-own.pdf"))
+
+
+@router.post(
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/file",
+    response_model=TestimonialOut,
+)
+async def upload_testimonial_file(
+    participant_id: uuid.UUID,
+    file: UploadFile = File(),
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> TestimonialOut:
+    """The company's own PDF, when they reformatted the letter themselves.
+
+    This replaces a generated letter. It is the file that goes on the profile
+    at close. Generating a PDF afterwards replaces this file again.
+    """
+    if actor.is_platform:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A testimonial is the company's word. Sign in as the company user.",
+        )
+    participant = _participant_or_404(db, programme, actor, participant_id)
+    content = await file.read()
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Attach the testimonial as a PDF.",
+        )
+    if len(content) > _OWN_PDF_MAX_BYTES:
+        raise HTTPException(
+            status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            "That PDF is over 8MB.",
+        )
+    row = db.scalar(
+        select(Testimonial)
+        .where(Testimonial.participant_id == participant.id)
+        .where(Testimonial.author_company_user_id == actor.id)
+    )
+    if row is None:
+        row = Testimonial(
+            participant_id=participant.id,
+            author_company_user_id=actor.id,
+            body="",
+        )
+        db.add(row)
+        db.flush()
+    key = f"testimonials/{participant.id}/{row.id}-own.pdf"
+    get_storage().put(key, content, "application/pdf")
+    row.pdf_storage_key = key
+    if row.published_at is None:
+        row.published_at = utcnow()
+    db.commit()
+    return _testimonial_out(db, row)
 
 
 class TestimonialDraftOut(BaseModel):

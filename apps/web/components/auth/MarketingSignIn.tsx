@@ -18,6 +18,7 @@ export default function MarketingSignIn(props: {
   signupHref?: string;
   crossLink?: CrossLink;
   adminLink?: boolean;
+  requireAccessCode?: boolean;
   extra?: React.ReactNode;
 }) {
   return <SignInForm {...props} />;
@@ -44,6 +45,7 @@ function SignInForm({
   signupHref,
   crossLink,
   adminLink,
+  requireAccessCode,
   extra,
 }: {
   actorType: ActorTypeParam;
@@ -54,6 +56,7 @@ function SignInForm({
   signupHref?: string;
   crossLink?: CrossLink;
   adminLink?: boolean;
+  requireAccessCode?: boolean;
   extra?: React.ReactNode;
 }) {
   const router = useRouter();
@@ -64,6 +67,7 @@ function SignInForm({
   }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +76,7 @@ function SignInForm({
     setBusy(true);
     setError(null);
     try {
-      const actor = await login(email, password, actorType);
+      const actor = await login(email, password, actorType, requireAccessCode ? accessCode : undefined);
       router.push(next ?? homeFor(actor, defaultHome));
       router.refresh();
     } catch (err) {
@@ -115,10 +119,28 @@ function SignInForm({
             onChange={(event) => setPassword(event.target.value)}
           />
         </div>
+        {requireAccessCode ? (
+          <div className="field">
+            <label htmlFor="li-code">Access code</label>
+            <input
+              id="li-code"
+              name="access_code"
+              type="password"
+              autoComplete="off"
+              required
+              value={accessCode}
+              onChange={(event) => setAccessCode(event.target.value)}
+            />
+          </div>
+        ) : null}
         <p className="auth-forgot">
           <Link href={withNext(forgotHref, next)}>Forgot your password?</Link>
         </p>
-        <button type="submit" className="btn btn-primary auth-submit" disabled={busy || !email || !password}>
+        <button
+          type="submit"
+          className="btn btn-primary auth-submit"
+          disabled={busy || !email || !password || (requireAccessCode && !accessCode)}
+        >
           {busy ? "Signing in…" : "Log in"}
         </button>
       </form>

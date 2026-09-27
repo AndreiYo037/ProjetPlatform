@@ -10,6 +10,7 @@ import {
   getScoringCard,
   getTestimonial,
   updateScoringCard,
+  uploadTestimonialFile,
   writeTestimonial,
   type ScoringCard,
   type TestimonialOut,
@@ -291,6 +292,21 @@ function TestimonialBox({
     900,
   );
 
+  async function attach(file: File) {
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const saved = await uploadTestimonialFile(programmeId, participantId, file);
+      setExisting(saved);
+      setFlash("Your PDF is attached. It replaces a generated letter.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not attach that PDF.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function publish() {
     setBusy(true);
     setError(null);
@@ -322,7 +338,7 @@ function TestimonialBox({
         was made to, and this is the part they will actually carry with them.
         {published
           ? " PDF generated. You can still edit the wording."
-          : " A draft stays private and saves as you type. Generate a PDF when the wording is finished — it goes on their profile only when you Close and issue."}
+          : " A draft stays private and saves as you type. Generate a PDF when the wording is finished, or attach your own PDF if you reformatted it. It goes on their profile only when you Close and issue."}
       </p>
       <div className="field">
         <textarea
@@ -336,10 +352,28 @@ function TestimonialBox({
       {hasPdf && existing?.pdf_url && (
         <p>
           <a href={assetUrl(existing.pdf_url)} target="_blank" rel="noreferrer">
-            View PDF
+            {existing.own_file ? "View your PDF" : "View PDF"}
           </a>
         </p>
       )}
+      <div className="field">
+        <label htmlFor="testimonial-file">Attach your own PDF</label>
+        <input
+          id="testimonial-file"
+          type="file"
+          accept="application/pdf,.pdf"
+          disabled={locked}
+          onChange={(event) => {
+            const picked = event.target.files?.[0];
+            event.target.value = "";
+            if (picked) void attach(picked);
+          }}
+        />
+        <p className="small muted">
+          Use this if you reformatted the letter. Attaching replaces the generated PDF.
+          Generating a PDF afterwards replaces your file.
+        </p>
+      </div>
       {(error || draftError) && (
         <div className="notice bad">{error ?? draftError}</div>
       )}
@@ -348,7 +382,7 @@ function TestimonialBox({
         {autosaveLabel(draftStatus)
           ? `Draft ${autosaveLabel(draftStatus)?.toLowerCase()}`
           : "Draft saves as you type"}
-        {published ? " · PDF generated" : ""}.
+        {existing?.own_file ? " · your PDF attached" : published ? " · PDF generated" : ""}.
       </p>
       {!published && (
         <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>

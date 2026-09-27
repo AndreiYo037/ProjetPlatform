@@ -3317,6 +3317,86 @@
         }
       }
     },
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/file": {
+      "post": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Upload Testimonial File",
+        "description": "The company's own PDF, when they reformatted the letter themselves.\n\nThis replaces a generated letter. It is the file that goes on the profile\nat close. Generating a PDF afterwards replaces this file again.",
+        "operationId": "upload_testimonial_file_programmes__programme_id__participants__participant_id__testimonial_file_post",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_testimonial_file_programmes__programme_id__participants__participant_id__testimonial_file_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestimonialOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programmes/{programme_id}/participants/{participant_id}/testimonial/draft": {
       "post": {
         "tags": [
@@ -6949,6 +7029,20 @@
         ],
         "title": "Body_upload_slot_me_submission_upload_put"
       },
+      "Body_upload_testimonial_file_programmes__programme_id__participants__participant_id__testimonial_file_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_testimonial_file_programmes__programme_id__participants__participant_id__testimonial_file_post"
+      },
       "CandidateOut": {
         "properties": {
           "id": {
@@ -8278,6 +8372,18 @@
           },
           "actor_type": {
             "$ref": "#/components/schemas/ActorType"
+          },
+          "access_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Code"
           }
         },
         "type": "object",
@@ -11985,6 +12091,11 @@
               }
             ],
             "title": "Pdf Url"
+          },
+          "own_file": {
+            "type": "boolean",
+            "title": "Own File",
+            "default": false
           },
           "published_at": {
             "anyOf": [

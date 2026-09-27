@@ -25,6 +25,7 @@ from projet.services.auth import (
     AuthError,
     SignupError,
     account_action_url,
+    access_code_matches,
     authenticate,
     authenticate_admin_code,
     consume_account_action_token,
@@ -90,6 +91,8 @@ class LoginRequest(BaseModel):
     # user and a participant sharing an email could not be told apart, and the
     # three sign-in surfaces would not actually be separate accounts.
     actor_type: ActorType
+    # Company sign-in also requires the shared admin code. Other portals ignore it.
+    access_code: str | None = Field(default=None, max_length=200)
 
     @field_validator("email")
     @classmethod
@@ -106,6 +109,9 @@ def login(
     response: Response,
     db: Session = Depends(get_session),
 ) -> ActorResponse:
+    if payload.actor_type == ActorType.COMPANY_USER and not access_code_matches(payload.access_code):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "That access code is not right.")
+
     subject_id = authenticate(
         db, email=payload.email, password=payload.password, actor_type=payload.actor_type
     )

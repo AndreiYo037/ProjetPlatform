@@ -185,6 +185,17 @@ def resolve_actor_by_email(session: Session, email: str) -> tuple[ActorType, uui
     return None
 
 
+def access_code_matches(code: str | None) -> bool:
+    """The shared admin code, checked without creating a platform user.
+
+    Company sign-in asks for the same secret. Unset, or a mismatch, is a no.
+    """
+    configured = get_settings().admin_access_code
+    if not configured or not code or len(configured) != len(code):
+        return False
+    return hmac.compare_digest(configured, code)
+
+
 def authenticate_admin_code(session: Session, code: str) -> uuid.UUID | None:
     """A shared secret that signs straight in as platform admin, no password.
 
