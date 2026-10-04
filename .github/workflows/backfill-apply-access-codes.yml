@@ -1,0 +1,21 @@
+name: Backfill Startup Shuffle apply access codes
+
+# Manual only: one-off fix for the 15 challenges created before the
+# apply_access_code migration landed, which left them with a null code and
+# every application attempt 403ing.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  backfill:
+    name: Re-publish to backfill codes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/backfill_apply_access_codes.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
