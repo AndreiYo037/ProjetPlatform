@@ -193,9 +193,11 @@ def pitch_booking_open(programme: Programme) -> bool:
 def claim_pitch_slot(
     session: Session, participant: Participant, slot_id: uuid.UUID
 ) -> JudgingSession:
+    programme = session.get(Programme, participant.programme_id)
+    if programme is not None and programme.onsite:
+        raise PitchError("On-site challenges do not have pitch slots.")
     if not has_handed_in(session, participant) and participant.judging_session_id is None:
         raise PitchError("Submit your work first, then pick a slot.")
-    programme = session.get(Programme, participant.programme_id)
     if (
         participant.judging_session_id is not None
         and programme is not None

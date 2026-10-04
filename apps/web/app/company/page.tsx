@@ -69,9 +69,11 @@ export default function CompanyProgrammesPage() {
                 <strong>{programme.title}</strong>
                 <div className="small muted">
                   {roleLabel(programme)}
-                  {programme.submit_deadline_at
-                    ? ` · due ${formatDay(programme.submit_deadline_at)}`
-                    : null}
+                  {programme.delivery_mode === "in_person"
+                    ? " · On-site"
+                    : programme.submit_deadline_at
+                      ? ` · due ${formatDay(programme.submit_deadline_at)}`
+                      : null}
                 </div>
               </div>
               <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
@@ -92,7 +94,10 @@ export default function CompanyProgrammesPage() {
               <div className="row" style={{ justifyContent: "space-between" }}>
                 <div>
                   <strong>{programme.title}</strong>
-                  <div className="small muted">{roleLabel(programme)}</div>
+                  <div className="small muted">
+                  {roleLabel(programme)}
+                  {programme.delivery_mode === "in_person" ? " · On-site" : ""}
+                </div>
                 </div>
                 <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
                   Open
@@ -148,7 +153,10 @@ function DraftsList({
             <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <strong>{programme.title}</strong>
-                <div className="small muted">{roleLabel(programme) || "Draft"}</div>
+                <div className="small muted">
+                  {roleLabel(programme) || "Draft"}
+                  {programme.delivery_mode === "in_person" ? " · On-site" : ""}
+                </div>
               </div>
               <div className="row" style={{ gap: "0.5rem" }}>
                 {confirmId === programme.id ? (

@@ -295,11 +295,18 @@ def create_programme(
     if clash is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "That slug is taken for this company.")
 
+    onsite = DeliveryMode(payload.delivery_mode) == DeliveryMode.IN_PERSON
     try:
-        start_at, end_at, close_at = bind_dates(
-            payload.start_at, payload.submit_deadline_at, payload.applications_close_at
-        )
-        kickoff_at = bind_kickoff(start_at, payload.kickoff_at)
+        if onsite:
+            # Dates and the kickoff call belong to the online challenge. An
+            # on-site one stores none of them, even if the form still sent them.
+            _, _, close_at = bind_dates(None, None, payload.applications_close_at)
+            start_at = end_at = kickoff_at = None
+        else:
+            start_at, end_at, close_at = bind_dates(
+                payload.start_at, payload.submit_deadline_at, payload.applications_close_at
+            )
+            kickoff_at = bind_kickoff(start_at, payload.kickoff_at)
     except ScheduleError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
@@ -368,6 +375,9 @@ def update_programme(
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
     changes = payload.model_dump(exclude_unset=True)
+    if programme.onsite:
+        for key in ("start_at", "submit_deadline_at", "kickoff_at"):
+            changes.pop(key, None)
     role_ids = changes.pop("role_ids", None)
     for field, value in changes.items():
         setattr(programme, field, value)
@@ -410,7 +420,12 @@ def update_programme(
     # Publish is the only other place a kickoff Meet is created. A time picked
     # or changed after the challenge is already live has to create it here, or
     # the offer email goes out with the call time and no link.
-    if programme.status != ProgrammeStatus.DRAFT and programme.kickoff_at and not programme.kickoff_event_id:
+    if (
+        not programme.onsite
+        and programme.status != ProgrammeStatus.DRAFT
+        and programme.kickoff_at
+        and not programme.kickoff_event_id
+    ):
         from projet.services.calendar import ensure_kickoff_event
 
         try:
@@ -418,7 +433,7 @@ def update_programme(
         except Exception:
             log.exception("kickoff event not created for programme %s", programme.id)
 
-    if programme.pitch_starts_at and programme.pitch_duration_minutes:
+    if not programme.onsite and programme.pitch_starts_at and programme.pitch_duration_minutes:
         from projet.services.pitch import PitchError, sync_pitch_schedule
 
         try:
@@ -489,6 +504,8 @@ def _setup_problems(programme: Programme) -> list[str]:
     applicant sees it. `publication-check` still surfaces the gaps below as
     warnings, not refusals, so the draft page keeps nudging without blocking.
     """
+    if programme.onsite:
+        return []
     problems: list[str] = []
     if programme.start_at is None:
         problems.append("No start date has been picked.")
@@ -538,10 +555,11 @@ def publish_programme(
     # live either way, and a programme without an event yet picks one up on the
     # next publish. Logged rather than swallowed, because the Meet link is what
     # the offer email carries.
-    try:
-        ensure_kickoff_event(db, programme)
-    except Exception:
-        log.exception("kickoff event not created for programme %s", programme.id)
+    if not programme.onsite:
+        try:
+            ensure_kickoff_event(db, programme)
+        except Exception:
+            log.exception("kickoff event not created for programme %s", programme.id)
 
     db.commit()
     return _detail(db, programme)
@@ -556,6 +574,11 @@ def add_judging_session(
 ) -> dict:
     """Session times are fixed at setup and published in the brief, because
     participants are assigned to one at acceptance (FR-811b)."""
+    if programme.onsite:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "On-site challenges do not have a pitching schedule.",
+        )
     row = JudgingSession(
         programme_id=programme.id,
         starts_at=payload.starts_at,
@@ -581,6 +604,11 @@ def set_pitch_schedule(
     who have submitted. Changing the clock keeps anyone who already booked
     on the same ordinal slot, at the new times.
     """
+    if programme.onsite:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "On-site challenges do not have a pitching schedule.",
+        )
     from projet.services.pitch import PitchError, occupant_map, sync_pitch_schedule
 
     try:

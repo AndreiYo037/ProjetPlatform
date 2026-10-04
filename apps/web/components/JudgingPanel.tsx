@@ -24,11 +24,13 @@ export default function JudgingPanel({
   programmeId,
   issued = false,
   meetLink = null,
+  showMeet = true,
   onIssued,
 }: {
   programmeId: string;
   issued?: boolean;
   meetLink?: string | null;
+  showMeet?: boolean;
   onIssued?: () => void;
 }) {
   const [cards, setCards] = useState<SubmissionCard[] | null>(null);
@@ -95,7 +97,9 @@ export default function JudgingPanel({
 
   const scored = cards.filter((card) => card.your_total !== null).length;
   const unscored = cards.length - scored;
-  const room = meetLink ?? cards.find((card) => card.meet_link)?.meet_link ?? null;
+  const room = showMeet
+    ? (meetLink ?? cards.find((card) => card.meet_link)?.meet_link ?? null)
+    : null;
 
   if (cards.length === 0) {
     return (

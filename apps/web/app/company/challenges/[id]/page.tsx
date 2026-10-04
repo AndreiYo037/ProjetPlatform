@@ -50,10 +50,10 @@ function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
   ];
   if (isDraft) return setup;
   return [
-    { key: "messages", label: "Messages" },
     { key: "applicants", label: "Applicants" },
-    { key: "judging", label: "Judging" },
     ...setup,
+    { key: "messages", label: "Messages" },
+    { key: "judging", label: "Judging" },
   ];
 }
 
@@ -188,8 +188,8 @@ export default function ChallengeDetailPage({
         <Channel
           programmeId={programme.id}
           variant="company"
-          kickoffMeetLink={programme.kickoff_meet_link}
-          kickoffAt={programme.kickoff_at}
+          kickoffMeetLink={programme.delivery_mode === "in_person" ? null : programme.kickoff_meet_link}
+          kickoffAt={programme.delivery_mode === "in_person" ? null : programme.kickoff_at}
         />
       )}
 
@@ -205,7 +205,8 @@ export default function ChallengeDetailPage({
         <JudgingPanel
           programmeId={programme.id}
           issued={programme.status === "complete"}
-          meetLink={programme.pitch_meet_link}
+          meetLink={programme.delivery_mode === "in_person" ? null : programme.pitch_meet_link}
+          showMeet={programme.delivery_mode !== "in_person"}
           onIssued={load}
         />
       )}
@@ -254,7 +255,9 @@ export default function ChallengeDetailPage({
       {active === "schedule" && (
         <>
           <ScheduleSection programme={programme} isDraft={isDraft} onSaved={load} />
-          <PitchingSection programme={programme} onSaved={load} />
+          {programme.delivery_mode !== "in_person" && (
+            <PitchingSection programme={programme} onSaved={load} />
+          )}
         </>
       )}
 
@@ -319,6 +322,7 @@ function ScheduleSection({
   isDraft: boolean;
   onSaved: () => void;
 }) {
+  const onsite = programme.delivery_mode === "in_person";
   const [title, setTitle] = useState(programme.title);
   const [capacity, setCapacity] = useState(String(programme.capacity ?? ""));
   const [appsCloseAt, setAppsCloseAt] = useState(toDateInput(programme.applications_close_at));
@@ -351,9 +355,13 @@ function ScheduleSection({
         title: next.title || undefined,
         capacity: next.capacity ? Number(next.capacity) : null,
         applications_close_at: fromDateInput(next.appsCloseAt),
-        start_at: fromDateInput(next.startAt),
-        submit_deadline_at: fromDateInput(next.endAt),
-        kickoff_at: fromTimeOnDate(next.startAt, next.kickoffTime),
+        ...(onsite
+          ? {}
+          : {
+              start_at: fromDateInput(next.startAt),
+              submit_deadline_at: fromDateInput(next.endAt),
+              kickoff_at: fromTimeOnDate(next.startAt, next.kickoffTime),
+            }),
       });
       onSaved();
     },
@@ -371,14 +379,20 @@ function ScheduleSection({
           <dd>{programme.slug}</dd>
           <dt>Capacity</dt>
           <dd>{programme.capacity ?? "Uncapped"}</dd>
+          <dt>Where</dt>
+          <dd>{onsite ? "On-site" : "Online"}</dd>
           <dt>Apps close</dt>
           <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
+          {!onsite && (
+            <>
           <dt>Starts</dt>
           <dd>{formatDay(programme.start_at, "00:00")}</dd>
           <dt>Kickoff</dt>
           <dd>{programme.kickoff_at ? formatSlot(programme.kickoff_at) : "Not set"}</dd>
           <dt>Ends</dt>
           <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
+            </>
+          )}
         </dl>
       </div>
     );
@@ -419,6 +433,7 @@ function ScheduleSection({
         />
         <p className="small muted">Closes at 23:59 SGT on that day.</p>
       </div>
+      {!onsite && (
       <div className="row" style={{ gap: "1rem" }}>
         <div className="field" style={{ flex: 1 }}>
           <label htmlFor="edit-start">Starts</label>
@@ -452,6 +467,7 @@ function ScheduleSection({
           <p className="small muted">23:59 SGT on that day.</p>
         </div>
       </div>
+      )}
       {saveError && <div className="notice bad">{saveError}</div>}
     </div>
   );

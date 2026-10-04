@@ -74,7 +74,10 @@ def offer_email(ctx: EffectContext) -> dict:
     title = programme.title if programme else "your programme"
 
     kickoff_line = ""
-    if programme and programme.start_at:
+    pitch_line = ""
+    if programme and programme.onsite:
+        pass
+    elif programme and programme.start_at:
         starts = format_sgt_date(programme.start_at)
         kickoff_line = f"<p><strong>Starts:</strong> {starts}</p>"
         if programme.kickoff_at:
@@ -91,8 +94,7 @@ def offer_email(ctx: EffectContext) -> dict:
                 f'<p><strong>Google Meet:</strong> <a href="{meet}">{meet}</a></p>'
             )
 
-    pitch_line = ""
-    if programme and programme.pitch_at:
+    if programme and programme.pitch_at and not programme.onsite:
         pitch_line = f"<p><strong>Ends:</strong> {format_sgt_date(programme.pitch_at)}</p>"
 
     sent = ctx.google.send_email(

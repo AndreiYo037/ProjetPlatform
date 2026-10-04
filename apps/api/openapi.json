@@ -8992,6 +8992,11 @@
             "type": "string",
             "title": "Status"
           },
+          "delivery_mode": {
+            "type": "string",
+            "title": "Delivery Mode",
+            "default": "online"
+          },
           "problem_statement": {
             "anyOf": [
               {
@@ -10462,6 +10467,11 @@
             "type": "string",
             "title": "Programme Slug"
           },
+          "delivery_mode": {
+            "type": "string",
+            "title": "Delivery Mode",
+            "default": "online"
+          },
           "title": {
             "type": "string",
             "title": "Title"
@@ -10643,6 +10653,11 @@
           "programme_slug": {
             "type": "string",
             "title": "Programme Slug"
+          },
+          "delivery_mode": {
+            "type": "string",
+            "title": "Delivery Mode",
+            "default": "online"
           },
           "title": {
             "type": "string",

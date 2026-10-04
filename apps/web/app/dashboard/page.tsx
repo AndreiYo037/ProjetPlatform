@@ -159,10 +159,12 @@ function ProgrammePageInner() {
         </div>
       ))}
 
-      <Countdown
-        deadline={data.programme.submit_deadline_at}
-        timezone={data.programme.timezone}
-      />
+      {data.programme.delivery_mode !== "in_person" && (
+        <Countdown
+          deadline={data.programme.submit_deadline_at}
+          timezone={data.programme.timezone}
+        />
+      )}
 
       <nav className="tabs">
         {SECTIONS.map((s) => (
@@ -180,8 +182,10 @@ function ProgrammePageInner() {
       {section === "messages" && (
         <Channel
           programmeId={data.programme.id}
-          kickoffMeetLink={data.programme.kickoff_meet_link}
-          kickoffAt={data.programme.kickoff_at}
+          kickoffMeetLink={
+            data.programme.delivery_mode === "in_person" ? null : data.programme.kickoff_meet_link
+          }
+          kickoffAt={data.programme.delivery_mode === "in_person" ? null : data.programme.kickoff_at}
           onChange={load}
         />
       )}
@@ -278,8 +282,12 @@ function PitchSection({
     }
   }
 
+  const onsite = data.programme.delivery_mode === "in_person";
+
   return (
     <>
+      {!onsite && (
+      <>
       <h2 style={{ marginTop: 0 }}>Your pitch</h2>
       {slots.length === 0 && !booked ? (
         <p className="small muted">
@@ -334,6 +342,8 @@ function PitchSection({
         </>
       )}
       {error && <div className="notice bad">{error}</div>}
+      </>
+      )}
 
       <h2>How you're judged</h2>
       <p className="small muted">

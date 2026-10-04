@@ -369,6 +369,10 @@ export default function ApplyPage({
           />
         </div>
 
+        {listing?.delivery_mode === "in_person" ? (
+          <input type="hidden" name="availability_confirmed" value="true" />
+        ) : (
+        <>
         <h2>The dates</h2>
         <p className="small muted">
           If you cannot make both, this is the moment to say so: a seat you cannot
@@ -400,6 +404,8 @@ export default function ApplyPage({
             )}
           </label>
         </div>
+        </>
+        )}
 
         <h2>Consent</h2>
         <div className="check">

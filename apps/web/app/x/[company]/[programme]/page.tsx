@@ -107,26 +107,30 @@ export default async function ListingPage({
             <dd>{formatClose(listing.applications_close_at)}</dd>
           </>
         )}
-        {listing.start_at && (
+        {listing.delivery_mode !== "in_person" && listing.start_at && (
           <>
             <dt>Starts</dt>
             <dd>{formatStart(listing.start_at)}</dd>
           </>
         )}
-        {listing.kickoff_at && (
+        {listing.delivery_mode !== "in_person" && listing.kickoff_at && (
           <>
             <dt>Kickoff</dt>
             <dd>{formatSlot(listing.kickoff_at)}</dd>
           </>
         )}
-        {listing.submit_deadline_at && (
+        {listing.delivery_mode !== "in_person" && listing.submit_deadline_at && (
           <>
             <dt>Ends</dt>
             <dd>{formatClose(listing.submit_deadline_at)}</dd>
           </>
         )}
         <dt>Time</dt>
-        <dd>Work around your own schedule between the start and the deadline</dd>
+        <dd>
+          {listing.delivery_mode === "in_person"
+            ? "On site with the company"
+            : "Work around your own schedule between the start and the deadline"}
+        </dd>
         <dt>You get</dt>
         <dd>
           A certificate, judge-attested skills on your profile, and the work itself to show

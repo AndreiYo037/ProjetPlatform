@@ -89,6 +89,30 @@ def create(client, company_id, role_id, **overrides) -> dict:
     return client.post("/programmes", json=payload)
 
 
+def test_an_onsite_challenge_stores_no_schedule(client, company_id, role_id):
+    start = next_kickoff()
+    response = create(
+        client,
+        company_id,
+        role_id,
+        slug="onsite",
+        delivery_mode="in_person",
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
+        kickoff_at=kickoff_on(start).isoformat(),
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["delivery_mode"] == "in_person"
+    assert body["start_at"] is None
+    assert body["submit_deadline_at"] is None
+    assert body["kickoff_at"] is None
+
+    check = client.get(f"/programmes/{body['id']}/publication-check")
+    assert check.status_code == 200, check.text
+    assert "kickoff" not in " ".join(check.json()["problems"]).lower()
+
+
 def test_start_is_midnight_and_end_is_end_of_day(client, company_id, role_id):
     start = datetime(2026, 10, 8, 15, 30, tzinfo=SGT)  # Thursday afternoon
     end = datetime(2026, 10, 25, 8, 0, tzinfo=SGT)

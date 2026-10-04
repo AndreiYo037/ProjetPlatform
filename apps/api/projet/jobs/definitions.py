@@ -222,7 +222,11 @@ def due_pitch_days(session: Session, now: datetime | None = None) -> list[Progra
             )
         )
     )
-    return [row for row in rows if pitch_day_begins_at(row.pitch_starts_at) <= now]
+    return [
+        row
+        for row in rows
+        if not row.onsite and row.pitch_starts_at is not None and pitch_day_begins_at(row.pitch_starts_at) <= now
+    ]
 
 
 def process_pitch_day(

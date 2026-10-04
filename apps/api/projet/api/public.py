@@ -67,6 +67,7 @@ class PublicListing(BaseModel):
     # the listing looks like the company's own, not like a row in a database.
     company_logo_url: str | None
     programme_slug: str
+    delivery_mode: str = "online"
     title: str
     role: str
     problem_statement: str | None
@@ -127,6 +128,7 @@ class PublicListingSummary(BaseModel):
     company_slug: str
     company_logo_url: str | None
     programme_slug: str
+    delivery_mode: str = "online"
     title: str
     role: str
     roles: list[str] = []
@@ -158,6 +160,7 @@ def _summarize(db: Session, programme: Programme, company: Company) -> PublicLis
         company_slug=company.slug,
         company_logo_url=logo_url(company.id, company.logo_url),
         programme_slug=programme.slug,
+        delivery_mode=programme.delivery_mode.value,
         title=programme.title,
         role=join_names(names),
         roles=names,
@@ -313,6 +316,7 @@ def listing(
         company_slug=company.slug,
         company_logo_url=logo_url(company.id, company.logo_url),
         programme_slug=programme.slug,
+        delivery_mode=programme.delivery_mode.value,
         title=programme.title,
         role=join_names(names),
         problem_statement=programme.problem_statement,
@@ -441,7 +445,7 @@ async def apply(
     if not looks_like_email(google_email):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email.")
 
-    if not availability_confirmed:
+    if not programme.onsite and not availability_confirmed:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             _commitment_refusal(programme),

@@ -836,6 +836,7 @@ class ProgrammeCard(BaseModel):
     company: str
     role: str
     status: str
+    delivery_mode: str = "online"
     problem_statement: str | None
     deliverable: str
     start_at: datetime | None
@@ -1108,6 +1109,7 @@ def dashboard(
             company=company.name if company else "",
             role=join_names([role.name for role in roles]),
             status=programme.status.value,
+            delivery_mode=programme.delivery_mode.value,
             problem_statement=programme.problem_statement,
             deliverable=programme.deliverable_spec
             or (template.default_deliverable if template else ""),

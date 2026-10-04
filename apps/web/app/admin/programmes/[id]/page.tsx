@@ -199,8 +199,8 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
         <Channel
           programmeId={programme.id}
           variant="company"
-          kickoffMeetLink={programme.kickoff_meet_link}
-          kickoffAt={programme.kickoff_at}
+          kickoffMeetLink={programme.delivery_mode === "in_person" ? null : programme.kickoff_meet_link}
+          kickoffAt={programme.delivery_mode === "in_person" ? null : programme.kickoff_at}
         />
       )}
 
@@ -345,7 +345,8 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
         <JudgingPanel
           programmeId={programme.id}
           issued={programme.status === "complete"}
-          meetLink={programme.pitch_meet_link}
+          meetLink={programme.delivery_mode === "in_person" ? null : programme.pitch_meet_link}
+          showMeet={programme.delivery_mode !== "in_person"}
           onIssued={reload}
         />
       )}
@@ -413,8 +414,12 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               <dd>{programme.slug}</dd>
               <dt>Capacity</dt>
               <dd>{programme.capacity ?? "Uncapped"}</dd>
+              <dt>Where</dt>
+              <dd>{programme.delivery_mode === "in_person" ? "On-site" : "Online"}</dd>
               <dt>Apps close</dt>
               <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
+              {programme.delivery_mode !== "in_person" && (
+              <>
               <dt>Starts</dt>
               <dd>{formatDay(programme.start_at, "00:00")}</dd>
               <dt>Kickoff</dt>
@@ -433,9 +438,13 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
                   <dd>{formatSlot(programme.pitch_starts_at)}</dd>
                 </>
               )}
+              </>
+              )}
             </dl>
           </div>
-          <PitchingSection programme={programme} onSaved={reload} />
+          {programme.delivery_mode !== "in_person" && (
+            <PitchingSection programme={programme} onSaved={reload} />
+          )}
         </>
       )}
     </main>

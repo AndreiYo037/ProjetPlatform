@@ -38,6 +38,7 @@ export default function NewChallengePage() {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
+  const [deliveryMode, setDeliveryMode] = useState<"online" | "in_person">("online");
   const [capacity, setCapacity] = useState("");
   const [appsCloseAt, setAppsCloseAt] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -79,20 +80,22 @@ export default function NewChallengePage() {
     if (!selectedRoleIds.length || !title.trim() || !slug.trim()) return;
     setBusy(true);
     setError(null);
+    const onsite = deliveryMode === "in_person";
     try {
       const programme = await createProgramme({
         role_id: selectedRoleIds[0],
         role_ids: selectedRoleIds,
         title: title.trim(),
         slug: slug.trim(),
+        delivery_mode: deliveryMode,
         capacity: capacity ? Number(capacity) : null,
         applications_close_at: fromDateInput(appsCloseAt),
-        start_at: fromDateInput(startAt),
-        submit_deadline_at: fromDateInput(endAt),
-        kickoff_at: fromTimeOnDate(startAt, kickoffTime),
+        start_at: onsite ? null : fromDateInput(startAt),
+        submit_deadline_at: onsite ? null : fromDateInput(endAt),
+        kickoff_at: onsite ? null : fromTimeOnDate(startAt, kickoffTime),
       });
       const pitchAt = fromDateTimeLocal(pitchStartsAt);
-      if (pitchAt && Number(pitchDuration) >= 1) {
+      if (!onsite && pitchAt && Number(pitchDuration) >= 1) {
         await setPitchSchedule(programme.id, {
           starts_at: pitchAt,
           duration_minutes: Number(pitchDuration),
@@ -141,6 +144,8 @@ export default function NewChallengePage() {
           title={title}
           slug={slug}
           capacity={capacity}
+          deliveryMode={deliveryMode}
+          onDeliveryModeChange={setDeliveryMode}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
           kickoffTime={kickoffTime}
@@ -174,6 +179,7 @@ export default function NewChallengePage() {
           title={title}
           slug={slug}
           capacity={capacity}
+          deliveryMode={deliveryMode}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
           kickoffTime={kickoffTime}
@@ -329,6 +335,8 @@ function DetailsForm({
   title,
   slug,
   capacity,
+  deliveryMode,
+  onDeliveryModeChange,
   appsCloseAt,
   startAt,
   kickoffTime,
@@ -350,6 +358,8 @@ function DetailsForm({
   title: string;
   slug: string;
   capacity: string;
+  deliveryMode: "online" | "in_person";
+  onDeliveryModeChange: (value: "online" | "in_person") => void;
   appsCloseAt: string;
   startAt: string;
   kickoffTime: string;
@@ -410,6 +420,27 @@ function DetailsForm({
           <div className="hint">Leave empty for uncapped</div>
         </div>
       </div>
+      <fieldset className="field" style={{ border: 0, padding: 0 }}>
+        <legend>Where it runs</legend>
+        <label className="check">
+          <input
+            type="radio"
+            name="delivery"
+            checked={deliveryMode === "online"}
+            onChange={() => onDeliveryModeChange("online")}
+          />
+          Online
+        </label>
+        <label className="check">
+          <input
+            type="radio"
+            name="delivery"
+            checked={deliveryMode === "in_person"}
+            onChange={() => onDeliveryModeChange("in_person")}
+          />
+          On-site
+        </label>
+      </fieldset>
       <div className="field">
         <label htmlFor="ch-apps-close">Applications close</label>
         <input
@@ -420,6 +451,8 @@ function DetailsForm({
         />
         <div className="hint">Closes at 23:59 SGT on that day.</div>
       </div>
+      {deliveryMode === "online" && (
+      <>
       <div className="row" style={{ gap: "1rem" }}>
         <div className="field" style={{ flex: 1 }}>
           <label htmlFor="ch-start">Starts</label>
@@ -477,6 +510,8 @@ function DetailsForm({
           <div className="hint">Including turn-over.</div>
         </div>
       </div>
+      </>
+      )}
 
       <div className="row" style={{ marginTop: "1.5rem", gap: "0.75rem" }}>
         <button className="secondary" onClick={onBack}>
@@ -499,6 +534,7 @@ function ReviewStep({
   title,
   slug,
   capacity,
+  deliveryMode,
   appsCloseAt,
   startAt,
   kickoffTime,
@@ -513,6 +549,7 @@ function ReviewStep({
   title: string;
   slug: string;
   capacity: string;
+  deliveryMode: "online" | "in_person";
   appsCloseAt: string;
   startAt: string;
   kickoffTime: string;
@@ -541,8 +578,12 @@ function ReviewStep({
           </dd>
           <dt>Seats</dt>
           <dd>{capacity || "Uncapped"}</dd>
+          <dt>Where</dt>
+          <dd>{deliveryMode === "in_person" ? "On-site" : "Online"}</dd>
           <dt>Apps close</dt>
           <dd>{formatDayClock(appsCloseAt ? asSgtDay(appsCloseAt) : null, "23:59") ?? "Not set"}</dd>
+          {deliveryMode === "online" && (
+            <>
           <dt>Starts</dt>
           <dd>{formatDayClock(startAt ? asSgtDay(startAt) : null, "00:00") ?? "Not set"}</dd>
           <dt>Kickoff</dt>
@@ -559,6 +600,8 @@ function ReviewStep({
               ? `${formatSlot(`${pitchStartsAt}:00+08:00`)} · ${pitchDuration || "10"} min each`
               : "Not set"}
           </dd>
+            </>
+          )}
         </dl>
       </div>
       <p className="small muted">

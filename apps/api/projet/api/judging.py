@@ -199,10 +199,11 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
     programme = db.get(Programme, participant.programme_id)
     needed = len(criteria_for(db, participant.programme_id))
     meet = None
-    if slot and slot.location_or_meet_link:
-        meet = slot.location_or_meet_link
-    elif programme is not None:
-        meet = programme.pitch_meet_link
+    if programme is None or not programme.onsite:
+        if slot and slot.location_or_meet_link:
+            meet = slot.location_or_meet_link
+        elif programme is not None:
+            meet = programme.pitch_meet_link
     return SubmissionCard(
         participant_id=participant.id,
         name=person.name if person else "",

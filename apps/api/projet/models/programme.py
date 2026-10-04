@@ -68,6 +68,11 @@ class Programme(Base):
     delivery_mode: Mapped[DeliveryMode] = mapped_column(
         enum_column(DeliveryMode), default=DeliveryMode.ONLINE
     )
+
+    @property
+    def onsite(self) -> bool:
+        """In person: no kickoff, no clock, no Meet. Online keeps all of that."""
+        return self.delivery_mode == DeliveryMode.IN_PERSON
     team_size_max: Mapped[int] = mapped_column(Integer, default=1)
 
     applications_open_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
