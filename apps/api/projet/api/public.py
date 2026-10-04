@@ -92,6 +92,8 @@ class PublicListing(BaseModel):
     # True when the signed-in participant already has an application here.
     # Strangers always see false; the apply endpoint still enforces the rule.
     already_applied: bool = False
+    # On-site challenges need a room code. The code itself is never listed here.
+    requires_apply_code: bool = False
 
 
 def _state(programme: Programme) -> str:
@@ -102,6 +104,8 @@ def _state(programme: Programme) -> str:
       - `closed` — applications window shut, challenge still running
     After Close and issue, or after the pitch/submit deadline:
       - `complete`
+
+    On-site applications open at start — walk-up join, not a pre-start funnel.
     """
     if programme.status == ProgrammeStatus.DRAFT:
         return "closed"
@@ -113,6 +117,8 @@ def _state(programme: Programme) -> str:
     if programme.applications_close_at and programme.applications_close_at <= now:
         return "closed"
     if programme.applications_open_at and programme.applications_open_at > now:
+        return "closed"
+    if programme.onsite and programme.start_at and programme.start_at > now:
         return "closed"
     return "open"
 
@@ -358,6 +364,7 @@ def listing(
         data_pack_preview=[],
         writeup_prompt=writeup_prompt_from_programme(db, programme),
         already_applied=already_applied,
+        requires_apply_code=bool(programme.onsite and programme.apply_access_code),
     )
 
 
@@ -419,6 +426,7 @@ async def apply(
     timezone: str | None = Form(default=None, max_length=60),
     writeup: str | None = Form(default=None),
     linkedin_url: str | None = Form(default=None, max_length=400),
+    access_code: str | None = Form(default=None, max_length=32),
     # Declared rather than assumed. Defaulted to false so a form that omits it
     # is refused, not silently taken as a yes.
     availability_confirmed: bool = Form(default=False),
@@ -450,6 +458,21 @@ async def apply(
         raise HTTPException(status.HTTP_409_CONFLICT, "Applications are closed.")
 
     onsite = programme.onsite
+    if onsite:
+        expected = "".join((programme.apply_access_code or "").split()).upper()
+        provided = "".join((access_code or "").split()).upper()
+        # compare_digest requires equal length; mismatch is just a wrong code.
+        ok = (
+            bool(expected)
+            and bool(provided)
+            and len(provided) == len(expected)
+            and secrets.compare_digest(provided, expected)
+        )
+        if not ok:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "That access code is not valid for this challenge.",
+            )
     if not (name or "").strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Name is required.")
     if not looks_like_email(contact_email):

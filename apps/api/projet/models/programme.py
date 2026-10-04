@@ -79,6 +79,8 @@ class Programme(Base):
     applications_close_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     start_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     submit_deadline_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
+    # On-site only: shared code required to apply (handed out in the room).
+    apply_access_code: Mapped[str | None] = mapped_column(String(32))
 
     status: Mapped[ProgrammeStatus] = mapped_column(
         enum_column(ProgrammeStatus), default=ProgrammeStatus.DRAFT

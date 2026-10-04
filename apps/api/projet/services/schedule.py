@@ -100,6 +100,8 @@ def bind_dates(
     start_at: datetime | None,
     end_at: datetime | None,
     close_at: datetime | None = None,
+    *,
+    onsite: bool = False,
 ) -> tuple[datetime | None, datetime | None, datetime | None]:
     """Keep start/end clocks; pin applications-close to end-of-day."""
     start = at_programme_moment(start_at) if start_at is not None else None
@@ -108,12 +110,15 @@ def bind_dates(
     if start is not None and end is not None and end <= start:
         raise ScheduleError("The challenge cannot end before it starts.")
     if start is not None:
-        validate_applications_close(close, start)
+        if onsite:
+            validate_onsite_applications_close(close, start, end)
+        else:
+            validate_applications_close(close, start)
     return start, end, close
 
 
 def validate_applications_close(close_at: datetime | None, start_at: datetime) -> None:
-    """Applications must close before the challenge starts, or seats are sold twice.
+    """Online: applications must close before the challenge starts, or seats are sold twice.
 
     `close_at` typically comes straight off an HTML date input, which carries
     no offset at all — naive by construction, not by mistake. Comparing the
@@ -129,6 +134,25 @@ def validate_applications_close(close_at: datetime | None, start_at: datetime) -
             "Applications must close before the challenge starts, so offers "
             "can go out and the cohort is known on day one."
         )
+
+
+def validate_onsite_applications_close(
+    close_at: datetime | None,
+    start_at: datetime,
+    end_at: datetime | None,
+) -> None:
+    """On-site: apply opens at start, so a close date must fall during the event."""
+    if close_at is None:
+        return
+    close_at = in_programme_tz(close_at)
+    start_at = in_programme_tz(start_at)
+    if close_at <= start_at:
+        raise ScheduleError(
+            "On-site applications open when the challenge starts. "
+            "Pick a closing date after start, or leave it blank."
+        )
+    if end_at is not None and close_at > in_programme_tz(end_at):
+        raise ScheduleError("Applications cannot close after the challenge ends.")
 
 
 def format_sgt_date(moment: datetime | None) -> str | None:

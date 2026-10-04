@@ -277,6 +277,8 @@ export type CreateProgrammeInput = {
 };
 export type UpdateProgrammeInput = Partial<CreateProgrammeInput> & {
   brief_url?: string | null;
+  /** On-site: set a code, or "" to mint a new one. */
+  apply_access_code?: string | null;
 };
 export const createProgramme = (data: CreateProgrammeInput) =>
   api.post<ProgrammeDetail>("/programmes", data);

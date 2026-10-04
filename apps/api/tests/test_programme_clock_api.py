@@ -84,6 +84,9 @@ def create(client, company_id, role_id, **overrides) -> dict:
         **BRIEF,
     }
     payload.update(overrides)
+    # On-site apply opens at start; a pre-start close date is invalid.
+    if payload.get("delivery_mode") == "in_person" and "applications_close_at" not in overrides:
+        payload["applications_close_at"] = None
     return client.post("/programmes", json=payload)
 
 
@@ -170,8 +173,50 @@ def test_an_onsite_challenge_cannot_publish_without_a_brief(client, company_id, 
     assert refused.status_code == 409
 
 
+def test_an_onsite_application_before_start_is_refused(client, company_id, role_id):
+    start = next_kickoff()
+    created = create(
+        client,
+        company_id,
+        role_id,
+        slug="onsite-early",
+        delivery_mode="in_person",
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
+        kickoff_at=None,
+        pitch_starts_at=None,
+        pitch_duration_minutes=None,
+    )
+    assert created.status_code == 201, created.text
+    code = created.json()["apply_access_code"]
+    assert code
+    programme_id = created.json()["id"]
+    published = client.post(f"/programmes/{programme_id}/publish")
+    assert published.status_code == 200, published.text
+    client.cookies.clear()
+
+    refused = client.post(
+        "/public/x/acme/onsite-early/apply",
+        data={
+            "name": "Too Early",
+            "contact_email": "early@school.edu.sg",
+            "organisation": "NUS",
+            "org_type": "school",
+            "year_course": "Y2 CS",
+            "linkedin_url": "https://www.linkedin.com/in/too-early",
+            "access_code": code,
+            "availability_confirmed": "true",
+            "consent_share_company": "true",
+            "consent_recording": "true",
+        },
+    )
+    assert refused.status_code == 409
+    assert "closed" in refused.json()["detail"].lower()
+
+
 def test_an_onsite_application_joins_immediately(client, company_id, role_id, session):
-    from projet.models import Application, Outbox, Participant, Submission, Team
+    from projet.models import Application, Outbox, Participant, Programme, Submission, Team
+    from projet.models.base import utcnow
     from projet.models.enums import ApplicationStatus
     from projet.outbox.application_effects import APPLICATION_RECEIVED_EMAIL
 
@@ -189,10 +234,40 @@ def test_an_onsite_application_joins_immediately(client, company_id, role_id, se
         pitch_duration_minutes=None,
     )
     assert created.status_code == 201, created.text
+    code = created.json()["apply_access_code"]
+    assert code and len(code) == 6
     programme_id = created.json()["id"]
     published = client.post(f"/programmes/{programme_id}/publish")
     assert published.status_code == 200, published.text
+
+    import uuid as uuid_mod
+
+    programme = session.get(Programme, uuid_mod.UUID(programme_id))
+    assert programme is not None
+    programme.start_at = utcnow() - timedelta(minutes=1)
+    session.flush()
     client.cookies.clear()
+
+    wrong = client.post(
+        "/public/x/acme/onsite-apply/apply",
+        data={
+            "name": "Wrong Code",
+            "contact_email": "wrong@school.edu.sg",
+            "organisation": "NUS",
+            "org_type": "school",
+            "year_course": "Y2 CS",
+            "linkedin_url": "https://www.linkedin.com/in/wrong-code",
+            "access_code": "NOPE12",
+            "availability_confirmed": "true",
+            "consent_share_company": "true",
+            "consent_recording": "true",
+        },
+    )
+    assert wrong.status_code == 403
+
+    listing = client.get("/public/x/acme/onsite-apply").json()
+    assert listing["requires_apply_code"] is True
+    assert "apply_access_code" not in listing
 
     applied = client.post(
         "/public/x/acme/onsite-apply/apply",
@@ -203,6 +278,7 @@ def test_an_onsite_application_joins_immediately(client, company_id, role_id, se
             "org_type": "school",
             "year_course": "Y2 CS",
             "linkedin_url": "https://www.linkedin.com/in/onsite",
+            "access_code": code.lower(),
             "availability_confirmed": "true",
             "consent_share_company": "true",
             "consent_recording": "true",

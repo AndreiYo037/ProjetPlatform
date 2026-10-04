@@ -1,0 +1,22 @@
+---
+description: Product docs and READMEs — no env, no setup dumps
+alwaysApply: true
+---
+
+# Docs and README
+
+When the user asks how Projet works, for a README, or for end-to-end explanation:
+
+- Write the **product journey only**: company path, participant path, online vs on-site, publish → apply → submit → judge → close.
+- Do **not** include local setup, install steps, stack versions, deployment, tests, OpenAPI, or repo layout unless they explicitly ask for developer docs.
+
+## Never publish env
+
+- Never put env vars, `.env` contents, secret names, API keys, admin codes, or credential setup in a README or any user-facing / committed product doc.
+- Do not commit `.env`, service-account JSON, or similar secrets.
+- If they ask for setup later, keep secrets out of git and out of product READMEs; point privately or to an existing local example file only when they ask for eng setup.
+
+## Match the ask
+
+- "How it works" = product flow, not engineering.
+- Do not pad the first draft with unrelated ops material.

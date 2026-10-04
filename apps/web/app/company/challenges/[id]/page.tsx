@@ -337,6 +337,8 @@ function ScheduleSection({
   const [startAt, setStartAt] = useState(toDateTimeLocal(programme.start_at));
   const [kickoffAt, setKickoffAt] = useState(toDateTimeLocal(programme.kickoff_at));
   const [endAt, setEndAt] = useState(toDateTimeLocal(programme.submit_deadline_at));
+  const [rotatingCode, setRotatingCode] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   const draft = {
     title: title.trim(),
@@ -375,6 +377,19 @@ function ScheduleSection({
     return formatDayClock(iso, time) ?? "Not set";
   }
 
+  async function regenerateAccessCode() {
+    setRotatingCode(true);
+    setCodeError(null);
+    try {
+      await updateProgramme(programme.id, { apply_access_code: "" });
+      onSaved();
+    } catch (err) {
+      setCodeError(err instanceof Error ? err.message : "Could not mint a new code.");
+    } finally {
+      setRotatingCode(false);
+    }
+  }
+
   if (!isDraft) {
     return (
       <div className="panel">
@@ -385,6 +400,30 @@ function ScheduleSection({
           <dd>{programme.capacity ?? "Uncapped"}</dd>
           <dt>Where</dt>
           <dd>{onsite ? "On-site" : "Online"}</dd>
+          {onsite && (
+            <>
+              <dt>Apply code</dt>
+              <dd>
+                <strong style={{ letterSpacing: "0.08em" }}>
+                  {programme.apply_access_code ?? "—"}
+                </strong>
+                <div className="row" style={{ marginTop: "0.5rem", gap: "0.5rem" }}>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={rotatingCode}
+                    onClick={regenerateAccessCode}
+                  >
+                    {rotatingCode ? "Minting…" : "New code"}
+                  </button>
+                </div>
+                {codeError && <p className="small muted">{codeError}</p>}
+                <p className="small muted" style={{ marginBottom: 0 }}>
+                  Share this in the room. Participants need it to apply.
+                </p>
+              </dd>
+            </>
+          )}
           <dt>Apps close</dt>
           <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
           <dt>Starts</dt>
@@ -411,6 +450,24 @@ function ScheduleSection({
       <p className="small muted" style={{ marginTop: 0 }}>
         Saves as you type{autosaveLabel(status) ? ` · ${autosaveLabel(status)}` : ""}.
       </p>
+      {onsite && (
+        <div className="notice" style={{ marginBottom: "1rem" }}>
+          <strong>Apply code · {programme.apply_access_code ?? "—"}</strong>
+          <p className="small muted" style={{ marginBottom: "0.5rem" }}>
+            Participants must enter this to apply once the challenge starts. Share it in
+            the room only.
+          </p>
+          <button
+            type="button"
+            className="secondary"
+            disabled={rotatingCode}
+            onClick={regenerateAccessCode}
+          >
+            {rotatingCode ? "Minting…" : "New code"}
+          </button>
+          {codeError && <p className="small muted">{codeError}</p>}
+        </div>
+      )}
       <div className="field">
         <label htmlFor="edit-title">Title</label>
         <input
@@ -439,7 +496,11 @@ function ScheduleSection({
           value={appsCloseAt}
           onChange={(e) => setAppsCloseAt(e.target.value)}
         />
-        <p className="small muted">Closes at 23:59 SGT on that day.</p>
+        <p className="small muted">
+          {onsite
+            ? "Optional. Must be after start (23:59 SGT). Leave blank to stay open until end."
+            : "Closes at 23:59 SGT on that day. Must be before start."}
+        </p>
       </div>
       <div className="field">
         <label htmlFor="edit-start">Starts</label>
@@ -449,7 +510,11 @@ function ScheduleSection({
           value={startAt}
           onChange={(e) => setStartAt(e.target.value)}
         />
-        <p className="small muted">Submissions open from this moment (SGT).</p>
+        <p className="small muted">
+          {onsite
+            ? "Applications and submissions open from this moment (SGT)."
+            : "Submissions open from this moment (SGT)."}
+        </p>
       </div>
       {!onsite && (
         <div className="field">

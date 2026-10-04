@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 import uuid
 from datetime import datetime
 
@@ -66,6 +67,17 @@ from projet.storage import get_storage
 router = APIRouter(tags=["programmes"])
 log = logging.getLogger(__name__)
 
+# Readable in a room: no 0/O or 1/I. Six chars is enough for a walk-up gate.
+_APPLY_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def new_apply_access_code() -> str:
+    return "".join(secrets.choice(_APPLY_CODE_ALPHABET) for _ in range(6))
+
+
+def normalize_apply_access_code(code: str | None) -> str:
+    return "".join((code or "").split()).upper()
+
 
 class ProgrammeCreate(BaseModel):
     company_id: uuid.UUID | None = None
@@ -118,6 +130,8 @@ class ProgrammeUpdate(BaseModel):
     start_at: datetime | None = None
     submit_deadline_at: datetime | None = None
     kickoff_at: datetime | None = None
+    # On-site: set a code, or send "" to mint a new one. Ignored online.
+    apply_access_code: str | None = None
     winners_count: int | None = None
     role_ids: list[uuid.UUID] | None = None
 
@@ -306,7 +320,10 @@ def create_programme(
     onsite = DeliveryMode(payload.delivery_mode) == DeliveryMode.IN_PERSON
     try:
         start_at, end_at, close_at = bind_dates(
-            payload.start_at, payload.submit_deadline_at, payload.applications_close_at
+            payload.start_at,
+            payload.submit_deadline_at,
+            payload.applications_close_at,
+            onsite=onsite,
         )
         if onsite:
             # On-site: start and end clocks only. No kickoff or pitching.
@@ -330,6 +347,7 @@ def create_programme(
         start_at=start_at,
         submit_deadline_at=end_at,
         kickoff_at=kickoff_at,
+        apply_access_code=new_apply_access_code() if onsite else None,
         problem_statement=payload.problem_statement,
         deliverable_spec=payload.deliverable_spec,
         winners_count=payload.winners_count,
@@ -400,6 +418,18 @@ def update_programme(
     changes = payload.model_dump(exclude_unset=True)
     if programme.onsite:
         changes.pop("kickoff_at", None)
+    else:
+        changes.pop("apply_access_code", None)
+        programme.apply_access_code = None
+    if "apply_access_code" in changes:
+        raw = changes.pop("apply_access_code")
+        normalised = normalize_apply_access_code(raw)
+        programme.apply_access_code = normalised or new_apply_access_code()
+        if programme.apply_access_code and len(programme.apply_access_code) < 4:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Access code must be at least 4 characters.",
+            )
     role_ids = changes.pop("role_ids", None)
     for field, value in changes.items():
         setattr(programme, field, value)
@@ -423,6 +453,7 @@ def update_programme(
                 programme.start_at,
                 programme.submit_deadline_at,
                 programme.applications_close_at,
+                onsite=programme.onsite,
             )
         except ScheduleError as error:
             db.rollback()
@@ -563,6 +594,8 @@ def publish_programme(
     setup = _setup_problems(programme)
     if setup:
         raise HTTPException(status.HTTP_409_CONFLICT, " ".join(setup))
+    if programme.onsite and not programme.apply_access_code:
+        programme.apply_access_code = new_apply_access_code()
     try:
         publish(db, programme)
     except RubricError as error:

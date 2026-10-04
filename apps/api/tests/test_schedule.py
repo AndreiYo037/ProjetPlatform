@@ -61,6 +61,15 @@ def test_applications_must_close_before_start():
     schedule.validate_applications_close(start - timedelta(days=1), start)
 
 
+def test_onsite_applications_close_must_fall_after_start():
+    start = thursday()
+    end = start + timedelta(days=1)
+    with pytest.raises(schedule.ScheduleError):
+        schedule.validate_onsite_applications_close(start - timedelta(days=1), start, end)
+    schedule.validate_onsite_applications_close(start + timedelta(hours=6), start, end)
+    schedule.bind_dates(start, end, start + timedelta(hours=6), onsite=True)
+
+
 def test_no_close_date_is_not_a_schedule_error():
     """A draft may have no closing date yet; publication is what requires start and end."""
     schedule.validate_applications_close(None, thursday())

@@ -448,7 +448,11 @@ function DetailsForm({
           value={appsCloseAt}
           onChange={(e) => onAppsCloseAtChange(e.target.value)}
         />
-        <div className="hint">Closes at 23:59 SGT on that day.</div>
+        <div className="hint">
+          {deliveryMode === "in_person"
+            ? "Optional. Must be after start (23:59 SGT). Leave blank to stay open until end."
+            : "Closes at 23:59 SGT on that day. Must be before start."}
+        </div>
       </div>
       <div className="field">
         <label htmlFor="ch-start">Starts</label>
@@ -458,7 +462,11 @@ function DetailsForm({
           value={startAt}
           onChange={(e) => onStartAtChange(e.target.value)}
         />
-        <div className="hint">Submissions open from this moment (SGT).</div>
+        <div className="hint">
+          {deliveryMode === "in_person"
+            ? "Applications and submissions open from this moment (SGT)."
+            : "Submissions open from this moment (SGT)."}
+        </div>
       </div>
       {deliveryMode === "online" && (
       <>

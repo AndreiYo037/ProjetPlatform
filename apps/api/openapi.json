@@ -6869,6 +6869,18 @@
             ],
             "title": "Linkedin Url"
           },
+          "access_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Code"
+          },
           "availability_confirmed": {
             "type": "boolean",
             "title": "Availability Confirmed",
@@ -9422,6 +9434,17 @@
             ],
             "title": "Submit Deadline At"
           },
+          "apply_access_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apply Access Code"
+          },
           "kickoff_at": {
             "anyOf": [
               {
@@ -9668,6 +9691,17 @@
             ],
             "title": "Submit Deadline At"
           },
+          "apply_access_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apply Access Code"
+          },
           "kickoff_at": {
             "anyOf": [
               {
@@ -9893,6 +9927,17 @@
               }
             ],
             "title": "Kickoff At"
+          },
+          "apply_access_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Apply Access Code"
           },
           "winners_count": {
             "anyOf": [
@@ -10657,6 +10702,11 @@
           "already_applied": {
             "type": "boolean",
             "title": "Already Applied",
+            "default": false
+          },
+          "requires_apply_code": {
+            "type": "boolean",
+            "title": "Requires Apply Code",
             "default": false
           }
         },

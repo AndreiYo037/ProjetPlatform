@@ -1,98 +1,130 @@
-# Projet
+# How Projet works
 
-Proof-of-work hiring infrastructure. Runs challenge-based programmes end to end
-and turns every participant's output into a durable, verifiable profile.
+Projet is challenge-based hiring. A company posts a real problem; people apply,
+do the work, pitch it, and leave with proof on their profile. Companies leave
+with ranked candidates and a clear sense of who they would hire.
 
-This repository currently contains the **foundation slice**: the schema, the
-outbox, the scheduler, the Google Workspace client, and the seeded 75-role
-taxonomy. Product screens land from Milestone 1 onward.
+There are two modes: **online** (remote week with kickoff and pitching) and
+**on-site** (in person, simpler schedule, immediate admission).
 
-## Layout
+---
 
-```
-apps/api/      FastAPI service, SQLAlchemy models, Alembic migrations
-apps/web/      Next.js scaffold; API types generated from the OpenAPI schema
-content/       the canonical role taxonomy, as markdown — see below
-docs/          decisions.md (PRD departures); previous-platform.md (ideas from v1)
-```
+## Company path
 
-## Running it
+### 1. Set up the company
 
-```bash
-cd apps/api
-uv venv --python 3.11 && . .venv/bin/activate
-uv pip install -e ".[dev]"
+Sign up as a company. Fill the profile people will see on listings: name, logo,
+website, and who to contact.
 
-alembic upgrade head          # defaults to sqlite:///./projet.db
-projet-seed                   # loads the 75 roles from ../../content
-uvicorn projet.main:app --reload
-```
+### 2. Create a challenge (draft)
 
-```bash
-cd apps/web
-pnpm install
-pnpm gen:api                  # regenerate types from apps/api/openapi.json
-pnpm dev
-```
+Pick online or on-site, choose roles, write the brief (problem + deliverable),
+set the schedule, and complete the scoring rubric. A data pack is optional.
 
-Point `PROJET_DATABASE_URL` at Postgres for anything real. Every setting is
-`PROJET_`-prefixed; see `apps/api/projet/config.py`.
+**To publish you need**
 
-## The content directory is the source of truth
+- Start and end date/time  
+- Problem statement and deliverable  
+- Full rubric (four criteria with scoring anchors)  
+- **Online only:** kickoff time and pitching schedule  
 
-`content/` holds the role taxonomy as markdown, and the seed loader parses it
-directly — editing a role is content work, not a deploy (FR-044).
+Applications-close date and data pack are optional.
 
-| File | Holds |
-|---|---|
-| `rubrics.md` | universal slots 1 and 4, then slot 2/3 criteria per role |
-| `resources.md` | public sources, company asks by `[E]`/`[M]`/`[H]` tier, student tools |
-| `deliverables.md` | the default deliverable per role, plus the universal memo |
-| `skills.md` | ranked hard/soft skills and search aliases per role |
-| `slugs.lock` | committed name → slug snapshot |
+### 3. Publish
 
-The first three documents are cross-cutting: each covers all 75 roles for one
-aspect. The loader joins them on role name and **fails unless every role appears
-in every file**, so a rename in one place cannot silently strip a role of its
-deliverable.
+The challenge goes live on public listings. Participants can apply.
 
-```bash
-projet-seed --check        # parse and validate, write nothing (runs in CI)
-projet-seed                # load, idempotently
-projet-seed --write-lock   # record a deliberate rename in slugs.lock
-projet-verify-sources      # fetch and stamp data-pack sources; report readiness
-```
+### 4. Admit people
 
-**`content/skills.md` is derived and needs review** — it was generated from each
-role's rubric criteria and deliverable, and it drives what judges see when
-tagging skills.
+- **Online** — review applications, then offer, waitlist, or reject. Offers go
+  out by email; the person accepts to get a seat.
+- **On-site** — apply only once the start time has begun, with the room access
+  code from the company; that puts them in immediately. There is no offer /
+  waitlist / reject flow and no applicant email.
 
-**No data-pack source is verified yet.** The resource map names sources without
-URLs; all 340 entries are seeded `unverified`. Filling those in is the remaining
-Milestone 0 work, and `projet-verify-sources` reports what is outstanding.
+### 5. The challenge runs
 
-## Google Workspace
+From the **start** time, participants can upload and edit submissions. At the
+**end** time, submissions lock.
 
-One service account with domain-wide delegation impersonating
-`programs@projet.sg`. Without credentials the app selects an in-memory fake, so a
-fresh clone and the whole test suite run with no setup.
+- **Online** — kickoff and pitch happen on the schedule; Meet links are part of
+  the run.
+- **On-site** — no kickoff/Meet/pitch booking in the product; judging happens
+  whenever you run the event.
 
-```bash
-export PROJET_GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/sa.json
-export PROJET_GOOGLE_DRIVER=real
-```
+### 6. Judge
 
-The real driver has **not** been exercised against live Google APIs — see
-`docs/decisions.md`.
+Open **Judging**. For each participant you can:
 
-## Tests
+- View submissions  
+- View contact details  
+- Score against the rubric (saves as you go)  
+- Record whether you would refer them  
+- Optionally write a testimonial  
 
-```bash
-cd apps/api && . .venv/bin/activate
-python -m pytest -q
-ruff check projet tests && mypy
-```
+You can score throughout the challenge. After close, the same lists stay
+available (by score and by referral). Past challenges open straight into
+Judging.
 
-Tests run on SQLite locally because no Postgres server is available in the build
-environment; CI runs the same suite against `postgres:16`, which is where JSONB,
-native UUID, timestamptz and the expression index are actually proved.
+### 7. Close and issue (once)
+
+After the end date/time, when scoring is done, run **Close and issue**.
+
+For everyone you actually scored:
+
+- Skills you tagged land on their Projet profile  
+- They get a verifiable completion credential  
+- Winners also get a top-performer credential  
+- Published testimonials become part of the profile  
+
+Unscored people get nothing. This runs once and cannot be undone. Profiles are
+not rewritten if you edit scores later.
+
+---
+
+## Participant path
+
+### 1. Find a challenge
+
+Browse public listings. Each shows the company (name, logo, website), the brief,
+and the schedule.
+
+### 2. Apply
+
+Fill the apply form for that challenge.
+
+- **Online** — more fields required (including writeup and CV); you wait for an
+  offer, then accept.
+- **On-site** — lighter form; apply from start with the organisers’ access code;
+  you’re in as soon as you apply.
+
+### 3. Do the work
+
+After start, submit deliverables before the end lock. Online, join kickoff and
+book/attend your pitch.
+
+### 4. After judging
+
+If the company scored you and closed the programme, your profile updates with
+attested skills, credentials, and any testimonial they published.
+
+---
+
+## What each mode feels like
+
+| | Online | On-site |
+|---|---|---|
+| Schedule | Start, end, kickoff, pitches | Start and end |
+| Getting in | Apply → company decides → accept offer | Apply from start + access code → in |
+| Emails | Selection and programme mail | None for applicants |
+| Pitching | Scheduled slots + Meet | In person, outside the product |
+| Submissions | Open after start, lock at end | Same |
+| Judging | Score pitches; keep the archive after close | Same idea, no Meet orchestration |
+
+---
+
+## What “done” means
+
+The company has judged and closed. Scored participants have proof on Projet.
+The company still has the full judging archive — submissions, scores, contact,
+and referral answers — for hiring follow-up.

@@ -117,6 +117,8 @@ class ProgrammeOut(BaseModel):
     applications_close_at: datetime | None = None
     start_at: datetime | None = None
     submit_deadline_at: datetime | None = None
+    # On-site only. Null online. Visible to company managers, never on public listings.
+    apply_access_code: str | None = None
     kickoff_at: datetime | None = None
     # Same instant as submit_deadline_at (end of the last day). Carried on the
     # wire so the apply form can name both dates a participant is committing to.

@@ -55,6 +55,7 @@ export default function ApplyPage({
   const [yearCourse, setYearCourse] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [accessCode, setAccessCode] = useState("");
   const [timezone, setTimezone] = useState("Asia/Singapore");
   const [writeup, setWriteup] = useState("");
   const [cv, setCv] = useState<File | null>(null);
@@ -151,10 +152,12 @@ export default function ApplyPage({
       form.delete("writeup");
       form.delete("timezone");
       form.delete("cv");
+      form.set("access_code", accessCode.trim());
     } else {
       form.set("google_email", googleEmail);
       form.set("writeup", writeup);
       form.set("timezone", timezone);
+      form.delete("access_code");
       if (cv) form.set("cv", cv);
       else form.delete("cv");
     }
@@ -228,12 +231,30 @@ export default function ApplyPage({
         {profile
           ? "Filled from your profile — change anything that should be different for this challenge."
           : onsite
-            ? "Required fields first. Phone is optional."
+            ? "You need the access code from the organisers. Phone is optional."
             : "Required fields first — including a CV and a short writeup. Phone is optional."}
       </p>
 
       <form onSubmit={submit}>
         <h2>Required</h2>
+
+        {onsite && (
+          <div className="field">
+            <label htmlFor="access_code">Access code</label>
+            <input
+              id="access_code"
+              name="access_code"
+              type="text"
+              required
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value)}
+            />
+            <div className="hint">Ask the organisers in the room for today’s code.</div>
+          </div>
+        )}
 
         <div className="field">
           <label htmlFor="name">Full name</label>
