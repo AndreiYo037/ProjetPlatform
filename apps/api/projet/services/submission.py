@@ -98,6 +98,22 @@ def is_locked(session: Session, submission: Submission) -> bool:
     )
 
 
+def _programme_for(session: Session, submission: Submission) -> Programme | None:
+    team = session.get(Team, submission.team_id)
+    return session.get(Programme, team.programme_id) if team else None
+
+
+def assert_submissions_open(session: Session, submission: Submission) -> None:
+    """Refuse edits until start_at, when the company opens the work window."""
+    from projet.services.schedule import submissions_open
+
+    programme = _programme_for(session, submission)
+    if programme is not None and not submissions_open(programme):
+        raise SubmissionError(
+            "Submissions open when the challenge starts. Come back then."
+        )
+
+
 def set_link(
     session: Session,
     submission: Submission,
@@ -114,6 +130,7 @@ def set_link(
     """
     if is_locked(session, submission):
         raise SubmissionError("The deadline has passed; submissions are locked.")
+    assert_submissions_open(session, submission)
 
     url = normalise_pasted_url(drive_url)
     if not url:
@@ -181,6 +198,7 @@ def set_upload(
     """
     if is_locked(session, submission):
         raise SubmissionError("The deadline has passed; submissions are locked.")
+    assert_submissions_open(session, submission)
 
     link = session.scalar(
         select(SubmissionLink)
@@ -222,6 +240,7 @@ def set_upload(
 def clear_link(session: Session, submission: Submission, slot: SubmissionSlot) -> None:
     if is_locked(session, submission):
         raise SubmissionError("The deadline has passed; submissions are locked.")
+    assert_submissions_open(session, submission)
     link = session.scalar(
         select(SubmissionLink)
         .where(SubmissionLink.submission_id == submission.id)
@@ -331,6 +350,7 @@ def submit_work(
     """The hand-in. Filling slots is not enough — this is what opens a timeslot."""
     if is_locked(session, submission):
         raise SubmissionError("The deadline has passed; submissions are locked.")
+    assert_submissions_open(session, submission)
     recheck(session, submission, google=google)
     if submission.status != SubmissionStatus.COMPLETE:
         raise SubmissionError("Fill every slot before you submit.")

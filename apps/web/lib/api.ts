@@ -263,6 +263,8 @@ export type CreateProgrammeInput = {
   title: string;
   slug: string;
   delivery_mode?: string;
+  pitch_starts_at?: string | null;
+  pitch_duration_minutes?: number | null;
   capacity?: number | null;
   applications_open_at?: string | null;
   applications_close_at?: string | null;

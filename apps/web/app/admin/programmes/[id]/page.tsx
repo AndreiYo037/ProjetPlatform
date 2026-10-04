@@ -142,6 +142,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
 
   const isDraft = programme.status === "draft";
   const isOpen = programme.status === "open";
+  const onsite = programme.delivery_mode === "in_person";
   const sections = sectionsFor(isDraft);
   const active: SectionKey = section ?? (isDraft ? "schedule" : "applicants");
 
@@ -207,34 +208,40 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
       {active === "applicants" && (
         <>
           <h2>Applicants</h2>
-          <div className="row" style={{ marginBottom: "0.75rem" }}>
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              style={{ width: "auto" }}
-              aria-label="Filter by status"
-            >
-              {STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {status === "" ? "All statuses" : status}
-                </option>
-              ))}
-            </select>
-            <span className="small muted">
-              {selected.size > 0 ? `${selected.size} selected` : `${applications.length} shown`}
-            </span>
-            {selected.size > 0 && (
-              <>
-                <button onClick={() => act("offer")}>Offer</button>
-                <button className="secondary" onClick={() => act("waitlist")}>
-                  Waitlist
-                </button>
-                <button className="danger" onClick={() => act("reject")}>
-                  Reject
-                </button>
-              </>
-            )}
-          </div>
+          {onsite ? (
+            <p className="small muted">
+              On-site: applicants join when they apply. No offer, waitlist, or reject.
+            </p>
+          ) : (
+            <div className="row" style={{ marginBottom: "0.75rem" }}>
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                style={{ width: "auto" }}
+                aria-label="Filter by status"
+              >
+                {STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {status === "" ? "All statuses" : status}
+                  </option>
+                ))}
+              </select>
+              <span className="small muted">
+                {selected.size > 0 ? `${selected.size} selected` : `${applications.length} shown`}
+              </span>
+              {selected.size > 0 && (
+                <>
+                  <button onClick={() => act("offer")}>Offer</button>
+                  <button className="secondary" onClick={() => act("waitlist")}>
+                    Waitlist
+                  </button>
+                  <button className="danger" onClick={() => act("reject")}>
+                    Reject
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {applications.length === 0 ? (
             <p className="muted small">No applications yet.</p>
@@ -243,52 +250,68 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               <table>
                 <thead>
                   <tr>
-                    <th />
+                    {!onsite && <th />}
                     <th>Name</th>
                     <th>Organisation</th>
-                    <th>Rel</th>
-                    <th>Spec</th>
-                    <th>Cap</th>
-                    <th>Foll</th>
-                    <th>Total</th>
+                    {!onsite && (
+                      <>
+                        <th>Rel</th>
+                        <th>Spec</th>
+                        <th>Cap</th>
+                        <th>Foll</th>
+                        <th>Total</th>
+                      </>
+                    )}
                     <th>Status</th>
                     <th />
                   </tr>
                 </thead>
                 <tbody>
                   {applications.map((application) => (
-                    <tr key={application.id} data-selected={selected.has(application.id)}>
-                      <td>
-                        <input
-                          type="checkbox"
-                          checked={selected.has(application.id)}
-                          onChange={() => toggle(application.id)}
-                          aria-label={`Select ${application.name}`}
-                        />
-                      </td>
-                      <td>{application.name}</td>
-                      <td className="muted">{application.organisation ?? "—"}</td>
-                      {CRITERIA.map((criterion) => (
-                        <td key={criterion}>
+                    <tr
+                      key={application.id}
+                      data-selected={!onsite && selected.has(application.id)}
+                    >
+                      {!onsite && (
+                        <td>
                           <input
-                            type="number"
-                            min={1}
-                            max={5}
-                            defaultValue={application[`score_${criterion}`] ?? ""}
-                            onBlur={(e) => saveScore(application.id, criterion, e.target.value)}
-                            aria-label={`${criterion} for ${application.name}`}
+                            type="checkbox"
+                            checked={selected.has(application.id)}
+                            onChange={() => toggle(application.id)}
+                            aria-label={`Select ${application.name}`}
                           />
                         </td>
-                      ))}
-                      <td>
-                        <strong>{application.score_total ?? "—"}</strong>
-                      </td>
+                      )}
+                      <td>{application.name}</td>
+                      <td className="muted">{application.organisation ?? "—"}</td>
+                      {!onsite &&
+                        CRITERIA.map((criterion) => (
+                          <td key={criterion}>
+                            <input
+                              type="number"
+                              min={1}
+                              max={5}
+                              defaultValue={application[`score_${criterion}`] ?? ""}
+                              onBlur={(e) =>
+                                saveScore(application.id, criterion, e.target.value)
+                              }
+                              aria-label={`${criterion} for ${application.name}`}
+                            />
+                          </td>
+                        ))}
+                      {!onsite && (
+                        <td>
+                          <strong>{application.score_total ?? "—"}</strong>
+                        </td>
+                      )}
                       <td className="muted">{application.status}</td>
                       <td>
                         <button
                           className="secondary small"
                           onClick={() =>
-                            getApplication(id, application.id).then(setDetail).catch(() => undefined)
+                            getApplication(id, application.id)
+                              .then(setDetail)
+                              .catch(() => undefined)
                           }
                         >
                           View
@@ -300,9 +323,11 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               </table>
             </div>
           )}
-          <p className="small muted" style={{ marginTop: "0.6rem" }}>
-            Prescreen scores are platform-only. They save when you leave the box.
-          </p>
+          {!onsite && (
+            <p className="small muted" style={{ marginTop: "0.6rem" }}>
+              Prescreen scores are platform-only. They save when you leave the box.
+            </p>
+          )}
 
           {detail && (
             <>
@@ -320,10 +345,12 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
                   Close
                 </button>
               </div>
+              {detail.writeup && (
               <div className="panel">
                 <h3 style={{ marginTop: 0 }}>Writeup</h3>
                 <p style={{ whiteSpace: "pre-wrap", marginBottom: 0 }}>{detail.writeup}</p>
               </div>
+              )}
               {detail.cv_url && (
                 <p>
                   <a
@@ -418,28 +445,32 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
               <dd>{programme.delivery_mode === "in_person" ? "On-site" : "Online"}</dd>
               <dt>Apps close</dt>
               <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
+              <dt>Starts</dt>
+              <dd>{programme.start_at ? formatSlot(programme.start_at) : "Not set"}</dd>
               {programme.delivery_mode !== "in_person" && (
               <>
-              <dt>Starts</dt>
-              <dd>{formatDay(programme.start_at, "00:00")}</dd>
               <dt>Kickoff</dt>
               <dd>{programme.kickoff_at ? formatSlot(programme.kickoff_at) : "Not set"}</dd>
-              <dt>Ends</dt>
-              <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
-              {programme.kickoff_meet_link && (
-                <>
-                  <dt>Kick-off</dt>
-                  <dd>{programme.kickoff_meet_link}</dd>
-                </>
-              )}
               {programme.pitch_starts_at && (
                 <>
                   <dt>First pitch</dt>
                   <dd>{formatSlot(programme.pitch_starts_at)}</dd>
                 </>
               )}
+              {programme.kickoff_meet_link && (
+                <>
+                  <dt>Kick-off</dt>
+                  <dd>{programme.kickoff_meet_link}</dd>
+                </>
+              )}
               </>
               )}
+              <dt>Ends</dt>
+              <dd>
+                {programme.submit_deadline_at
+                  ? formatSlot(programme.submit_deadline_at)
+                  : "Not set"}
+              </dd>
             </dl>
           </div>
           {programme.delivery_mode !== "in_person" && (

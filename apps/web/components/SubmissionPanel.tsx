@@ -32,10 +32,12 @@ const UPLOAD_SLOTS = new Set(["memo"]);
 export default function SubmissionPanel({
   submission,
   programmeId,
+  startAt = null,
   onChange,
 }: {
   submission: SubmissionOut | null;
   programmeId?: string;
+  startAt?: string | null;
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -50,6 +52,8 @@ export default function SubmissionPanel({
       </p>
     );
   }
+
+  const submissionsOpen = !startAt || new Date(startAt).getTime() <= Date.now();
 
   async function upload(slot: string, file: File) {
     setBusy(slot);
@@ -107,10 +111,18 @@ export default function SubmissionPanel({
 
   return (
     <>
+      {!submissionsOpen && (
+        <div className="notice warn">
+          Submissions open {formatSlot(startAt)}. Come back then to upload and
+          hand in your work.
+        </div>
+      )}
       <div className="row" style={{ marginBottom: "0.75rem" }}>
         <span className={`tag ${handedIn || complete ? "open" : "closed"}`}>
           {submission.locked
             ? "Locked"
+            : !submissionsOpen
+              ? "Not open yet"
             : handedIn
               ? "Submitted"
               : complete

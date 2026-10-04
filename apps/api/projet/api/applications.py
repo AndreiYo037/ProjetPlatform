@@ -240,6 +240,12 @@ def disposition(
     that number itself from ever reaching a company or applicant — but the
     admission decision it feeds into does not need to.
     """
+    if programme.onsite:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "On-site challenges have no offer, waitlist, or reject. "
+            "Applicants join when they apply.",
+        )
     updated = 0
     skipped: list[str] = []
     for application_id in payload.application_ids:

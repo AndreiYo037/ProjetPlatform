@@ -18,7 +18,12 @@ from sqlalchemy.orm import Session
 from projet.models import JudgingSession, Participant, Programme, Submission, Team, TeamMember
 from projet.models.base import utcnow
 from projet.services.calendar import ensure_pitch_event
-from projet.services.schedule import in_programme_tz, pitch_day_begins_at
+from projet.services.schedule import (
+    ScheduleError,
+    in_programme_tz,
+    pitch_day_begins_at,
+    validate_pitch_window,
+)
 
 
 class PitchError(ValueError):
@@ -113,7 +118,14 @@ def sync_pitch_schedule(
 ) -> list[JudgingSession]:
     if duration_minutes < 1 or duration_minutes > 180:
         raise PitchError("Duration per pitch must be between 1 and 180 minutes.")
-    start = in_programme_tz(starts_at)
+    try:
+        start = validate_pitch_window(
+            programme.start_at, programme.submit_deadline_at, starts_at
+        )
+    except ScheduleError as error:
+        raise PitchError(str(error)) from error
+    if start is None:
+        raise PitchError("Pick when the first pitch starts.")
     programme.pitch_starts_at = start
     programme.pitch_duration_minutes = duration_minutes
 

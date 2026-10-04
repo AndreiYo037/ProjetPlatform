@@ -96,12 +96,15 @@ def test_publish_creates_kickoff_event(client, session, google, admin, seeded):
     assert published.status_code == 200
     assert published.json()["kickoff_meet_link"]
 
-    create_calls = google.calls_of("create_event")
-    assert len(create_calls) == 1
-    assert "Kickoff" in create_calls[0].payload["body"]["summary"]
-    assert "Acme" in create_calls[0].payload["body"]["summary"]
-    begins = datetime.fromisoformat(create_calls[0].payload["body"]["start"]["dateTime"])
-    ends = datetime.fromisoformat(create_calls[0].payload["body"]["end"]["dateTime"])
+    kickoff_calls = [
+        call
+        for call in google.calls_of("create_event")
+        if "Kickoff" in call.payload["body"]["summary"]
+    ]
+    assert len(kickoff_calls) == 1
+    assert "Acme" in kickoff_calls[0].payload["body"]["summary"]
+    begins = datetime.fromisoformat(kickoff_calls[0].payload["body"]["start"]["dateTime"])
+    ends = datetime.fromisoformat(kickoff_calls[0].payload["body"]["end"]["dateTime"])
     meeting = kickoff_on(start, 14)
     assert begins == meeting
     assert ends == meeting + timedelta(hours=1)
@@ -145,6 +148,11 @@ def test_accept_does_not_add_participant_to_kickoff_event(
             "name": "Sam Student",
             "contact_email": "sam-cal@school.edu.sg",
             "google_email": "sam-cal@gmail.com",
+            "organisation": "NUS",
+            "org_type": "school",
+            "year_course": "Y2 CS",
+            "linkedin_url": "https://www.linkedin.com/in/sam-cal",
+            "timezone": "Asia/Singapore",
             "writeup": " ".join(["analysis"] * 220),
             "availability_confirmed": "true",
             "consent_share_company": "true",
@@ -216,6 +224,11 @@ def test_the_offer_carries_the_meet_link_without_a_calendar_invite(
             "name": "Sam Student",
             "contact_email": "sam-offer@school.edu.sg",
             "google_email": "sam-offer@gmail.com",
+            "organisation": "NUS",
+            "org_type": "school",
+            "year_course": "Y2 CS",
+            "linkedin_url": "https://www.linkedin.com/in/sam-offer",
+            "timezone": "Asia/Singapore",
             "writeup": " ".join(["analysis"] * 220),
             "availability_confirmed": "true",
             "consent_share_company": "true",
@@ -272,11 +285,19 @@ def test_republish_does_not_create_duplicate_event(
     programme_id = programme["id"]
 
     client.post(f"/programmes/{programme_id}/publish")
-    assert len(google.calls_of("create_event")) == 1
+
+    def kickoff_calls():
+        return [
+            call
+            for call in google.calls_of("create_event")
+            if "Kickoff" in call.payload["body"]["summary"]
+        ]
+
+    assert len(kickoff_calls()) == 1
 
     # Calling ensure_kickoff_event again should not create a second event
     from projet.services.calendar import ensure_kickoff_event
 
     prog = session.get(Programme, uuid.UUID(programme_id))
     ensure_kickoff_event(session, prog)
-    assert len(google.calls_of("create_event")) == 1
+    assert len(kickoff_calls()) == 1

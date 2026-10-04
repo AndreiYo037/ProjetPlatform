@@ -79,15 +79,23 @@ class ProgrammeCreate(BaseModel):
     applications_close_at: datetime | None = None
     start_at: datetime | None = Field(
         default=None,
-        description="First day. Stored as 00:00 in the programme timezone.",
+        description="When submissions open. Date and time in the programme timezone.",
     )
     submit_deadline_at: datetime | None = Field(
         default=None,
-        description="Last day. Stored as 23:59 in the programme timezone.",
+        description="When submissions lock. Date and time in the programme timezone.",
     )
     kickoff_at: datetime | None = Field(
         default=None,
-        description="Kickoff call time. Stored on the start date in the programme timezone.",
+        description="Kickoff call. Must be after start_at.",
+    )
+    pitch_starts_at: datetime | None = Field(
+        default=None,
+        description="First pitch. Must be after start_at and before submit_deadline_at.",
+    )
+    pitch_duration_minutes: int | None = Field(
+        default=None,
+        description="Minutes per pitch slot, including turn-over.",
     )
     # Usually filled in later, from a draft the company accepts and edits. They
     # are accepted here so a caller who already knows the brief is not forced
@@ -297,15 +305,13 @@ def create_programme(
 
     onsite = DeliveryMode(payload.delivery_mode) == DeliveryMode.IN_PERSON
     try:
+        start_at, end_at, close_at = bind_dates(
+            payload.start_at, payload.submit_deadline_at, payload.applications_close_at
+        )
         if onsite:
-            # Dates and the kickoff call belong to the online challenge. An
-            # on-site one stores none of them, even if the form still sent them.
-            _, _, close_at = bind_dates(None, None, payload.applications_close_at)
-            start_at = end_at = kickoff_at = None
+            # On-site: start and end clocks only. No kickoff or pitching.
+            kickoff_at = None
         else:
-            start_at, end_at, close_at = bind_dates(
-                payload.start_at, payload.submit_deadline_at, payload.applications_close_at
-            )
             kickoff_at = bind_kickoff(start_at, payload.kickoff_at)
     except ScheduleError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
@@ -337,6 +343,23 @@ def create_programme(
         compose_rubric(db, programme)
     except RubricError as error:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+
+    if (
+        not onsite
+        and payload.pitch_starts_at is not None
+        and payload.pitch_duration_minutes is not None
+    ):
+        from projet.services.pitch import PitchError, sync_pitch_schedule
+
+        try:
+            sync_pitch_schedule(
+                db,
+                programme,
+                starts_at=payload.pitch_starts_at,
+                duration_minutes=payload.pitch_duration_minutes,
+            )
+        except PitchError as error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
 
     db.commit()
     return _detail(db, programme)
@@ -376,8 +399,7 @@ def update_programme(
 ) -> ProgrammeDetail:
     changes = payload.model_dump(exclude_unset=True)
     if programme.onsite:
-        for key in ("start_at", "submit_deadline_at", "kickoff_at"):
-            changes.pop(key, None)
+        changes.pop("kickoff_at", None)
     role_ids = changes.pop("role_ids", None)
     for field, value in changes.items():
         setattr(programme, field, value)
@@ -410,7 +432,9 @@ def update_programme(
         if programme.applications_close_at is not None:
             programme.applications_close_at = close_at
 
-    if {"start_at", "kickoff_at"} & changes.keys():
+    if programme.onsite:
+        programme.kickoff_at = None
+    elif {"start_at", "kickoff_at"} & changes.keys():
         try:
             programme.kickoff_at = bind_kickoff(programme.start_at, programme.kickoff_at)
         except ScheduleError as error:
@@ -504,15 +528,17 @@ def _setup_problems(programme: Programme) -> list[str]:
     applicant sees it. `publication-check` still surfaces the gaps below as
     warnings, not refusals, so the draft page keeps nudging without blocking.
     """
-    if programme.onsite:
-        return []
     problems: list[str] = []
     if programme.start_at is None:
         problems.append("No start date has been picked.")
     if programme.submit_deadline_at is None:
         problems.append("No end date has been picked.")
+    if programme.onsite:
+        return problems
     if programme.kickoff_at is None:
         problems.append("No kickoff time has been picked.")
+    if programme.pitch_starts_at is None or not programme.pitch_duration_minutes:
+        problems.append("No pitching schedule has been set.")
     return problems
 
 

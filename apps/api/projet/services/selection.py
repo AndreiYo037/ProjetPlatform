@@ -27,6 +27,26 @@ from projet.outbox.effects import enqueue
 
 OFFER_TTL = timedelta(hours=48)
 
+
+def _enqueue_applicant_email(
+    session: Session,
+    application: Application,
+    *,
+    effect_type: str,
+    payload: dict | None = None,
+) -> None:
+    """On-site challenges are run in person — no applicant mail."""
+    programme = session.get(Programme, application.programme_id)
+    if programme is not None and programme.onsite:
+        return
+    enqueue(
+        session,
+        subject_type=OutboxSubjectType.APPLICATION,
+        subject_id=application.id,
+        effect_type=effect_type,
+        payload=payload or {},
+    )
+
 # FR-079 — the prescreen rubric is admin-only and never published: publishing it
 # would teach applicants how to write the application.
 PRESCREEN_CRITERIA = ("relevance", "specificity", "capability", "followthrough")
@@ -98,10 +118,20 @@ def score_application(
     return application
 
 
+def _refuse_onsite_selection(session: Session, application: Application) -> None:
+    programme = session.get(Programme, application.programme_id)
+    if programme is not None and programme.onsite:
+        raise SelectionError(
+            "On-site challenges have no offer, waitlist, or reject. "
+            "Applicants join when they apply."
+        )
+
+
 def make_offer(
     session: Session, application: Application, *, base_url_path: str = "/accept"
 ) -> Application:
     """FR-305 — a unique token with a 48-hour expiry."""
+    _refuse_onsite_selection(session, application)
     if application.status in (ApplicationStatus.ACCEPTED, ApplicationStatus.OFFERED):
         raise SelectionError("That applicant already holds an offer.")
 
@@ -113,10 +143,9 @@ def make_offer(
 
     from projet.config import get_settings
 
-    enqueue(
+    _enqueue_applicant_email(
         session,
-        subject_type=OutboxSubjectType.APPLICATION,
-        subject_id=application.id,
+        application,
         effect_type=OFFER_EMAIL,
         payload={
             "accept_url": (
@@ -128,28 +157,59 @@ def make_offer(
 
 
 def waitlist(session: Session, application: Application) -> Application:
+    _refuse_onsite_selection(session, application)
     application.status = ApplicationStatus.WAITLISTED
     session.flush()
-    enqueue(
-        session,
-        subject_type=OutboxSubjectType.APPLICATION,
-        subject_id=application.id,
-        effect_type=WAITLIST_EMAIL,
-    )
+    _enqueue_applicant_email(session, application, effect_type=WAITLIST_EMAIL)
     return application
 
 
 def reject(session: Session, application: Application, feedback: str | None = None) -> Application:
+    _refuse_onsite_selection(session, application)
     application.status = ApplicationStatus.REJECTED
     application.rejection_feedback = feedback
     session.flush()
-    enqueue(
-        session,
-        subject_type=OutboxSubjectType.APPLICATION,
-        subject_id=application.id,
-        effect_type=REJECTION_EMAIL,
-    )
+    _enqueue_applicant_email(session, application, effect_type=REJECTION_EMAIL)
     return application
+
+
+def enrol_participant(session: Session, application: Application) -> Participant:
+    """Put the applicant on the programme: team, submission, and (online) pitch.
+
+    On-site: join on apply — no offer step. Online: called when they accept.
+    """
+    existing = session.scalar(
+        select(Participant).where(Participant.application_id == application.id)
+    )
+    if existing is not None:
+        return existing
+
+    programme = session.get(Programme, application.programme_id)
+    if programme is None:
+        raise SelectionError("That programme no longer exists.")
+
+    application.status = ApplicationStatus.ACCEPTED
+    application.offer_token = None
+
+    participant = Participant(
+        application_id=application.id,
+        programme_id=programme.id,
+        person_id=application.person_id,
+    )
+    session.add(participant)
+    session.flush()
+
+    from projet.outbox.provisioning import assign_judging_session
+    from projet.services.pitch import ensure_free_pitch_slot
+    from projet.services.teams import ensure_submission, ensure_team_for_participant
+
+    team = ensure_team_for_participant(session, participant)
+    ensure_submission(session, team)
+    if not programme.onsite:
+        assign_judging_session(session, participant)
+        ensure_free_pitch_slot(session, programme)
+    session.flush()
+    return participant
 
 
 def accept_offer(session: Session, token: str) -> Participant:
@@ -170,33 +230,9 @@ def accept_offer(session: Session, token: str) -> Participant:
         session.flush()
         raise SelectionError("That offer has expired.")
 
-    programme = session.get(Programme, application.programme_id)
-    if programme is None:
-        raise SelectionError("That programme no longer exists.")
-
-    application.status = ApplicationStatus.ACCEPTED
     # The token is spent: an acceptance link that keeps working is a second
     # participant if it is forwarded.
-    application.offer_token = None
-
-    participant = Participant(
-        application_id=application.id,
-        programme_id=programme.id,
-        person_id=application.person_id,
-    )
-    session.add(participant)
-    session.flush()
-
-    from projet.outbox.provisioning import assign_judging_session
-    from projet.services.pitch import ensure_free_pitch_slot
-    from projet.services.teams import ensure_submission, ensure_team_for_participant
-
-    team = ensure_team_for_participant(session, participant)
-    ensure_submission(session, team)
-    assign_judging_session(session, participant)
-    ensure_free_pitch_slot(session, programme)
-    session.flush()
-    return participant
+    return enrol_participant(session, application)
 
 
 def promote_from_waitlist(session: Session, programme: Programme) -> list[Application]:
@@ -206,6 +242,8 @@ def promote_from_waitlist(session: Session, programme: Programme) -> list[Applic
     Only for capacity-set programmes: where capacity is null there is no
     waitlist, because there is nothing to be waiting for.
     """
+    if programme.onsite:
+        return []
     if programme.capacity is None:
         return []
     if programme.start_at and utcnow() >= programme.start_at:

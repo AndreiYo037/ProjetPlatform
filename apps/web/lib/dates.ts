@@ -1,4 +1,4 @@
-/** Programme dates are calendar days in Singapore; times of day are fixed. */
+/** Programme dates are Singapore-local. Start and end keep their clocks. */
 const PROGRAMME_TZ = "Asia/Singapore";
 
 export function toDateInput(iso: string | null | undefined): string {
@@ -11,7 +11,7 @@ export function toDateInput(iso: string | null | undefined): string {
   }).format(new Date(iso));
 }
 
-/** Naive midnight for the API, which pins start to 00:00 and end to 23:59. */
+/** Naive midnight for the API, which pins applications-close to 23:59 SGT. */
 export function fromDateInput(value: string): string | null {
   if (!value) return null;
   return `${value}T00:00:00`;

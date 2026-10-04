@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import ChallengeCards from "@/components/ChallengeCards";
-import { API_BASE_URL, assetUrl, type PublicListingSummary } from "@/lib/api";
+import { API_BASE_URL, assetUrl, externalHref, type PublicListingSummary } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +24,7 @@ export default async function CompanyChallengesPage({
 
   const companyName = items[0]?.company ?? company;
   const logo = items[0]?.company_logo_url;
+  const website = externalHref(items[0]?.company_website_url);
 
   return (
     <main>
@@ -39,7 +40,18 @@ export default async function CompanyChallengesPage({
         )}
         <h1 style={{ margin: 0 }}>{companyName}</h1>
       </div>
-      <p className="lede">Every challenge {companyName} has published on Projet.</p>
+      <p className="lede">
+        Every challenge {companyName} has published on Projet.
+        {website && (
+          <>
+            {" "}
+            <a href={website} target="_blank" rel="noreferrer">
+              Company website
+            </a>
+            .
+          </>
+        )}
+      </p>
 
       {items.length === 0 ? (
         <p className="muted">No published challenges yet.</p>

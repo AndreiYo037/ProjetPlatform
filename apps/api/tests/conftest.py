@@ -40,29 +40,47 @@ CONTENT_DIR = Path(__file__).resolve().parents[3] / "content"
 
 
 def next_kickoff() -> datetime:
-    """A start date far enough ahead that closing apps in two days is still before it."""
-    return datetime.now(UTC) + timedelta(days=14)
+    """A start moment far enough ahead that closing apps in two days is still before it."""
+    from projet.services.schedule import PROGRAMME_TZ
+
+    day = (datetime.now(PROGRAMME_TZ) + timedelta(days=14)).date()
+    return datetime.combine(day, time(9, 0), tzinfo=PROGRAMME_TZ)
 
 
 def kickoff_on(start: datetime, hour: int = 14, minute: int = 0) -> datetime:
-    """Kickoff call on the start date at a company-picked time (not a fixed 09:00)."""
+    """Kickoff after start. Defaults to 14:00 SGT on the start day when that is later."""
     from projet.services.schedule import PROGRAMME_TZ, in_programme_tz
 
     local = in_programme_tz(start)
-    return datetime.combine(local.date(), time(hour, minute), tzinfo=PROGRAMME_TZ)
+    meeting = datetime.combine(local.date(), time(hour, minute), tzinfo=PROGRAMME_TZ)
+    if meeting <= local:
+        meeting = local + timedelta(hours=1)
+    return meeting
 
 
 def next_end(start: datetime | None = None) -> datetime:
-    return (start or next_kickoff()) + timedelta(days=7)
+    """An end clock a week after start, late afternoon SGT."""
+    from projet.services.schedule import PROGRAMME_TZ, in_programme_tz
+
+    day = (in_programme_tz(start or next_kickoff()) + timedelta(days=7)).date()
+    return datetime.combine(day, time(18, 0), tzinfo=PROGRAMME_TZ)
 
 
-def scheduled(start: datetime | None = None, hour: int = 14) -> dict[str, str]:
-    """Start, end, and a company-picked kickoff — enough to publish."""
+def scheduled(start: datetime | None = None, hour: int = 14) -> dict:
+    """Start, end, kickoff, and first pitch — enough for an online publish."""
+    from projet.services.schedule import in_programme_tz
+
     start = start or next_kickoff()
+    end = next_end(start)
+    pitch = in_programme_tz(end) - timedelta(hours=5)
+    if pitch <= in_programme_tz(start):
+        pitch = in_programme_tz(start) + timedelta(hours=2)
     return {
         "start_at": start.isoformat(),
-        "submit_deadline_at": next_end(start).isoformat(),
+        "submit_deadline_at": end.isoformat(),
         "kickoff_at": kickoff_on(start, hour).isoformat(),
+        "pitch_starts_at": pitch.isoformat(),
+        "pitch_duration_minutes": 10,
     }
 
 

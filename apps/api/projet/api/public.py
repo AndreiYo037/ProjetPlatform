@@ -66,6 +66,7 @@ class PublicListing(BaseModel):
     # The company's mark, for the page a stranger decides on. Rendered here so
     # the listing looks like the company's own, not like a row in a database.
     company_logo_url: str | None
+    company_website_url: str | None = None
     programme_slug: str
     delivery_mode: str = "online"
     title: str
@@ -127,6 +128,7 @@ class PublicListingSummary(BaseModel):
     company: str
     company_slug: str
     company_logo_url: str | None
+    company_website_url: str | None = None
     programme_slug: str
     delivery_mode: str = "online"
     title: str
@@ -139,6 +141,11 @@ class PublicListingSummary(BaseModel):
     start_at: datetime | None
     seats_total: int | None
     seats_remaining: int | None
+
+
+def _company_website(company: Company) -> str | None:
+    url = (company.website_url or "").strip()
+    return url or None
 
 
 def _summarize(db: Session, programme: Programme, company: Company) -> PublicListingSummary:
@@ -159,6 +166,7 @@ def _summarize(db: Session, programme: Programme, company: Company) -> PublicLis
         company=company.name,
         company_slug=company.slug,
         company_logo_url=logo_url(company.id, company.logo_url),
+        company_website_url=_company_website(company),
         programme_slug=programme.slug,
         delivery_mode=programme.delivery_mode.value,
         title=programme.title,
@@ -315,6 +323,7 @@ def listing(
         company=company.name,
         company_slug=company.slug,
         company_logo_url=logo_url(company.id, company.logo_url),
+        company_website_url=_company_website(company),
         programme_slug=programme.slug,
         delivery_mode=programme.delivery_mode.value,
         title=programme.title,
@@ -367,11 +376,11 @@ def looks_like_linkedin(url: str) -> bool:
 def _commitment_refusal(programme: Programme) -> str:
     """Name the two dates in the refusal, so the reason is the dates themselves."""
     kickoff = _readable(programme.start_at)
-    pitch = _readable(programme.pitch_at)
-    if kickoff and pitch:
+    end = _readable(programme.submit_deadline_at or programme.pitch_at)
+    if kickoff and end:
         return (
             f"Applications need the commitment confirmed: starts on {kickoff} and "
-            f"ends on {pitch}."
+            f"ends on {end}."
         )
     return "Applications need the commitment to the start and end dates confirmed."
 
@@ -401,17 +410,17 @@ async def apply(
     programme_slug: str,
     name: str = Form(max_length=200),
     contact_email: str = Form(max_length=320),
-    google_email: str = Form(max_length=320),
+    google_email: str | None = Form(default=None, max_length=320),
     phone: str | None = Form(default=None, max_length=60),
     organisation: str | None = Form(default=None, max_length=300),
     org_type: str | None = Form(default=None),
     year_course: str | None = Form(default=None, max_length=300),
     job_title: str | None = Form(default=None, max_length=200),
-    timezone: str = Form(default="Asia/Singapore"),
-    writeup: str = Form(),
+    timezone: str | None = Form(default=None, max_length=60),
+    writeup: str | None = Form(default=None),
     linkedin_url: str | None = Form(default=None, max_length=400),
-    # FR-800's fixed week, declared rather than assumed. Defaulted to false so a
-    # form that simply omits it is refused, not silently taken as a yes.
+    # Declared rather than assumed. Defaulted to false so a form that omits it
+    # is refused, not silently taken as a yes.
     availability_confirmed: bool = Form(default=False),
     consent_share_company: bool = Form(default=False),
     consent_recording: bool = Form(default=False),
@@ -422,7 +431,7 @@ async def apply(
 
     Both consents must be ticked to apply. No password here — applicants sign
     in later via the offer / set-password path once they have a reason to. A
-    signed-in applicant may reuse the CV already on their profile.
+    signed-in applicant may reuse the CV already on their profile (online).
     """
     company = db.scalar(select(Company).where(Company.slug == company_slug))
     programme = (
@@ -440,12 +449,67 @@ async def apply(
         # FR-208 — applications lock automatically at applications_close_at.
         raise HTTPException(status.HTTP_409_CONFLICT, "Applications are closed.")
 
+    onsite = programme.onsite
+    if not (name or "").strip():
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Name is required.")
     if not looks_like_email(contact_email):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid contact email.")
-    if not looks_like_email(google_email):
+
+    google = (google_email or "").strip() or None
+    if not onsite:
+        if not google or not looks_like_email(google):
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email."
+            )
+    elif google and not looks_like_email(google):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email.")
 
-    if not programme.onsite and not availability_confirmed:
+    org = (organisation or "").strip()
+    if not org:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "School or organisation is required.",
+        )
+    kind = (org_type or "").strip() or None
+    if not kind:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Say whether you are a student or a professional.",
+        )
+    course = (year_course or "").strip() or None
+    title = (job_title or "").strip() or None
+    if kind == "school":
+        if not course:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                "Year and course are required.",
+            )
+        title = None
+    elif not title:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Job title is required.",
+        )
+
+    zone = (timezone or "").strip() or None
+    if not onsite and not zone:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Timezone is required.",
+        )
+    if zone is None:
+        zone = "Asia/Singapore"
+
+    text = (writeup or "").strip()
+    if onsite:
+        text = ""
+    elif not text:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "Write a short writeup with your application.",
+        )
+
+    if not availability_confirmed:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             _commitment_refusal(programme),
@@ -457,7 +521,12 @@ async def apply(
         )
 
     linkedin = (linkedin_url or "").strip() or None
-    if linkedin is not None and not looks_like_linkedin(linkedin):
+    if not linkedin:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "A LinkedIn profile URL is required.",
+        )
+    if not looks_like_linkedin(linkedin):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "That does not look like a LinkedIn profile URL.",
@@ -465,15 +534,15 @@ async def apply(
 
     person, _created = resolve_person(
         db,
-        name=name,
+        name=name.strip(),
         contact_email=contact_email,
-        google_email=google_email,
+        google_email=google,
         phone=phone,
-        organisation=organisation,
-        org_type=org_type,
-        year_course=year_course,
-        job_title=job_title,
-        timezone=timezone,
+        organisation=org,
+        org_type=kind,
+        year_course=course,
+        job_title=title,
+        timezone=zone,
     )
 
     existing = db.scalar(
@@ -485,6 +554,7 @@ async def apply(
         raise HTTPException(status.HTTP_409_CONFLICT, "You have already applied to this programme.")
 
     uploaded = cv is not None and bool(cv.filename)
+    key: str | None = None
     if uploaded:
         assert cv is not None
         content = await cv.read()
@@ -495,28 +565,28 @@ async def apply(
         key = f"cvs/{programme.id}/{person.id}/{secrets.token_hex(8)}.pdf"
         get_storage().put(key, content, "application/pdf")
         person.cv_url = key
-    elif not person.cv_url:
+    elif person.cv_url:
+        key = person.cv_url
+    elif not onsite:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "Please attach your CV as a PDF.",
         )
-    else:
-        key = person.cv_url
 
-    if linkedin:
-        person.linkedin_url = linkedin
+    person.linkedin_url = linkedin
 
     application = Application(
         programme_id=programme.id,
         person_id=person.id,
         cv_url=key,
-        writeup=writeup,
+        writeup=text or None,
         linkedin_url=linkedin,
         availability_confirmed=True,
         consent_share_company=consent_share_company,
         consent_recording=consent_recording,
         consent_captured_at=utcnow(),
-        status=ApplicationStatus.SUBMITTED,
+        # On-site: join immediately. Online: wait for offer/accept.
+        status=ApplicationStatus.ACCEPTED if onsite else ApplicationStatus.SUBMITTED,
     )
     db.add(application)
     try:
@@ -528,21 +598,29 @@ async def apply(
             "You have already applied to this programme.",
         ) from exc
 
-    from projet.outbox.application_effects import APPLICATION_RECEIVED_EMAIL
-    from projet.outbox.effects import enqueue
+    if onsite:
+        from projet.services.selection import SelectionError, enrol_participant
 
-    enqueue(
-        db,
-        subject_type=OutboxSubjectType.APPLICATION,
-        subject_id=application.id,
-        effect_type=APPLICATION_RECEIVED_EMAIL,
-    )
+        try:
+            enrol_participant(db, application)
+        except SelectionError as error:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(error)) from error
+    else:
+        from projet.outbox.application_effects import APPLICATION_RECEIVED_EMAIL
+        from projet.outbox.effects import enqueue
+
+        enqueue(
+            db,
+            subject_type=OutboxSubjectType.APPLICATION,
+            subject_id=application.id,
+            effect_type=APPLICATION_RECEIVED_EMAIL,
+        )
     db.commit()
 
     return ApplicationAccepted(
         application_id=application.id,
         decision_by=programme.start_at,
-        google_email_warning=google_email_warning(google_email),
+        google_email_warning=google_email_warning(google) if google else None,
     )
 
 

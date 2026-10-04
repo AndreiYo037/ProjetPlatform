@@ -14,8 +14,8 @@ from sqlalchemy import select
 from projet.jobs.definitions import expire_offers
 from projet.models import Application, Outbox, Submission, Team
 from projet.models.base import utcnow
-from projet.models.enums import ApplicationStatus
-from projet.outbox.application_effects import OFFER_EMAIL
+from projet.models.enums import ApplicationStatus, DeliveryMode
+from projet.outbox.application_effects import OFFER_EMAIL, REJECTION_EMAIL, WAITLIST_EMAIL
 from projet.services.selection import (
     SelectionError,
     accept_offer,
@@ -68,6 +68,29 @@ def test_an_offer_carries_a_token_and_a_48_hour_expiry(session, programme):
 
     queued = {row.effect_type for row in session.scalars(select(Outbox))}
     assert OFFER_EMAIL in queued
+
+
+def test_onsite_selection_actions_are_refused(session, programme):
+    programme.delivery_mode = DeliveryMode.IN_PERSON
+    session.flush()
+
+    offered = _application(session, programme, name="Offered")
+    with pytest.raises(SelectionError, match="On-site"):
+        make_offer(session, offered)
+    waitlisted = _application(session, programme, name="Waitlisted")
+    with pytest.raises(SelectionError, match="On-site"):
+        waitlist(session, waitlisted)
+    rejected = _application(session, programme, name="Rejected")
+    with pytest.raises(SelectionError, match="On-site"):
+        reject(session, rejected, feedback="Not this round")
+
+    queued = {row.effect_type for row in session.scalars(select(Outbox))}
+    assert OFFER_EMAIL not in queued
+    assert WAITLIST_EMAIL not in queued
+    assert REJECTION_EMAIL not in queued
+    assert offered.status == ApplicationStatus.SUBMITTED
+    assert waitlisted.status == ApplicationStatus.SUBMITTED
+    assert rejected.status == ApplicationStatus.SUBMITTED
 
 
 def test_accepting_creates_the_participant_and_their_team(session, programme, judging_session):

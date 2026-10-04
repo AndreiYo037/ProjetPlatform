@@ -8,11 +8,10 @@ import {
   createProgramme,
   getRoleClusters,
   getRoleImplications,
-  setPitchSchedule,
   type ClusterGroup,
   type RoleImplications,
 } from "@/lib/api";
-import { fromDateInput, fromDateTimeLocal, fromTimeOnDate, formatDayClock, formatSlot } from "@/lib/dates";
+import { fromDateInput, fromDateTimeLocal, formatDayClock, formatSlot } from "@/lib/dates";
 import { useActor } from "@/lib/useActor";
 
 type Step = "role" | "details" | "review";
@@ -42,7 +41,7 @@ export default function NewChallengePage() {
   const [capacity, setCapacity] = useState("");
   const [appsCloseAt, setAppsCloseAt] = useState("");
   const [startAt, setStartAt] = useState("");
-  const [kickoffTime, setKickoffTime] = useState("");
+  const [kickoffAt, setKickoffAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [pitchStartsAt, setPitchStartsAt] = useState("");
   const [pitchDuration, setPitchDuration] = useState("10");
@@ -81,6 +80,11 @@ export default function NewChallengePage() {
     setBusy(true);
     setError(null);
     const onsite = deliveryMode === "in_person";
+    const pitchAt = fromDateTimeLocal(pitchStartsAt);
+    if (!onsite && (!pitchAt || Number(pitchDuration) < 1)) {
+      setError("Pick the first pitch time and minutes each.");
+      return;
+    }
     try {
       const programme = await createProgramme({
         role_id: selectedRoleIds[0],
@@ -90,17 +94,12 @@ export default function NewChallengePage() {
         delivery_mode: deliveryMode,
         capacity: capacity ? Number(capacity) : null,
         applications_close_at: fromDateInput(appsCloseAt),
-        start_at: onsite ? null : fromDateInput(startAt),
-        submit_deadline_at: onsite ? null : fromDateInput(endAt),
-        kickoff_at: onsite ? null : fromTimeOnDate(startAt, kickoffTime),
+        start_at: fromDateTimeLocal(startAt),
+        submit_deadline_at: fromDateTimeLocal(endAt),
+        kickoff_at: onsite ? null : fromDateTimeLocal(kickoffAt),
+        pitch_starts_at: onsite ? null : pitchAt,
+        pitch_duration_minutes: onsite ? null : Number(pitchDuration),
       });
-      const pitchAt = fromDateTimeLocal(pitchStartsAt);
-      if (!onsite && pitchAt && Number(pitchDuration) >= 1) {
-        await setPitchSchedule(programme.id, {
-          starts_at: pitchAt,
-          duration_minutes: Number(pitchDuration),
-        });
-      }
       router.push(`/company/challenges/${programme.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create this challenge.");
@@ -148,7 +147,7 @@ export default function NewChallengePage() {
           onDeliveryModeChange={setDeliveryMode}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
-          kickoffTime={kickoffTime}
+          kickoffAt={kickoffAt}
           endAt={endAt}
           pitchStartsAt={pitchStartsAt}
           pitchDuration={pitchDuration}
@@ -160,7 +159,7 @@ export default function NewChallengePage() {
           onCapacityChange={setCapacity}
           onAppsCloseAtChange={setAppsCloseAt}
           onStartAtChange={setStartAt}
-          onKickoffTimeChange={setKickoffTime}
+          onKickoffAtChange={setKickoffAt}
           onEndAtChange={setEndAt}
           onPitchStartsAtChange={setPitchStartsAt}
           onPitchDurationChange={setPitchDuration}
@@ -182,7 +181,7 @@ export default function NewChallengePage() {
           deliveryMode={deliveryMode}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
-          kickoffTime={kickoffTime}
+          kickoffAt={kickoffAt}
           endAt={endAt}
           pitchStartsAt={pitchStartsAt}
           pitchDuration={pitchDuration}
@@ -339,7 +338,7 @@ function DetailsForm({
   onDeliveryModeChange,
   appsCloseAt,
   startAt,
-  kickoffTime,
+  kickoffAt,
   endAt,
   pitchStartsAt,
   pitchDuration,
@@ -348,7 +347,7 @@ function DetailsForm({
   onCapacityChange,
   onAppsCloseAtChange,
   onStartAtChange,
-  onKickoffTimeChange,
+  onKickoffAtChange,
   onEndAtChange,
   onPitchStartsAtChange,
   onPitchDurationChange,
@@ -362,7 +361,7 @@ function DetailsForm({
   onDeliveryModeChange: (value: "online" | "in_person") => void;
   appsCloseAt: string;
   startAt: string;
-  kickoffTime: string;
+  kickoffAt: string;
   endAt: string;
   pitchStartsAt: string;
   pitchDuration: string;
@@ -371,7 +370,7 @@ function DetailsForm({
   onCapacityChange: (v: string) => void;
   onAppsCloseAtChange: (v: string) => void;
   onStartAtChange: (v: string) => void;
-  onKickoffTimeChange: (v: string) => void;
+  onKickoffAtChange: (v: string) => void;
   onEndAtChange: (v: string) => void;
   onPitchStartsAtChange: (v: string) => void;
   onPitchDurationChange: (v: string) => void;
@@ -451,40 +450,28 @@ function DetailsForm({
         />
         <div className="hint">Closes at 23:59 SGT on that day.</div>
       </div>
+      <div className="field">
+        <label htmlFor="ch-start">Starts</label>
+        <input
+          id="ch-start"
+          type="datetime-local"
+          value={startAt}
+          onChange={(e) => onStartAtChange(e.target.value)}
+        />
+        <div className="hint">Submissions open from this moment (SGT).</div>
+      </div>
       {deliveryMode === "online" && (
       <>
-      <div className="row" style={{ gap: "1rem" }}>
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="ch-start">Starts</label>
-          <input
-            id="ch-start"
-            type="date"
-            value={startAt}
-            onChange={(e) => onStartAtChange(e.target.value)}
-          />
-          <div className="hint">00:00 SGT on that day.</div>
-        </div>
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="ch-kickoff">Kickoff</label>
-          <input
-            id="ch-kickoff"
-            type="time"
-            value={kickoffTime}
-            onChange={(e) => onKickoffTimeChange(e.target.value)}
-            disabled={!startAt}
-          />
-          <div className="hint">On the start date, SGT. One hour. Required to publish.</div>
-        </div>
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="ch-end">Ends</label>
-          <input
-            id="ch-end"
-            type="date"
-            value={endAt}
-            onChange={(e) => onEndAtChange(e.target.value)}
-          />
-          <div className="hint">23:59 SGT on that day.</div>
-        </div>
+      <div className="field">
+        <label htmlFor="ch-kickoff">Kickoff</label>
+        <input
+          id="ch-kickoff"
+          type="datetime-local"
+          value={kickoffAt}
+          onChange={(e) => onKickoffAtChange(e.target.value)}
+          disabled={!startAt}
+        />
+        <div className="hint">Must be after start. One hour. Required to publish.</div>
       </div>
       <div className="row" style={{ gap: "1rem" }}>
         <div className="field" style={{ flex: 1 }}>
@@ -495,7 +482,7 @@ function DetailsForm({
             value={pitchStartsAt}
             onChange={(e) => onPitchStartsAtChange(e.target.value)}
           />
-          <div className="hint">Date and time the first pitch starts (SGT).</div>
+          <div className="hint">After start, before end. Required for online.</div>
         </div>
         <div className="field" style={{ flex: "0 0 8rem" }}>
           <label htmlFor="ch-pitch-mins">Minutes each</label>
@@ -512,6 +499,20 @@ function DetailsForm({
       </div>
       </>
       )}
+      <div className="field">
+        <label htmlFor="ch-end">Ends</label>
+        <input
+          id="ch-end"
+          type="datetime-local"
+          value={endAt}
+          onChange={(e) => onEndAtChange(e.target.value)}
+        />
+        <div className="hint">
+          {deliveryMode === "online"
+            ? "Submissions lock then. Must be after the first pitch."
+            : "Submissions lock then (SGT)."}
+        </div>
+      </div>
 
       <div className="row" style={{ marginTop: "1.5rem", gap: "0.75rem" }}>
         <button className="secondary" onClick={onBack}>
@@ -537,7 +538,7 @@ function ReviewStep({
   deliveryMode,
   appsCloseAt,
   startAt,
-  kickoffTime,
+  kickoffAt,
   endAt,
   pitchStartsAt,
   pitchDuration,
@@ -552,7 +553,7 @@ function ReviewStep({
   deliveryMode: "online" | "in_person";
   appsCloseAt: string;
   startAt: string;
-  kickoffTime: string;
+  kickoffAt: string;
   endAt: string;
   pitchStartsAt: string;
   pitchDuration: string;
@@ -582,18 +583,12 @@ function ReviewStep({
           <dd>{deliveryMode === "in_person" ? "On-site" : "Online"}</dd>
           <dt>Apps close</dt>
           <dd>{formatDayClock(appsCloseAt ? asSgtDay(appsCloseAt) : null, "23:59") ?? "Not set"}</dd>
+          <dt>Starts</dt>
+          <dd>{formatSlot(startAt ? `${startAt}:00+08:00` : null) ?? "Not set"}</dd>
           {deliveryMode === "online" && (
             <>
-          <dt>Starts</dt>
-          <dd>{formatDayClock(startAt ? asSgtDay(startAt) : null, "00:00") ?? "Not set"}</dd>
           <dt>Kickoff</dt>
-          <dd>
-            {startAt && kickoffTime
-              ? formatDayClock(asSgtDay(startAt), kickoffTime)
-              : "Not set"}
-          </dd>
-          <dt>Ends</dt>
-          <dd>{formatDayClock(endAt ? asSgtDay(endAt) : null, "23:59") ?? "Not set"}</dd>
+          <dd>{formatSlot(kickoffAt ? `${kickoffAt}:00+08:00` : null) ?? "Not set"}</dd>
           <dt>First pitch</dt>
           <dd>
             {pitchStartsAt
@@ -602,6 +597,8 @@ function ReviewStep({
           </dd>
             </>
           )}
+          <dt>Ends</dt>
+          <dd>{formatSlot(endAt ? `${endAt}:00+08:00` : null) ?? "Not set"}</dd>
         </dl>
       </div>
       <p className="small muted">

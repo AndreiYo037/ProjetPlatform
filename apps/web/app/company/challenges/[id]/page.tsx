@@ -26,7 +26,14 @@ import {
   type PublicationCheck,
   type ClusterGroup,
 } from "@/lib/api";
-import { fromDateInput, fromTimeOnDate, formatDayClock, formatSlot, toDateInput, toTimeInput } from "@/lib/dates";
+import {
+  fromDateInput,
+  fromDateTimeLocal,
+  formatDayClock,
+  formatSlot,
+  toDateInput,
+  toDateTimeLocal,
+} from "@/lib/dates";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
@@ -197,6 +204,7 @@ export default function ChallengeDetailPage({
         <ApplicantsPanel
           programmeId={programme.id}
           applications={applications}
+          onsite={programme.delivery_mode === "in_person"}
           onChanged={load}
         />
       )}
@@ -326,25 +334,25 @@ function ScheduleSection({
   const [title, setTitle] = useState(programme.title);
   const [capacity, setCapacity] = useState(String(programme.capacity ?? ""));
   const [appsCloseAt, setAppsCloseAt] = useState(toDateInput(programme.applications_close_at));
-  const [startAt, setStartAt] = useState(toDateInput(programme.start_at));
-  const [kickoffTime, setKickoffTime] = useState(toTimeInput(programme.kickoff_at));
-  const [endAt, setEndAt] = useState(toDateInput(programme.submit_deadline_at));
+  const [startAt, setStartAt] = useState(toDateTimeLocal(programme.start_at));
+  const [kickoffAt, setKickoffAt] = useState(toDateTimeLocal(programme.kickoff_at));
+  const [endAt, setEndAt] = useState(toDateTimeLocal(programme.submit_deadline_at));
 
   const draft = {
     title: title.trim(),
     capacity,
     appsCloseAt,
     startAt,
-    kickoffTime,
+    kickoffAt,
     endAt,
   };
   const baseline = {
     title: programme.title,
     capacity: String(programme.capacity ?? ""),
     appsCloseAt: toDateInput(programme.applications_close_at),
-    startAt: toDateInput(programme.start_at),
-    kickoffTime: toTimeInput(programme.kickoff_at),
-    endAt: toDateInput(programme.submit_deadline_at),
+    startAt: toDateTimeLocal(programme.start_at),
+    kickoffAt: toDateTimeLocal(programme.kickoff_at),
+    endAt: toDateTimeLocal(programme.submit_deadline_at),
   };
 
   const { status, error: saveError } = useAutosave(
@@ -355,13 +363,9 @@ function ScheduleSection({
         title: next.title || undefined,
         capacity: next.capacity ? Number(next.capacity) : null,
         applications_close_at: fromDateInput(next.appsCloseAt),
-        ...(onsite
-          ? {}
-          : {
-              start_at: fromDateInput(next.startAt),
-              submit_deadline_at: fromDateInput(next.endAt),
-              kickoff_at: fromTimeOnDate(next.startAt, next.kickoffTime),
-            }),
+        start_at: fromDateTimeLocal(next.startAt),
+        submit_deadline_at: fromDateTimeLocal(next.endAt),
+        ...(onsite ? {} : { kickoff_at: fromDateTimeLocal(next.kickoffAt) }),
       });
       onSaved();
     },
@@ -383,16 +387,20 @@ function ScheduleSection({
           <dd>{onsite ? "On-site" : "Online"}</dd>
           <dt>Apps close</dt>
           <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
+          <dt>Starts</dt>
+          <dd>{programme.start_at ? formatSlot(programme.start_at) : "Not set"}</dd>
           {!onsite && (
             <>
-          <dt>Starts</dt>
-          <dd>{formatDay(programme.start_at, "00:00")}</dd>
           <dt>Kickoff</dt>
           <dd>{programme.kickoff_at ? formatSlot(programme.kickoff_at) : "Not set"}</dd>
-          <dt>Ends</dt>
-          <dd>{formatDay(programme.submit_deadline_at, "23:59")}</dd>
             </>
           )}
+          <dt>Ends</dt>
+          <dd>
+            {programme.submit_deadline_at
+              ? formatSlot(programme.submit_deadline_at)
+              : "Not set"}
+          </dd>
         </dl>
       </div>
     );
@@ -433,41 +441,43 @@ function ScheduleSection({
         />
         <p className="small muted">Closes at 23:59 SGT on that day.</p>
       </div>
+      <div className="field">
+        <label htmlFor="edit-start">Starts</label>
+        <input
+          id="edit-start"
+          type="datetime-local"
+          value={startAt}
+          onChange={(e) => setStartAt(e.target.value)}
+        />
+        <p className="small muted">Submissions open from this moment (SGT).</p>
+      </div>
       {!onsite && (
-      <div className="row" style={{ gap: "1rem" }}>
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="edit-start">Starts</label>
-          <input
-            id="edit-start"
-            type="date"
-            value={startAt}
-            onChange={(e) => setStartAt(e.target.value)}
-          />
-          <p className="small muted">00:00 SGT on that day.</p>
-        </div>
-        <div className="field" style={{ flex: 1 }}>
+        <div className="field">
           <label htmlFor="edit-kickoff">Kickoff</label>
           <input
             id="edit-kickoff"
-            type="time"
-            value={kickoffTime}
-            onChange={(e) => setKickoffTime(e.target.value)}
+            type="datetime-local"
+            value={kickoffAt}
+            onChange={(e) => setKickoffAt(e.target.value)}
             disabled={!startAt}
           />
-          <p className="small muted">On the start date, SGT. One hour. Required to publish.</p>
+          <p className="small muted">Must be after start. One hour. Required to publish.</p>
         </div>
-        <div className="field" style={{ flex: 1 }}>
-          <label htmlFor="edit-end">Ends</label>
-          <input
-            id="edit-end"
-            type="date"
-            value={endAt}
-            onChange={(e) => setEndAt(e.target.value)}
-          />
-          <p className="small muted">23:59 SGT on that day.</p>
-        </div>
-      </div>
       )}
+      <div className="field">
+        <label htmlFor="edit-end">Ends</label>
+        <input
+          id="edit-end"
+          type="datetime-local"
+          value={endAt}
+          onChange={(e) => setEndAt(e.target.value)}
+        />
+        <p className="small muted">
+          {onsite
+            ? "Submissions lock then (SGT)."
+            : "Submissions lock then. Must be after the first pitch."}
+        </p>
+      </div>
       {saveError && <div className="notice bad">{saveError}</div>}
     </div>
   );
@@ -559,10 +569,12 @@ function BriefSection({
 function ApplicantsPanel({
   programmeId,
   applications,
+  onsite,
   onChanged,
 }: {
   programmeId: string;
   applications: ApplicationOut[];
+  onsite: boolean;
   onChanged: () => void;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -616,6 +628,12 @@ function ApplicantsPanel({
   return (
     <>
       <h2>Applicants ({applications.length})</h2>
+      {onsite && (
+        <p className="small muted">
+          On-site: applicants join the programme when they apply. There is no offer,
+          waitlist, or reject step.
+        </p>
+      )}
       {flash && <div className="notice good">{flash}</div>}
       {error && <div className="notice bad">{error}</div>}
 
@@ -623,30 +641,32 @@ function ApplicantsPanel({
         <p className="muted small">No applications yet.</p>
       ) : (
         <>
-          <div className="row" style={{ marginBottom: "0.75rem", alignItems: "center" }}>
-            <span className="small muted">
-              {selected.size > 0 ? `${selected.size} selected` : `${applications.length} shown`}
-            </span>
-            {selected.size > 0 && (
-              <>
-                <button disabled={busy} onClick={() => act("offer")}>
-                  Offer
-                </button>
-                <button className="secondary" disabled={busy} onClick={() => act("waitlist")}>
-                  Waitlist
-                </button>
-                <button className="danger" disabled={busy} onClick={() => act("reject")}>
-                  Reject
-                </button>
-              </>
-            )}
-          </div>
+          {!onsite && (
+            <div className="row" style={{ marginBottom: "0.75rem", alignItems: "center" }}>
+              <span className="small muted">
+                {selected.size > 0 ? `${selected.size} selected` : `${applications.length} shown`}
+              </span>
+              {selected.size > 0 && (
+                <>
+                  <button disabled={busy} onClick={() => act("offer")}>
+                    Offer
+                  </button>
+                  <button className="secondary" disabled={busy} onClick={() => act("waitlist")}>
+                    Waitlist
+                  </button>
+                  <button className="danger" disabled={busy} onClick={() => act("reject")}>
+                    Reject
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th />
+                  {!onsite && <th />}
                   <th>Name</th>
                   <th>Organisation</th>
                   <th>Status</th>
@@ -655,15 +675,17 @@ function ApplicantsPanel({
               </thead>
               <tbody>
                 {applications.map((app) => (
-                  <tr key={app.id} data-selected={selected.has(app.id)}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(app.id)}
-                        onChange={() => toggle(app.id)}
-                        aria-label={`Select ${app.name}`}
-                      />
-                    </td>
+                  <tr key={app.id} data-selected={!onsite && selected.has(app.id)}>
+                    {!onsite && (
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={selected.has(app.id)}
+                          onChange={() => toggle(app.id)}
+                          aria-label={`Select ${app.name}`}
+                        />
+                      </td>
+                    )}
                     <td>{app.name}</td>
                     <td className="muted">{app.organisation ?? "—"}</td>
                     <td className="muted">{app.status}</td>
@@ -697,7 +719,9 @@ function ApplicantsPanel({
               </a>
             )}
           </div>
-          <p style={{ whiteSpace: "pre-wrap" }}>{detail.writeup}</p>
+          {detail.writeup && (
+            <p style={{ whiteSpace: "pre-wrap" }}>{detail.writeup}</p>
+          )}
           {detail.cv_url && (
             <p>
               <a
@@ -710,7 +734,7 @@ function ApplicantsPanel({
               </a>
             </p>
           )}
-          {detail.offer_url && (
+          {!onsite && detail.offer_url && (
             <div className="notice">
               <strong>Offer link:</strong> not yet accepted. Send this to them directly if the
               offer email hasn't reached their inbox.

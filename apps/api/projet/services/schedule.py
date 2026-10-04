@@ -1,8 +1,8 @@
-"""Programme dates the company picks, with fixed times of day.
+"""Programme dates the company picks.
 
-The company chooses which days a challenge runs. Start is midnight on the
-start date, and the challenge ends at 23:59 on the end date. Kickoff is the
-exception: the company picks a clock time, always on the start date.
+Start and end keep the clock the company set. Submissions open at start and
+lock at end. Kickoff (online) must be after start. First pitch (online) must
+fall after start and before end.
 """
 
 from __future__ import annotations
@@ -42,21 +42,53 @@ def at_end_of_day(moment: datetime) -> datetime:
     return datetime.combine(local.date(), END_OF_DAY, tzinfo=PROGRAMME_TZ)
 
 
+def at_programme_moment(moment: datetime) -> datetime:
+    """Keep the company's clock, in Singapore time, minutes only."""
+    return in_programme_tz(moment).replace(second=0, microsecond=0)
+
+
+def validate_pitch_window(
+    start_at: datetime | None,
+    end_at: datetime | None,
+    pitch_starts_at: datetime | None,
+) -> datetime | None:
+    """First pitch must fall after start and before the end deadline."""
+    if pitch_starts_at is None:
+        return None
+    if start_at is None:
+        raise ScheduleError("Pick a start date before the first pitch.")
+    if end_at is None:
+        raise ScheduleError("Pick an end date before the first pitch.")
+    pitch = at_programme_moment(pitch_starts_at)
+    start = in_programme_tz(start_at)
+    end = in_programme_tz(end_at)
+    if pitch <= start:
+        raise ScheduleError("The first pitch must be after the challenge starts.")
+    if pitch >= end:
+        raise ScheduleError(
+            "The challenge must end after the pitching schedule. "
+            "Pick an end time after the first pitch."
+        )
+    return pitch
+
+
 def bind_kickoff(
     start_at: datetime | None, kickoff_at: datetime | None
 ) -> datetime | None:
-    """Pin the kickoff call to the start date, using the time the company picked.
+    """Keep the kickoff call the company picked; it must be after start.
 
-    The day is the challenge start; the clock time is theirs. A picker that
-    sends a datetime on some other day still lands on the start date.
+    Kickoff is its own date and time. It is not pinned to the start calendar
+    day — only required to fall strictly after submissions open.
     """
     if kickoff_at is None:
         return None
     if start_at is None:
         raise ScheduleError("Pick a start date before the kickoff time.")
-    day = in_programme_tz(start_at).date()
-    clock = in_programme_tz(kickoff_at).time().replace(second=0, microsecond=0)
-    return datetime.combine(day, clock, tzinfo=PROGRAMME_TZ)
+    meeting = at_programme_moment(kickoff_at)
+    start = in_programme_tz(start_at)
+    if meeting <= start:
+        raise ScheduleError("Kickoff must be after the challenge starts.")
+    return meeting
 
 
 def pitch_day_begins_at(pitch_starts_at: datetime) -> datetime:
@@ -69,11 +101,11 @@ def bind_dates(
     end_at: datetime | None,
     close_at: datetime | None = None,
 ) -> tuple[datetime | None, datetime | None, datetime | None]:
-    """Pin chosen days to the fixed times and refuse an inverted clock."""
-    start = at_start_of_day(start_at) if start_at is not None else None
-    end = at_end_of_day(end_at) if end_at is not None else None
+    """Keep start/end clocks; pin applications-close to end-of-day."""
+    start = at_programme_moment(start_at) if start_at is not None else None
+    end = at_programme_moment(end_at) if end_at is not None else None
     close = at_end_of_day(close_at) if close_at is not None else None
-    if start is not None and end is not None and end.date() < start.date():
+    if start is not None and end is not None and end <= start:
         raise ScheduleError("The challenge cannot end before it starts.")
     if start is not None:
         validate_applications_close(close, start)
@@ -128,7 +160,7 @@ def programme_is_past(programme, now: datetime | None = None) -> bool:
 
     Active vs past is a calendar question, not a status one: a company can run
     several programmes at once, and a closed-out row whose end is still ahead
-    stays active. The end of the last day is the cut; with no dates, only an
+    stays active. The end clock is the cut; with no dates, only an
     already-complete row is past.
     """
     from projet.models.base import utcnow
@@ -140,3 +172,18 @@ def programme_is_past(programme, now: datetime | None = None) -> bool:
     if end is not None:
         return end <= now
     return programme.status == ProgrammeStatus.COMPLETE
+
+
+def submissions_open(programme, now: datetime | None = None) -> bool:
+    """Whether participants may upload or hand in work.
+
+    Opens at start_at. With no start clock, stays open until locked by end
+    or close-out.
+    """
+    from projet.models.base import utcnow
+
+    if now is None:
+        now = utcnow()
+    if programme.start_at is None:
+        return True
+    return now >= programme.start_at

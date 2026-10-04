@@ -6,6 +6,7 @@ times of day and lets any calendar day through.
 
 from __future__ import annotations
 
+import io
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -21,7 +22,7 @@ from projet.models.enums import ActorType
 from projet.seeds.loader import seed_all
 from projet.services.auth import SESSION_COOKIE, start_session
 from projet.services.schedule import PROGRAMME_TZ
-from tests.conftest import kickoff_on, next_end, next_kickoff
+from tests.conftest import kickoff_on, next_end, next_kickoff, scheduled
 
 SGT = ZoneInfo("Asia/Singapore")
 
@@ -73,24 +74,22 @@ def company_id(client, session, admin) -> str:
 
 
 def create(client, company_id, role_id, **overrides) -> dict:
-    start = next_kickoff()
     payload = {
         "company_id": company_id,
         "role_id": role_id,
         "title": "Churn dashboard",
         "slug": "churn",
         "applications_close_at": (datetime.now(UTC) + timedelta(days=2)).isoformat(),
-        "start_at": start.isoformat(),
-        "submit_deadline_at": next_end(start).isoformat(),
-        "kickoff_at": kickoff_on(start).isoformat(),
+        **scheduled(),
         **BRIEF,
     }
     payload.update(overrides)
     return client.post("/programmes", json=payload)
 
 
-def test_an_onsite_challenge_stores_no_schedule(client, company_id, role_id):
+def test_an_onsite_challenge_keeps_start_and_end_but_no_kickoff(client, company_id, role_id):
     start = next_kickoff()
+    end = next_end(start)
     response = create(
         client,
         company_id,
@@ -98,53 +97,183 @@ def test_an_onsite_challenge_stores_no_schedule(client, company_id, role_id):
         slug="onsite",
         delivery_mode="in_person",
         start_at=start.isoformat(),
-        submit_deadline_at=next_end(start).isoformat(),
+        submit_deadline_at=end.isoformat(),
         kickoff_at=kickoff_on(start).isoformat(),
+        pitch_starts_at=None,
+        pitch_duration_minutes=None,
     )
     assert response.status_code == 201, response.text
     body = response.json()
     assert body["delivery_mode"] == "in_person"
-    assert body["start_at"] is None
-    assert body["submit_deadline_at"] is None
+    stored_start = datetime.fromisoformat(body["start_at"]).astimezone(PROGRAMME_TZ)
+    stored_end = datetime.fromisoformat(body["submit_deadline_at"]).astimezone(PROGRAMME_TZ)
+    assert (stored_start.hour, stored_start.minute) == (
+        start.astimezone(PROGRAMME_TZ).hour,
+        start.astimezone(PROGRAMME_TZ).minute,
+    )
+    assert (stored_end.hour, stored_end.minute) == (
+        end.astimezone(PROGRAMME_TZ).hour,
+        end.astimezone(PROGRAMME_TZ).minute,
+    )
     assert body["kickoff_at"] is None
+    assert body["pitch_starts_at"] is None
 
     check = client.get(f"/programmes/{body['id']}/publication-check")
     assert check.status_code == 200, check.text
+    assert check.json()["ready"] is True
     assert "kickoff" not in " ".join(check.json()["problems"]).lower()
 
 
-def test_start_is_midnight_and_end_is_end_of_day(client, company_id, role_id):
+def test_an_onsite_challenge_cannot_publish_without_start_or_end(client, company_id, role_id):
+    created = create(
+        client,
+        company_id,
+        role_id,
+        slug="onsite-bare",
+        delivery_mode="in_person",
+        start_at=None,
+        submit_deadline_at=None,
+        kickoff_at=None,
+        pitch_starts_at=None,
+        pitch_duration_minutes=None,
+    )
+    assert created.status_code == 201, created.text
+    check = client.get(f"/programmes/{created.json()['id']}/publication-check").json()
+    assert check["ready"] is False
+    assert any("start date" in problem for problem in check["problems"])
+    assert any("end date" in problem for problem in check["problems"])
+
+
+def test_an_onsite_application_joins_immediately(client, company_id, role_id, session):
+    from projet.models import Application, Outbox, Participant, Submission, Team
+    from projet.models.enums import ApplicationStatus
+    from projet.outbox.application_effects import APPLICATION_RECEIVED_EMAIL
+
+    start = next_kickoff()
+    created = create(
+        client,
+        company_id,
+        role_id,
+        slug="onsite-apply",
+        delivery_mode="in_person",
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
+        kickoff_at=None,
+        pitch_starts_at=None,
+        pitch_duration_minutes=None,
+    )
+    assert created.status_code == 201, created.text
+    programme_id = created.json()["id"]
+    published = client.post(f"/programmes/{programme_id}/publish")
+    assert published.status_code == 200, published.text
+    client.cookies.clear()
+
+    applied = client.post(
+        "/public/x/acme/onsite-apply/apply",
+        data={
+            "name": "On Site",
+            "contact_email": "onsite@school.edu.sg",
+            "organisation": "NUS",
+            "org_type": "school",
+            "year_course": "Y2 CS",
+            "linkedin_url": "https://www.linkedin.com/in/onsite",
+            "availability_confirmed": "true",
+            "consent_share_company": "true",
+            "consent_recording": "true",
+        },
+    )
+    assert applied.status_code == 201, applied.text
+    application = session.scalar(select(Application).order_by(Application.created_at.desc()))
+    assert application is not None
+    assert application.status == ApplicationStatus.ACCEPTED
+    participant = session.scalar(
+        select(Participant).where(Participant.application_id == application.id)
+    )
+    assert participant is not None
+    assert session.query(Team).count() == 1
+    assert session.query(Submission).count() == 1
+    queued = {row.effect_type for row in session.scalars(select(Outbox))}
+    assert APPLICATION_RECEIVED_EMAIL not in queued
+
+    from projet.models import CompanyUser
+    from projet.models.enums import ActorType
+    from projet.services.auth import SESSION_COOKIE, start_session
+
+    owner = session.scalar(select(CompanyUser).where(CompanyUser.email == "owner@acme.test"))
+    assert owner is not None
+    _, raw = start_session(session, actor_type=ActorType.COMPANY_USER, subject_id=owner.id)
+    client.cookies.set(SESSION_COOKIE, raw)
+    refused = client.post(
+        f"/programmes/{programme_id}/applications/disposition",
+        json={"application_ids": [str(application.id)], "action": "offer"},
+    )
+    assert refused.status_code == 422
+    assert "On-site" in refused.json()["detail"]
+
+
+def test_an_online_application_still_needs_a_writeup(client, company_id, role_id):
+    created = create(client, company_id, role_id, slug="online-apply")
+    assert created.status_code == 201, created.text
+    programme_id = created.json()["id"]
+    end = datetime.fromisoformat(created.json()["submit_deadline_at"])
+    pitched = client.put(
+        f"/programmes/{programme_id}/pitch-schedule",
+        json={"starts_at": (end - timedelta(hours=5)).isoformat(), "duration_minutes": 10},
+    )
+    assert pitched.status_code == 200, pitched.text
+    published = client.post(f"/programmes/{programme_id}/publish")
+    assert published.status_code == 200, published.text
+    client.cookies.clear()
+
+    applied = client.post(
+        "/public/x/acme/online-apply/apply",
+        data={
+            "name": "Online",
+            "contact_email": "online@school.edu.sg",
+            "google_email": "online@gmail.com",
+            "availability_confirmed": "true",
+            "consent_share_company": "true",
+            "consent_recording": "true",
+        },
+        files={"cv": ("cv.pdf", io.BytesIO(b"%PDF"), "application/pdf")},
+    )
+    assert applied.status_code == 422, applied.text
+
+
+def test_start_and_end_keep_their_clocks(client, company_id, role_id):
     start = datetime(2026, 10, 8, 15, 30, tzinfo=SGT)  # Thursday afternoon
-    end = datetime(2026, 10, 25, 8, 0, tzinfo=SGT)
+    end = datetime(2026, 10, 25, 18, 0, tzinfo=SGT)
     body = create(
         client,
         company_id,
         role_id,
         start_at=start.isoformat(),
         submit_deadline_at=end.isoformat(),
+        kickoff_at=(start + timedelta(hours=1)).isoformat(),
+        pitch_starts_at=(end - timedelta(hours=3)).isoformat(),
+        pitch_duration_minutes=10,
         applications_close_at=datetime(2026, 10, 7, tzinfo=SGT).isoformat(),
     ).json()
 
     stored_start = datetime.fromisoformat(body["start_at"]).astimezone(PROGRAMME_TZ)
     stored_end = datetime.fromisoformat(body["submit_deadline_at"]).astimezone(PROGRAMME_TZ)
     assert stored_start.date() == start.date()
-    assert (stored_start.hour, stored_start.minute) == (0, 0)
+    assert (stored_start.hour, stored_start.minute) == (15, 30)
     assert stored_end.date() == end.date()
-    assert (stored_end.hour, stored_end.minute) == (23, 59)
+    assert (stored_end.hour, stored_end.minute) == (18, 0)
     assert datetime.fromisoformat(body["pitch_at"]) == datetime.fromisoformat(
         body["submit_deadline_at"]
     )
 
 
 def test_a_thursday_is_as_good_as_any_other_day(client, company_id, role_id):
-    thursday = datetime(2026, 10, 8, tzinfo=SGT)
+    thursday = datetime(2026, 10, 8, 9, 0, tzinfo=SGT)
     response = create(
         client,
         company_id,
         role_id,
-        start_at=thursday.isoformat(),
-        submit_deadline_at=(thursday + timedelta(days=2)).isoformat(),
         applications_close_at=(thursday - timedelta(days=1)).isoformat(),
+        **scheduled(thursday),
     )
     assert response.status_code == 201, response.text
 
@@ -182,20 +311,23 @@ def test_moving_the_start_does_not_move_the_end(client, company_id, role_id):
     programme = create(client, company_id, role_id).json()
     original_end = programme["submit_deadline_at"]
     later = datetime.fromisoformat(programme["start_at"]) + timedelta(days=1)
+    later_kickoff = later + timedelta(hours=5)
 
     updated = client.patch(
         f"/programmes/{programme['id']}",
-        json={"start_at": later.isoformat()},
+        json={"start_at": later.isoformat(), "kickoff_at": later_kickoff.isoformat()},
     )
     assert updated.status_code == 200, updated.text
     assert updated.json()["submit_deadline_at"] == original_end
     stored = datetime.fromisoformat(updated.json()["start_at"]).astimezone(PROGRAMME_TZ)
-    assert (stored.hour, stored.minute) == (0, 0)
+    original = datetime.fromisoformat(programme["start_at"]).astimezone(PROGRAMME_TZ)
+    assert (stored.hour, stored.minute) == (original.hour, original.minute)
 
 
 def test_the_end_date_can_be_set_by_hand(client, company_id, role_id):
     programme = create(client, company_id, role_id).json()
-    new_end = datetime(2026, 12, 1, tzinfo=SGT)
+    pitch = datetime.fromisoformat(programme["pitch_starts_at"])
+    new_end = pitch + timedelta(hours=4)
 
     updated = client.patch(
         f"/programmes/{programme['id']}",
@@ -205,8 +337,11 @@ def test_the_end_date_can_be_set_by_hand(client, company_id, role_id):
     stored = datetime.fromisoformat(updated.json()["submit_deadline_at"]).astimezone(
         PROGRAMME_TZ
     )
-    assert stored.date() == new_end.date()
-    assert (stored.hour, stored.minute) == (23, 59)
+    assert stored.date() == new_end.astimezone(PROGRAMME_TZ).date()
+    assert (stored.hour, stored.minute) == (
+        new_end.astimezone(PROGRAMME_TZ).hour,
+        new_end.astimezone(PROGRAMME_TZ).minute,
+    )
 
 
 def test_every_programme_is_individual(client, company_id, role_id):
@@ -233,16 +368,18 @@ def test_publication_is_blocked_until_start_end_and_kickoff_exist(client, compan
     assert any("start date" in problem for problem in check["problems"])
     assert any("end date" in problem for problem in check["problems"])
     assert any("kickoff time" in problem for problem in check["problems"])
+    assert any("pitching schedule" in problem for problem in check["problems"])
     assert any("problem statement" in problem for problem in check["problems"])
 
     refused = client.post(f"/programmes/{programme_id}/publish")
     assert refused.status_code == 409
 
 
-def test_start_end_and_kickoff_are_enough_to_publish(client, company_id, role_id):
+def test_start_end_kickoff_and_pitch_are_enough_to_publish(client, company_id, role_id):
     """A company can publish a bare-bones shell to test the flow end to end
     and write the real brief before an applicant ever sees the listing."""
     start = next_kickoff()
+    end = next_end(start)
     created = client.post(
         "/programmes",
         json={
@@ -251,12 +388,25 @@ def test_start_end_and_kickoff_are_enough_to_publish(client, company_id, role_id
             "title": "Bare but scheduled",
             "slug": "bare-but-scheduled",
             "start_at": start.isoformat(),
-            "submit_deadline_at": next_end(start).isoformat(),
+            "submit_deadline_at": end.isoformat(),
             "kickoff_at": kickoff_on(start).isoformat(),
         },
     )
     assert created.status_code == 201, created.text
     programme_id = created.json()["id"]
+
+    check = client.get(f"/programmes/{programme_id}/publication-check").json()
+    assert check["ready"] is False
+    assert any("pitching schedule" in problem for problem in check["problems"])
+
+    pitched = client.put(
+        f"/programmes/{programme_id}/pitch-schedule",
+        json={
+            "starts_at": (end - timedelta(hours=10)).isoformat(),
+            "duration_minutes": 10,
+        },
+    )
+    assert pitched.status_code == 200, pitched.text
 
     check = client.get(f"/programmes/{programme_id}/publication-check").json()
     assert check["ready"] is True
@@ -266,6 +416,40 @@ def test_start_end_and_kickoff_are_enough_to_publish(client, company_id, role_id
     published = client.post(f"/programmes/{programme_id}/publish")
     assert published.status_code == 200, published.text
     assert published.json()["status"] == "open"
+
+
+def test_pitch_must_be_after_start_and_before_end(client, company_id, role_id):
+    start = next_kickoff()
+    end = next_end(start)
+    created = create(
+        client,
+        company_id,
+        role_id,
+        slug="pitch-window",
+        start_at=start.isoformat(),
+        submit_deadline_at=end.isoformat(),
+        kickoff_at=kickoff_on(start).isoformat(),
+    )
+    assert created.status_code == 201, created.text
+    programme_id = created.json()["id"]
+
+    too_early = client.put(
+        f"/programmes/{programme_id}/pitch-schedule",
+        json={"starts_at": start.isoformat(), "duration_minutes": 10},
+    )
+    assert too_early.status_code == 422
+
+    too_late = client.put(
+        f"/programmes/{programme_id}/pitch-schedule",
+        json={"starts_at": (end + timedelta(days=1)).isoformat(), "duration_minutes": 10},
+    )
+    assert too_late.status_code == 422
+
+    ok = client.put(
+        f"/programmes/{programme_id}/pitch-schedule",
+        json={"starts_at": (end - timedelta(hours=5)).isoformat(), "duration_minutes": 10},
+    )
+    assert ok.status_code == 200, ok.text
 
 
 def test_dates_without_a_kickoff_time_cannot_publish(client, company_id, role_id):
@@ -293,9 +477,9 @@ def test_dates_without_a_kickoff_time_cannot_publish(client, company_id, role_id
     assert refused.status_code == 409
 
 
-def test_kickoff_is_the_picked_time_on_the_start_date(client, company_id, role_id):
-    start = datetime(2026, 10, 8, tzinfo=SGT)
-    picked = datetime(2026, 10, 1, 16, 45, tzinfo=SGT)
+def test_kickoff_keeps_its_own_datetime_after_start(client, company_id, role_id):
+    start = datetime(2026, 10, 8, 9, 0, tzinfo=SGT)
+    picked = datetime(2026, 10, 9, 16, 45, tzinfo=SGT)
     body = create(
         client,
         company_id,
@@ -305,20 +489,32 @@ def test_kickoff_is_the_picked_time_on_the_start_date(client, company_id, role_i
         applications_close_at=datetime(2026, 10, 7, tzinfo=SGT).isoformat(),
     ).json()
     stored = datetime.fromisoformat(body["kickoff_at"]).astimezone(PROGRAMME_TZ)
-    assert stored.date() == start.date()
+    assert stored.date() == picked.date()
     assert (stored.hour, stored.minute) == (16, 45)
 
 
-def test_moving_the_start_keeps_the_kickoff_clock(client, company_id, role_id):
+def test_kickoff_before_start_is_refused(client, company_id, role_id):
+    start = datetime(2026, 10, 8, 14, 0, tzinfo=SGT)
+    response = create(
+        client,
+        company_id,
+        role_id,
+        start_at=start.isoformat(),
+        kickoff_at=(start - timedelta(hours=1)).isoformat(),
+        applications_close_at=datetime(2026, 10, 7, tzinfo=SGT).isoformat(),
+    )
+    assert response.status_code == 422
+    assert "after the challenge starts" in response.json()["detail"]
+
+
+def test_moving_the_start_past_kickoff_is_refused(client, company_id, role_id):
     programme = create(client, company_id, role_id).json()
-    original = datetime.fromisoformat(programme["kickoff_at"]).astimezone(PROGRAMME_TZ)
-    later = datetime.fromisoformat(programme["start_at"]) + timedelta(days=1)
+    kickoff = datetime.fromisoformat(programme["kickoff_at"])
+    later = kickoff + timedelta(hours=1)
 
     updated = client.patch(
         f"/programmes/{programme['id']}",
         json={"start_at": later.isoformat()},
     )
-    assert updated.status_code == 200, updated.text
-    stored = datetime.fromisoformat(updated.json()["kickoff_at"]).astimezone(PROGRAMME_TZ)
-    assert stored.date() == later.astimezone(PROGRAMME_TZ).date()
-    assert (stored.hour, stored.minute) == (original.hour, original.minute)
+    assert updated.status_code == 422
+    assert "after the challenge starts" in updated.json()["detail"]

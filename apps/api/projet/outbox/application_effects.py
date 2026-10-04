@@ -41,12 +41,18 @@ def _thread_id(ctx: EffectContext, application: Application) -> str | None:
     return participant.gmail_thread_id if participant else None
 
 
+def _onsite(programme: Programme | None) -> bool:
+    return programme is not None and programme.onsite
+
+
 @effect(APPLICATION_RECEIVED_EMAIL)
 def application_received(ctx: EffectContext) -> dict:
     """FR-207 — sends immediately, states the decision date, and opens the
     person's Gmail thread."""
     application = _application(ctx)
     programme, company_name = _context(ctx, application)
+    if _onsite(programme):
+        return {"skipped": True, "reason": "onsite"}
     decision_by = (
         format_sgt_date(programme.start_at) if programme and programme.start_at else "shortly"
     )
@@ -67,6 +73,8 @@ def offer_email(ctx: EffectContext) -> dict:
     """FR-401 — a tokenised acceptance link, no login required."""
     application = _application(ctx)
     programme, company_name = _context(ctx, application)
+    if _onsite(programme):
+        return {"skipped": True, "reason": "onsite"}
     url = ctx.payload.get("accept_url")
     if not url:
         raise PermanentEffectError("no acceptance url on payload")
@@ -75,13 +83,10 @@ def offer_email(ctx: EffectContext) -> dict:
 
     kickoff_line = ""
     pitch_line = ""
-    if programme and programme.onsite:
-        pass
-    elif programme and programme.start_at:
-        starts = format_sgt_date(programme.start_at)
+    if programme and programme.start_at:
+        starts = format_sgt_datetime(programme.start_at)
         kickoff_line = f"<p><strong>Starts:</strong> {starts}</p>"
         if programme.kickoff_at:
-            # The call is the time the company picked, not midnight on the start date.
             kickoff_line += (
                 f"<p><strong>Kickoff:</strong> {format_sgt_datetime(programme.kickoff_at)}</p>"
             )
@@ -94,8 +99,11 @@ def offer_email(ctx: EffectContext) -> dict:
                 f'<p><strong>Google Meet:</strong> <a href="{meet}">{meet}</a></p>'
             )
 
-    if programme and programme.pitch_at and not programme.onsite:
-        pitch_line = f"<p><strong>Ends:</strong> {format_sgt_date(programme.pitch_at)}</p>"
+    if programme and programme.submit_deadline_at:
+        pitch_line = (
+            f"<p><strong>Ends:</strong> "
+            f"{format_sgt_datetime(programme.submit_deadline_at)}</p>"
+        )
 
     sent = ctx.google.send_email(
         to=application.person.contact_email,
@@ -123,6 +131,8 @@ def offer_kickoff_invite(ctx: EffectContext) -> dict:
 def waitlist_email(ctx: EffectContext) -> dict:
     application = _application(ctx)
     programme, company_name = _context(ctx, application)
+    if _onsite(programme):
+        return {"skipped": True, "reason": "onsite"}
     sent = ctx.google.send_email(
         to=application.person.contact_email,
         subject=f"You're on the waitlist — {programme.title if programme else 'Projet'}",
@@ -141,6 +151,8 @@ def rejection_email(ctx: EffectContext) -> dict:
     """FR-306 — rejections carry a one-line feedback field."""
     application = _application(ctx)
     programme, _ = _context(ctx, application)
+    if _onsite(programme):
+        return {"skipped": True, "reason": "onsite"}
     feedback = application.rejection_feedback
     feedback_html = f"<p>{feedback}</p>" if feedback else ""
     sent = ctx.google.send_email(

@@ -71,7 +71,7 @@ class Programme(Base):
 
     @property
     def onsite(self) -> bool:
-        """In person: no kickoff, no clock, no Meet. Online keeps all of that."""
+        """In person: start and end clocks only — no kickoff or Meet."""
         return self.delivery_mode == DeliveryMode.IN_PERSON
     team_size_max: Mapped[int] = mapped_column(Integer, default=1)
 
@@ -118,11 +118,10 @@ class Programme(Base):
 
     @property
     def pitch_at(self) -> datetime | None:
-        """The last day of the challenge — work is due, and pitches happen then.
+        """When work is due — the same instant as submit_deadline_at.
 
-        The company picks this date; it is stored as submit_deadline_at (23:59
-        that day). Exposed under this name so apply forms and listings can
-        still talk about the pitch without a second column.
+        Exposed under this name so apply forms and listings can still talk
+        about the end of the run without a second column.
         """
         return self.submit_deadline_at
 

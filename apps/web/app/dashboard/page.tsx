@@ -159,12 +159,10 @@ function ProgrammePageInner() {
         </div>
       ))}
 
-      {data.programme.delivery_mode !== "in_person" && (
-        <Countdown
-          deadline={data.programme.submit_deadline_at}
-          timezone={data.programme.timezone}
-        />
-      )}
+      <Countdown
+        deadline={data.programme.submit_deadline_at}
+        timezone={data.programme.timezone}
+      />
 
       <nav className="tabs">
         {SECTIONS.map((s) => (
@@ -195,6 +193,7 @@ function ProgrammePageInner() {
           <SubmissionPanel
             submission={data.submission}
             programmeId={data.programme.id}
+            startAt={data.programme.start_at}
             onChange={load}
           />
         </>

@@ -12,19 +12,25 @@ import {
   type PersonProfile,
   type PublicListing,
 } from "@/lib/api";
-import { formatDayClock, formatSlot } from "@/lib/dates";
+import { formatSlot } from "@/lib/dates";
 
-/**
- * The calendar day. Times of day are fixed (start 00:00, end 23:59), so the
- * commitment is the date the company picked.
- */
-function formatStart(value: string | null | undefined) {
-  return formatDayClock(value, "00:00");
+function formatMoment(value: string | null | undefined) {
+  return formatSlot(value);
 }
 
-function formatEnd(value: string | null | undefined) {
-  return formatDayClock(value, "23:59");
-}
+const TIMEZONES = [
+  "Asia/Singapore",
+  "Asia/Kuala_Lumpur",
+  "Asia/Jakarta",
+  "Asia/Bangkok",
+  "Asia/Manila",
+  "Asia/Hong_Kong",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+  "Europe/London",
+  "America/New_York",
+  "UTC",
+];
 
 /**
  * Prefill from the signed-in participant profile when there is one. A stranger
@@ -49,12 +55,15 @@ export default function ApplyPage({
   const [yearCourse, setYearCourse] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [timezone, setTimezone] = useState("Asia/Singapore");
   const [writeup, setWriteup] = useState("");
   const [cv, setCv] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ warning: string | null } | null>(null);
   const [alreadyApplied, setAlreadyApplied] = useState(false);
+
+  const onsite = listing?.delivery_mode === "in_person";
 
   useEffect(() => {
     let cancelled = false;
@@ -113,15 +122,15 @@ export default function ApplyPage({
     };
   }, []);
 
-  const kickoff = formatStart(listing?.start_at);
+  const kickoff = formatMoment(listing?.start_at);
   const kickoffCall = formatSlot(listing?.kickoff_at);
-  const pitch = formatEnd(listing?.submit_deadline_at ?? listing?.pitch_at);
+  const end = formatMoment(listing?.submit_deadline_at ?? listing?.pitch_at);
   const isStudent = orgType === "school";
   const hasProfileCv = Boolean(profile?.cv_url);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!cv && !hasProfileCv) {
+    if (!onsite && !cv && !hasProfileCv) {
       setError("Please attach your CV as a PDF.");
       return;
     }
@@ -131,16 +140,24 @@ export default function ApplyPage({
     const form = new FormData(event.currentTarget);
     form.set("name", name);
     form.set("contact_email", contactEmail);
-    form.set("google_email", googleEmail);
     form.set("phone", phone);
     form.set("organisation", organisation);
     form.set("org_type", orgType);
     form.set("year_course", isStudent ? yearCourse : "");
     form.set("job_title", isStudent ? "" : jobTitle);
     form.set("linkedin_url", linkedinUrl);
-    form.set("writeup", writeup);
-    if (cv) form.set("cv", cv);
-    else form.delete("cv");
+    if (onsite) {
+      form.delete("google_email");
+      form.delete("writeup");
+      form.delete("timezone");
+      form.delete("cv");
+    } else {
+      form.set("google_email", googleEmail);
+      form.set("writeup", writeup);
+      form.set("timezone", timezone);
+      if (cv) form.set("cv", cv);
+      else form.delete("cv");
+    }
 
     try {
       const response = await fetch(
@@ -172,8 +189,10 @@ export default function ApplyPage({
       <main className="narrow">
         <h1>Already applied</h1>
         <div className="notice good">
-          You have already applied to this challenge. We will email you when there is a
-          decision — there is nothing more to submit.
+          You have already applied to this challenge.
+          {onsite
+            ? " There is nothing more to submit."
+            : " We will email you when there is a decision — there is nothing more to submit."}
         </div>
       </main>
     );
@@ -193,8 +212,9 @@ export default function ApplyPage({
       <main className="narrow">
         <h1>Application received</h1>
         <div className="notice good">
-          We have your application and have emailed you a confirmation with the decision
-          date.
+          {onsite
+            ? "You're in. Your place on this on-site challenge is confirmed."
+            : "We have your application and have emailed you a confirmation with the decision date."}
         </div>
         {done.warning && <div className="notice warn">{done.warning}</div>}
       </main>
@@ -207,10 +227,14 @@ export default function ApplyPage({
       <p className="lede">
         {profile
           ? "Filled from your profile — change anything that should be different for this challenge."
-          : "Takes about ten minutes. You need a CV and a short writeup."}
+          : onsite
+            ? "Required fields first. Phone is optional."
+            : "Required fields first — including a CV and a short writeup. Phone is optional."}
       </p>
 
       <form onSubmit={submit}>
+        <h2>Required</h2>
+
         <div className="field">
           <label htmlFor="name">Full name</label>
           <input
@@ -236,39 +260,29 @@ export default function ApplyPage({
             onChange={(e) => setContactEmail(e.target.value)}
           />
           <div className="hint">
-            Where we email you — your application confirmation, the decision, and
-            anything else about this application. Any address you actually read is fine.
+            {onsite
+              ? "Where the company can reach you about this application."
+              : "Where we email you — your application confirmation, the decision, and anything else about this application."}
           </div>
         </div>
 
-        <div className="field">
-          <label htmlFor="google_email">Google account email</label>
-          <input
-            id="google_email"
-            name="google_email"
-            type="email"
-            required
-            value={googleEmail}
-            onChange={(e) => setGoogleEmail(e.target.value)}
-          />
-          <div className="hint">
-            Used if you join Meet with a Google account. A school or work address
-            running on Google is fine — it can be the same as your contact email
-            above, or different.
+        {!onsite && (
+          <div className="field">
+            <label htmlFor="google_email">Google account email</label>
+            <input
+              id="google_email"
+              name="google_email"
+              type="email"
+              required
+              value={googleEmail}
+              onChange={(e) => setGoogleEmail(e.target.value)}
+            />
+            <div className="hint">
+              Used for Meet. A school or work address running on Google is fine —
+              it can be the same as your contact email, or different.
+            </div>
           </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="phone">Phone (optional)</label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            autoComplete="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </div>
+        )}
 
         <div className="field">
           <label htmlFor="organisation">School or organisation</label>
@@ -276,6 +290,7 @@ export default function ApplyPage({
             id="organisation"
             name="organisation"
             type="text"
+            required
             value={organisation}
             onChange={(e) => setOrganisation(e.target.value)}
           />
@@ -286,6 +301,7 @@ export default function ApplyPage({
           <select
             id="org_type"
             name="org_type"
+            required
             value={orgType}
             onChange={(e) => setOrgType(e.target.value)}
           >
@@ -302,6 +318,7 @@ export default function ApplyPage({
               id="year_course"
               name="year_course"
               type="text"
+              required
               value={yearCourse}
               onChange={(e) => setYearCourse(e.target.value)}
               placeholder="Year 3, Computer Science"
@@ -314,6 +331,7 @@ export default function ApplyPage({
               id="job_title"
               name="job_title"
               type="text"
+              required
               value={jobTitle}
               onChange={(e) => setJobTitle(e.target.value)}
             />
@@ -321,70 +339,95 @@ export default function ApplyPage({
         )}
 
         <div className="field">
-          <label htmlFor="linkedin_url">LinkedIn (optional)</label>
+          <label htmlFor="linkedin_url">LinkedIn profile</label>
           <input
             id="linkedin_url"
             name="linkedin_url"
             type="url"
+            required
             placeholder="https://www.linkedin.com/in/yourname"
             value={linkedinUrl}
             onChange={(e) => setLinkedinUrl(e.target.value)}
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="cv">CV (PDF, max 5MB)</label>
-          <input
-            id="cv"
-            name="cv"
-            type="file"
-            accept="application/pdf"
-            required={!hasProfileCv}
-            onChange={(e) => setCv(e.target.files?.[0] ?? null)}
-          />
-          {hasProfileCv && !cv && profile?.cv_url && (
-            <div className="hint">
-              Using the CV on your profile.{" "}
-              <a href={assetUrl(profile.cv_url)} target="_blank" rel="noreferrer">
-                View it
-              </a>
-              , or pick a file above to replace it for this application.
-            </div>
-          )}
-        </div>
+        {!onsite && (
+          <div className="field">
+            <label htmlFor="timezone">Timezone</label>
+            <select
+              id="timezone"
+              name="timezone"
+              required
+              value={timezone}
+              onChange={(e) => setTimezone(e.target.value)}
+            >
+              {!TIMEZONES.includes(timezone) && (
+                <option value={timezone}>{timezone}</option>
+              )}
+              {TIMEZONES.map((zone) => (
+                <option key={zone} value={zone}>
+                  {zone}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
-        <div className="field">
-          <label htmlFor="writeup">Your writeup</label>
-          {/* Instructions, not a field. In a white bordered box directly above
-              the real textarea it read as a pre-filled input to clear out. */}
-          {listing?.writeup_prompt && (
-            <div className="prompt">{listing.writeup_prompt}</div>
-          )}
-          <textarea
-            id="writeup"
-            name="writeup"
-            value={writeup}
-            onChange={(e) => setWriteup(e.target.value)}
-            required
-          />
-        </div>
+        {!onsite && (
+          <div className="field">
+            <label htmlFor="cv">CV (PDF, max 5MB)</label>
+            <input
+              id="cv"
+              name="cv"
+              type="file"
+              accept="application/pdf"
+              required={!hasProfileCv}
+              onChange={(e) => setCv(e.target.files?.[0] ?? null)}
+            />
+            {hasProfileCv && !cv && profile?.cv_url && (
+              <div className="hint">
+                Using the CV on your profile.{" "}
+                <a href={assetUrl(profile.cv_url)} target="_blank" rel="noreferrer">
+                  View it
+                </a>
+                , or pick a file above to replace it for this application.
+              </div>
+            )}
+          </div>
+        )}
 
-        {listing?.delivery_mode === "in_person" ? (
-          <input type="hidden" name="availability_confirmed" value="true" />
-        ) : (
-        <>
-        <h2>The dates</h2>
+        {!onsite && (
+          <div className="field">
+            <label htmlFor="writeup">Your writeup</label>
+            {listing?.writeup_prompt && (
+              <div className="prompt">{listing.writeup_prompt}</div>
+            )}
+            <textarea
+              id="writeup"
+              name="writeup"
+              value={writeup}
+              onChange={(e) => setWriteup(e.target.value)}
+              required
+            />
+          </div>
+        )}
+
+        <h2>Dates</h2>
         <p className="small muted">
-          If you cannot make both, this is the moment to say so: a seat you cannot
-          use is a seat nobody else got.
+          If you cannot make these dates, this is the moment to say so: a seat you
+          cannot use is a seat nobody else got.
         </p>
         <dl className="facts">
           <dt>Starts</dt>
           <dd>{kickoff ?? "To be confirmed"}</dd>
-          <dt>Kickoff</dt>
-          <dd>{kickoffCall ?? "To be confirmed"}</dd>
+          {!onsite && (
+            <>
+              <dt>Kickoff</dt>
+              <dd>{kickoffCall ?? "To be confirmed"}</dd>
+            </>
+          )}
           <dt>Ends</dt>
-          <dd>{pitch ?? "To be confirmed"}</dd>
+          <dd>{end ?? "To be confirmed"}</dd>
         </dl>
         <div className="check">
           <input
@@ -395,17 +438,15 @@ export default function ApplyPage({
             required
           />
           <label htmlFor="availability_confirmed">
-            {kickoff && pitch ? (
+            {kickoff && end ? (
               <>
-                I can take part from {kickoff} through {pitch}.
+                I can take part from {kickoff} through {end}.
               </>
             ) : (
               <>I can take part for the full run of this challenge.</>
             )}
           </label>
         </div>
-        </>
-        )}
 
         <h2>Consent</h2>
         <div className="check">
@@ -430,10 +471,28 @@ export default function ApplyPage({
             required
           />
           <label htmlFor="consent_recording">
-            Record my pitch session so the company can review it afterwards.
+            {onsite
+              ? "Record sessions so the company can review them afterwards."
+              : "Record my pitch session so the company can review it afterwards."}
           </label>
         </div>
         <p className="small muted">Both need to be ticked to apply.</p>
+
+        <h2>Optional</h2>
+        <p className="small muted">You can leave this blank.</p>
+        <div className="field">
+          <label htmlFor="phone">
+            Phone <span className="muted">(optional)</span>
+          </label>
+          <input
+            id="phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </div>
 
         {error && <div className="notice bad">{error}</div>}
 

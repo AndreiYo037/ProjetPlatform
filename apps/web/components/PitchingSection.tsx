@@ -42,9 +42,10 @@ export default function PitchingSection({
     <div className="panel">
       <strong>Pitching / judging</strong>
       <p className="small muted">
-        Date and time the first pitch starts, and minutes per pitch including
-        turn-over. One timeslot opens per submission. People who have submitted
-        pick first come, first served. Can be set after the challenge is live.
+        Required for online. First pitch must be after start, and the end time
+        must be after this first pitch. Minutes per pitch include turn-over.
+        One timeslot opens per submission; people who have submitted pick first
+        come, first served.
         {autosaveLabel(status) ? ` · ${autosaveLabel(status)}` : ""}
       </p>
       <div className="row" style={{ gap: "1rem" }}>

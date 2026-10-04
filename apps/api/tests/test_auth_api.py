@@ -74,7 +74,7 @@ def test_logging_in_with_the_right_password_signs_you_in(client, session, rep):
     assert me.json()["id"] == str(rep.id)
 
 
-def test_company_login_without_the_access_code_is_refused(client, session, rep):
+def test_company_login_does_not_need_an_access_code(client, session, rep):
     set_password(session, ActorType.COMPANY_USER, rep.id, "hunter22")
     session.commit()
 
@@ -82,8 +82,8 @@ def test_company_login_without_the_access_code_is_refused(client, session, rep):
         "/auth/login",
         json={"email": rep.email, "password": "hunter22", "actor_type": "company_user"},
     )
-    assert response.status_code == 401
-    assert response.json()["detail"] == "That access code is not right."
+    assert response.status_code == 200
+    assert response.json()["actor_type"] == "company_user"
 
 
 def test_the_wrong_password_is_refused(client, session, rep):

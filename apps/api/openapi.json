@@ -3740,7 +3740,7 @@
           "public"
         ],
         "summary": "Apply",
-        "description": "FR-201 to FR-208.\n\nBoth consents must be ticked to apply. No password here \u2014 applicants sign\nin later via the offer / set-password path once they have a reason to. A\nsigned-in applicant may reuse the CV already on their profile.",
+        "description": "FR-201 to FR-208.\n\nBoth consents must be ticked to apply. No password here \u2014 applicants sign\nin later via the offer / set-password path once they have a reason to. A\nsigned-in applicant may reuse the CV already on their profile (online).",
         "operationId": "apply_public_x__company_slug___programme_slug__apply_post",
         "parameters": [
           {
@@ -6764,8 +6764,15 @@
             "title": "Contact Email"
           },
           "google_email": {
-            "type": "string",
-            "maxLength": 320,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 320
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Google Email"
           },
           "phone": {
@@ -6828,12 +6835,26 @@
             "title": "Job Title"
           },
           "timezone": {
-            "type": "string",
-            "title": "Timezone",
-            "default": "Asia/Singapore"
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
           },
           "writeup": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Writeup"
           },
           "linkedin_url": {
@@ -6879,9 +6900,7 @@
         "type": "object",
         "required": [
           "name",
-          "contact_email",
-          "google_email",
-          "writeup"
+          "contact_email"
         ],
         "title": "Body_apply_public_x__company_slug___programme_slug__apply_post"
       },
@@ -9229,7 +9248,7 @@
               }
             ],
             "title": "Start At",
-            "description": "First day. Stored as 00:00 in the programme timezone."
+            "description": "When submissions open. Date and time in the programme timezone."
           },
           "submit_deadline_at": {
             "anyOf": [
@@ -9242,7 +9261,7 @@
               }
             ],
             "title": "Submit Deadline At",
-            "description": "Last day. Stored as 23:59 in the programme timezone."
+            "description": "When submissions lock. Date and time in the programme timezone."
           },
           "kickoff_at": {
             "anyOf": [
@@ -9255,7 +9274,32 @@
               }
             ],
             "title": "Kickoff At",
-            "description": "Kickoff call time. Stored on the start date in the programme timezone."
+            "description": "Kickoff call. Must be after start_at."
+          },
+          "pitch_starts_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Starts At",
+            "description": "First pitch. Must be after start_at and before submit_deadline_at."
+          },
+          "pitch_duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Duration Minutes",
+            "description": "Minutes per pitch slot, including turn-over."
           },
           "problem_statement": {
             "anyOf": [
@@ -10463,6 +10507,17 @@
             ],
             "title": "Company Logo Url"
           },
+          "company_website_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Website Url"
+          },
           "programme_slug": {
             "type": "string",
             "title": "Programme Slug"
@@ -10649,6 +10704,17 @@
               }
             ],
             "title": "Company Logo Url"
+          },
+          "company_website_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Website Url"
           },
           "programme_slug": {
             "type": "string",

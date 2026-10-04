@@ -95,6 +95,11 @@ def application(**overrides) -> dict:
         "name": "Sam Student",
         "contact_email": "sam@school.edu.sg",
         "google_email": "sam@gmail.com",
+        "organisation": "NUS",
+        "org_type": "school",
+        "year_course": "Y2 Business Analytics",
+        "linkedin_url": "https://www.linkedin.com/in/sam-student",
+        "timezone": "Asia/Singapore",
         "writeup": " ".join(["analysis"] * 220),
         "availability_confirmed": "true",
         "consent_share_company": "true",
@@ -155,8 +160,10 @@ def test_something_that_is_not_a_profile_url_is_refused(client, listing):
     assert "LinkedIn" in response.json()["detail"]
 
 
-def test_linkedin_is_optional(client, listing):
-    assert apply(client, linkedin_url="").status_code == 201
+def test_linkedin_is_required(client, listing):
+    response = apply(client, linkedin_url="")
+    assert response.status_code == 422
+    assert "LinkedIn" in response.json()["detail"]
 
 
 def test_the_listing_carries_the_dates_and_the_prompt(client, listing):

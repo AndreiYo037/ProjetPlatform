@@ -108,8 +108,8 @@ def close_programme(db: Session, programme: Programme) -> CloseoutResult:
 
     # Closing before the week is over would bury an active challenge in every
     # listing that still treats status as gospel — and the week is not over
-    # until the pitch/submit deadline has passed.
-    if not programme.onsite and not programme_is_past(programme):
+    # until the submit deadline has passed.
+    if not programme_is_past(programme):
         raise CloseoutError(
             "This challenge is still running. Close it after the pitch day."
         )

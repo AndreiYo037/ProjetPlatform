@@ -69,11 +69,10 @@ export default function CompanyProgrammesPage() {
                 <strong>{programme.title}</strong>
                 <div className="small muted">
                   {roleLabel(programme)}
-                  {programme.delivery_mode === "in_person"
-                    ? " · On-site"
-                    : programme.submit_deadline_at
-                      ? ` · due ${formatDay(programme.submit_deadline_at)}`
-                      : null}
+                  {programme.delivery_mode === "in_person" ? " · On-site" : ""}
+                  {programme.submit_deadline_at
+                    ? ` · due ${formatDay(programme.submit_deadline_at)}`
+                    : null}
                 </div>
               </div>
               <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>

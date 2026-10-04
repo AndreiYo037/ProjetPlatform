@@ -1,7 +1,6 @@
 """Programme dates the company picks (services/schedule.py).
 
-Times of day are fixed: start is 00:00, end is 23:59, in Singapore. The
-company chooses which days.
+Start and end keep their clocks. Kickoff and first pitch must fall in order.
 """
 
 from datetime import datetime, timedelta
@@ -18,36 +17,41 @@ def thursday() -> datetime:
     return datetime(2026, 10, 8, 15, 30, tzinfo=SGT)  # a Thursday afternoon
 
 
-def test_start_is_midnight_on_the_chosen_day():
+def test_start_keeps_the_clock_the_company_picked():
     start, end, _ = schedule.bind_dates(thursday(), thursday() + timedelta(days=1))
     local = start.astimezone(SGT)
     assert local.date() == datetime(2026, 10, 8, tzinfo=SGT).date()
-    assert (local.hour, local.minute) == (0, 0)
+    assert (local.hour, local.minute) == (15, 30)
 
 
-def test_end_is_the_last_minute_of_the_chosen_day():
-    start, end, _ = schedule.bind_dates(thursday(), thursday() + timedelta(days=1))
+def test_end_keeps_the_clock_the_company_picked():
+    end_picked = datetime(2026, 10, 9, 18, 0, tzinfo=SGT)
+    start, end, _ = schedule.bind_dates(thursday(), end_picked)
     local = end.astimezone(SGT)
-    assert local.date() == datetime(2026, 10, 9, tzinfo=SGT).date()
-    assert (local.hour, local.minute) == (23, 59)
+    assert local.date() == end_picked.date()
+    assert (local.hour, local.minute) == (18, 0)
 
 
 def test_a_same_day_challenge_is_allowed():
-    start, end, _ = schedule.bind_dates(thursday(), thursday())
-    assert start.astimezone(SGT).date() == end.astimezone(SGT).date()
-    assert end > start
+    end = thursday() + timedelta(hours=3)
+    start, bound_end, _ = schedule.bind_dates(thursday(), end)
+    assert start.astimezone(SGT).date() == bound_end.astimezone(SGT).date()
+    assert bound_end > start
 
 
 def test_the_challenge_cannot_end_before_it_starts():
     with pytest.raises(schedule.ScheduleError) as error:
         schedule.bind_dates(thursday(), thursday() - timedelta(days=1))
     assert "end before it starts" in str(error.value)
+    with pytest.raises(schedule.ScheduleError):
+        schedule.bind_dates(thursday(), thursday())
 
 
 def test_a_naive_date_is_read_as_singapore_not_utc():
     """An HTML date input sends no offset. 8 Oct must stay 8 Oct in SGT."""
-    start, _, _ = schedule.bind_dates(datetime(2026, 10, 8, 0, 0), datetime(2026, 10, 9, 0, 0))
+    start, _, _ = schedule.bind_dates(datetime(2026, 10, 8, 9, 0), datetime(2026, 10, 9, 0, 0))
     assert start.astimezone(SGT).date() == datetime(2026, 10, 8, tzinfo=SGT).date()
+    assert (start.astimezone(SGT).hour, start.astimezone(SGT).minute) == (9, 0)
 
 
 def test_applications_must_close_before_start():
@@ -67,7 +71,7 @@ def test_a_naive_close_date_is_judged_in_singapore_not_rejected_outright():
     naive_the_day_before = datetime(2026, 10, 7, 18, 0)
     schedule.validate_applications_close(naive_the_day_before, start)
 
-    naive_after_start = datetime(2026, 10, 8, 10, 0)
+    naive_after_start = datetime(2026, 10, 8, 18, 0)
     with pytest.raises(schedule.ScheduleError):
         schedule.validate_applications_close(naive_after_start, start)
 
@@ -100,13 +104,39 @@ def test_a_programme_stays_active_until_its_deadline_passes():
     assert schedule.programme_is_past(no_dates_complete, now) is True
 
 
-def test_kickoff_is_the_time_the_company_picked_on_the_start_date():
-    start = datetime(2026, 10, 8, 0, 0, tzinfo=SGT)
-    picked = datetime(2026, 10, 1, 14, 30, tzinfo=SGT)
+def test_first_pitch_must_be_after_start_and_before_end():
+    start = datetime(2026, 10, 8, 9, 0, tzinfo=SGT)
+    end = datetime(2026, 10, 14, 18, 0, tzinfo=SGT)
+    pitch = schedule.validate_pitch_window(
+        start, end, datetime(2026, 10, 14, 13, 0, tzinfo=SGT)
+    )
+    assert pitch is not None
+    assert (pitch.hour, pitch.minute) == (13, 0)
+
+    with pytest.raises(schedule.ScheduleError):
+        schedule.validate_pitch_window(start, end, start)
+    with pytest.raises(schedule.ScheduleError):
+        schedule.validate_pitch_window(start, end, end)
+    with pytest.raises(schedule.ScheduleError):
+        schedule.validate_pitch_window(start, end, end + timedelta(hours=1))
+
+
+def test_kickoff_keeps_its_own_clock_and_must_be_after_start():
+    start = datetime(2026, 10, 8, 9, 0, tzinfo=SGT)
+    picked = datetime(2026, 10, 8, 14, 30, tzinfo=SGT)
     meeting = schedule.bind_kickoff(start, picked)
     local = meeting.astimezone(SGT)
-    assert local.date() == start.date()
+    assert local.date() == picked.date()
     assert (local.hour, local.minute) == (14, 30)
+
+
+def test_kickoff_before_or_at_start_is_refused():
+    start = datetime(2026, 10, 8, 14, 0, tzinfo=SGT)
+    with pytest.raises(schedule.ScheduleError) as error:
+        schedule.bind_kickoff(start, start)
+    assert "after the challenge starts" in str(error.value)
+    with pytest.raises(schedule.ScheduleError):
+        schedule.bind_kickoff(start, start - timedelta(minutes=1))
 
 
 def test_kickoff_without_a_start_date_is_an_error():
@@ -116,6 +146,16 @@ def test_kickoff_without_a_start_date_is_an_error():
 
 def test_no_kickoff_time_is_not_a_schedule_error():
     assert schedule.bind_kickoff(thursday(), None) is None
+
+
+def test_submissions_open_from_start_onwards():
+    from types import SimpleNamespace
+
+    start = datetime(2026, 10, 8, 9, 0, tzinfo=SGT)
+    programme = SimpleNamespace(start_at=start)
+    assert schedule.submissions_open(programme, start - timedelta(minutes=1)) is False
+    assert schedule.submissions_open(programme, start) is True
+    assert schedule.submissions_open(SimpleNamespace(start_at=None), start) is True
 
 
 def test_pitch_day_begins_at_midnight_on_the_pitch_date():
