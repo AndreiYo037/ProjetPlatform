@@ -144,6 +144,32 @@ def test_an_onsite_challenge_cannot_publish_without_start_or_end(client, company
     assert any("end date" in problem for problem in check["problems"])
 
 
+def test_an_onsite_challenge_cannot_publish_without_a_brief(client, company_id, role_id):
+    start = next_kickoff()
+    created = create(
+        client,
+        company_id,
+        role_id,
+        slug="onsite-no-brief",
+        delivery_mode="in_person",
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
+        kickoff_at=None,
+        pitch_starts_at=None,
+        pitch_duration_minutes=None,
+        problem_statement=None,
+        deliverable_spec=None,
+    )
+    assert created.status_code == 201, created.text
+    programme_id = created.json()["id"]
+    check = client.get(f"/programmes/{programme_id}/publication-check").json()
+    assert check["ready"] is False
+    assert any("problem statement" in problem for problem in check["problems"])
+    assert any("deliverable" in problem for problem in check["problems"])
+    refused = client.post(f"/programmes/{programme_id}/publish")
+    assert refused.status_code == 409
+
+
 def test_an_onsite_application_joins_immediately(client, company_id, role_id, session):
     from projet.models import Application, Outbox, Participant, Submission, Team
     from projet.models.enums import ApplicationStatus
@@ -370,14 +396,15 @@ def test_publication_is_blocked_until_start_end_and_kickoff_exist(client, compan
     assert any("kickoff time" in problem for problem in check["problems"])
     assert any("pitching schedule" in problem for problem in check["problems"])
     assert any("problem statement" in problem for problem in check["problems"])
+    assert any("deliverable" in problem for problem in check["problems"])
 
     refused = client.post(f"/programmes/{programme_id}/publish")
     assert refused.status_code == 409
 
 
-def test_start_end_kickoff_and_pitch_are_enough_to_publish(client, company_id, role_id):
-    """A company can publish a bare-bones shell to test the flow end to end
-    and write the real brief before an applicant ever sees the listing."""
+def test_schedule_and_brief_are_required_to_publish(client, company_id, role_id):
+    """Dates, kickoff, pitch, problem statement, and deliverable block publish.
+    Applications-close stays a warning. The data pack is optional."""
     start = next_kickoff()
     end = next_end(start)
     created = client.post(
@@ -385,8 +412,8 @@ def test_start_end_kickoff_and_pitch_are_enough_to_publish(client, company_id, r
         json={
             "company_id": company_id,
             "role_id": role_id,
-            "title": "Bare but scheduled",
-            "slug": "bare-but-scheduled",
+            "title": "Scheduled without brief",
+            "slug": "scheduled-no-brief",
             "start_at": start.isoformat(),
             "submit_deadline_at": end.isoformat(),
             "kickoff_at": kickoff_on(start).isoformat(),
@@ -398,6 +425,8 @@ def test_start_end_kickoff_and_pitch_are_enough_to_publish(client, company_id, r
     check = client.get(f"/programmes/{programme_id}/publication-check").json()
     assert check["ready"] is False
     assert any("pitching schedule" in problem for problem in check["problems"])
+    assert any("problem statement" in problem for problem in check["problems"])
+    assert any("deliverable" in problem for problem in check["problems"])
 
     pitched = client.put(
         f"/programmes/{programme_id}/pitch-schedule",
@@ -409,8 +438,27 @@ def test_start_end_kickoff_and_pitch_are_enough_to_publish(client, company_id, r
     assert pitched.status_code == 200, pitched.text
 
     check = client.get(f"/programmes/{programme_id}/publication-check").json()
-    assert check["ready"] is True
+    assert check["ready"] is False
     assert any("problem statement" in problem for problem in check["problems"])
+    assert any("deliverable" in problem for problem in check["problems"])
+    assert any("closing date" in problem for problem in check["problems"])
+
+    refused = client.post(f"/programmes/{programme_id}/publish")
+    assert refused.status_code == 409
+
+    briefed = client.patch(
+        f"/programmes/{programme_id}",
+        json={
+            "problem_statement": BRIEF["problem_statement"],
+            "deliverable_spec": BRIEF["deliverable_spec"],
+        },
+    )
+    assert briefed.status_code == 200, briefed.text
+
+    check = client.get(f"/programmes/{programme_id}/publication-check").json()
+    assert check["ready"] is True
+    assert not any("problem statement" in problem for problem in check["problems"])
+    assert not any("deliverable" in problem for problem in check["problems"])
     assert any("closing date" in problem for problem in check["problems"])
 
     published = client.post(f"/programmes/{programme_id}/publish")

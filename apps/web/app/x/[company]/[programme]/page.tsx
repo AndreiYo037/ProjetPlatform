@@ -63,6 +63,9 @@ export default async function ListingPage({
               ? "Programme complete"
               : "Applications closed"}
         </span>
+        <span className="tag">
+          {listing.delivery_mode === "in_person" ? "On-site" : "Online"}
+        </span>
         {listing.seats_total !== null && (
           <span className="small muted">
             {listing.seats_remaining} of {listing.seats_total} places left

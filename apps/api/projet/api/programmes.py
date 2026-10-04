@@ -519,20 +519,19 @@ def publication_check(
 def _setup_problems(programme: Programme) -> list[str]:
     """What blocks this from going live.
 
-    Start and end dates and the kickoff time are the hard block: the apply
-    form's commitment checkbox has no days to name without the dates, and the
-    kickoff Meet has no clock without the time. The problem statement,
-    deliverable and applications-close date are left to the company's
-    judgement instead of enforced here — a company can publish a bare-bones
-    shell to test the pipeline end to end and fill in the brief before a real
-    applicant sees it. `publication-check` still surfaces the gaps below as
-    warnings, not refusals, so the draft page keeps nudging without blocking.
+    Start and end, the brief (problem + deliverable), and — for online —
+    kickoff and pitching. Applications-close and the data pack stay optional:
+    warnings nudge without blocking publish.
     """
     problems: list[str] = []
     if programme.start_at is None:
         problems.append("No start date has been picked.")
     if programme.submit_deadline_at is None:
         problems.append("No end date has been picked.")
+    if not (programme.problem_statement or "").strip():
+        problems.append("The problem statement is empty.")
+    if not (programme.deliverable_spec or "").strip():
+        problems.append("The deliverable is not described.")
     if programme.onsite:
         return problems
     if programme.kickoff_at is None:
@@ -545,12 +544,6 @@ def _setup_problems(programme: Programme) -> list[str]:
 def _setup_warnings(programme: Programme) -> list[str]:
     """Non-blocking nudges shown on the draft page, not enforced at publish."""
     warnings: list[str] = []
-    if not (programme.problem_statement or "").strip():
-        warnings.append("The problem statement is empty. Draft one or write your own.")
-    if not (programme.deliverable_spec or "").strip():
-        warnings.append(
-            "The deliverable is not described, so applicants cannot know what to produce."
-        )
     if programme.applications_close_at is None:
         warnings.append("Applications have no closing date.")
     return warnings

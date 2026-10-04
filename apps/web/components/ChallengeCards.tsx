@@ -43,7 +43,9 @@ export default function ChallengeCards({ items }: { items: PublicListingSummary[
               <span className={`tag ${appsOpen ? "open" : "closed"}`}>
                 {stateLabel(item.state)}
               </span>
-              {item.delivery_mode === "in_person" && <span className="tag">On-site</span>}
+              <span className="tag">
+                {item.delivery_mode === "in_person" ? "On-site" : "Online"}
+              </span>
             </div>
 
             <div className="challenge-body">
