@@ -1,0 +1,20 @@
+name: Set Startup Shuffle apply access codes to SEED_PASSWORD
+
+# Manual only: overwrites each of the 15 challenges' apply_access_code with
+# the shared SEED_PASSWORD, so there's one code to hand out instead of 15.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  set-codes:
+    name: Set access codes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/set_apply_access_codes.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
