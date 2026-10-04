@@ -15,7 +15,7 @@ from projet.db import get_session
 from projet.integrations.google.client import set_google_client
 from projet.main import create_app
 from projet.models import Person, ProjectEntry, ProjectLink
-from projet.models.enums import ArtifactVisibility, ProgrammeStatus
+from projet.models.enums import ArtifactVisibility
 from projet.services.projects import seed_from_participant
 
 

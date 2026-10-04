@@ -48,7 +48,9 @@ def notify_candidate_profile_updated(
         return
     enqueue(
         session,
-        subject_type=OutboxSubjectType.PARTICIPANT if participant_id else OutboxSubjectType.APPLICATION,
+        subject_type=(
+            OutboxSubjectType.PARTICIPANT if participant_id else OutboxSubjectType.APPLICATION
+        ),
         subject_id=participant_id or person.id,
         effect_type=PROFILE_UPDATED_EMAIL,
         participant_id=participant_id,

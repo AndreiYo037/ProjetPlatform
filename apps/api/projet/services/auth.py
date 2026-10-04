@@ -25,7 +25,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.config import get_settings
-from projet.models import AccountActionToken, AuthSession, Company, CompanyUser, Person, PlatformUser
+from projet.models import (
+    AccountActionToken,
+    AuthSession,
+    Company,
+    CompanyUser,
+    Person,
+    PlatformUser,
+)
 from projet.models.base import utcnow
 from projet.models.enums import (
     AccountActionPurpose,

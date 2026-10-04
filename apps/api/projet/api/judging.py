@@ -210,7 +210,11 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
             .where(ScoreMember.participant_id == participant.id)
         )
         referral = member.would_refer.value if member and member.would_refer else None
-    slot = db.get(JudgingSession, participant.judging_session_id) if participant.judging_session_id else None
+    slot = (
+        db.get(JudgingSession, participant.judging_session_id)
+        if participant.judging_session_id
+        else None
+    )
     programme = db.get(Programme, participant.programme_id)
     needed = len(criteria_for(db, participant.programme_id))
     meet = None

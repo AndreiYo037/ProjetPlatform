@@ -47,8 +47,8 @@ from projet.seeds.parsers import (
 )
 from projet.seeds.parsers.capabilities import CapabilitySpec, SkillCapabilities
 from projet.seeds.parsers.common import SourceRef, slugify
-from projet.seeds.parsers.skill_taxonomy import TaxonomySkill
 from projet.seeds.parsers.rubrics import CriterionSpec
+from projet.seeds.parsers.skill_taxonomy import TaxonomySkill
 
 SLUGS_LOCK = "slugs.lock"
 

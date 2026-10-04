@@ -5,7 +5,7 @@ How many slots exist is how many submissions have been handed in.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient

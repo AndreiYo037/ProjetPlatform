@@ -10831,6 +10831,18 @@
             ],
             "title": "Start At"
           },
+          "submit_deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submit Deadline At"
+          },
           "seats_total": {
             "anyOf": [
               {
@@ -10866,6 +10878,7 @@
           "state",
           "applications_close_at",
           "start_at",
+          "submit_deadline_at",
           "seats_total",
           "seats_remaining"
         ],

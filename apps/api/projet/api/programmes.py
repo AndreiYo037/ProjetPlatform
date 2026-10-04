@@ -325,7 +325,7 @@ def create_programme(
             payload.applications_close_at,
             onsite=onsite,
         )
-        if onsite:
+        if onsite:  # noqa: SIM108 - comment doesn't fit a ternary
             # On-site: start and end clocks only. No kickoff or pitching.
             kickoff_at = None
         else:

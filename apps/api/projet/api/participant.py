@@ -69,9 +69,9 @@ from projet.services.submission import (
     is_locked,
     recheck,
     set_link,
-    submit_work,
     set_upload,
     submission_for_participant,
+    submit_work,
 )
 from projet.storage import get_storage, sign_key
 
@@ -726,7 +726,11 @@ def update_profile(
 
     # Type decides which of year/course and job title is kept.
     org_type = person.org_type
-    if payload.year_course is not None or payload.job_title is not None or payload.org_type is not None:
+    if (
+        payload.year_course is not None
+        or payload.job_title is not None
+        or payload.org_type is not None
+    ):
         if org_type == OrgType.SCHOOL:
             if payload.year_course is not None:
                 person.year_course = payload.year_course.strip() or None

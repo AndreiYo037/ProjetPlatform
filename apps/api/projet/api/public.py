@@ -145,6 +145,7 @@ class PublicListingSummary(BaseModel):
     state: str
     applications_close_at: datetime | None
     start_at: datetime | None
+    submit_deadline_at: datetime | None
     seats_total: int | None
     seats_remaining: int | None
 
@@ -183,6 +184,7 @@ def _summarize(db: Session, programme: Programme, company: Company) -> PublicLis
         state=_state(programme),
         applications_close_at=programme.applications_close_at,
         start_at=programme.start_at,
+        submit_deadline_at=programme.submit_deadline_at,
         seats_total=programme.capacity,
         seats_remaining=seats_remaining,
     )

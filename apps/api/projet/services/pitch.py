@@ -9,6 +9,7 @@ many seats were offered, and not how many people were accepted.
 
 from __future__ import annotations
 
+import contextlib
 import uuid
 from datetime import timedelta
 
@@ -20,7 +21,6 @@ from projet.models.base import utcnow
 from projet.services.calendar import ensure_pitch_event
 from projet.services.schedule import (
     ScheduleError,
-    in_programme_tz,
     pitch_day_begins_at,
     validate_pitch_window,
 )
@@ -134,11 +134,9 @@ def sync_pitch_schedule(
     # The Meet is one room for the block. Keep it at least one slot long so
     # the room exists before the first submission opens a time.
     block_end = start + step * max(count, 1)
-    try:
+    # Same posture as kickoff: slots still exist if Calendar is down.
+    with contextlib.suppress(Exception):
         ensure_pitch_event(session, programme, starts_at=start, ends_at=block_end)
-    except Exception:
-        # Same posture as kickoff: slots still exist if Calendar is down.
-        pass
 
     existing = listed_sessions(session, programme.id)
     occupants = occupant_map(session, programme.id)
