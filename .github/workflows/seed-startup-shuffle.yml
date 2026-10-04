@@ -1,0 +1,24 @@
+name: Seed Startup Shuffle accounts
+
+# Manual only, on purpose: this creates real company accounts on the live
+# platform. It must never run on a push or a schedule.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  seed:
+    name: Create the 8 Startup Shuffle accounts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx pillow
+      - run: python .github/scripts/seed_startup_shuffle.py
+        env:
+          # Repo secret, set once under Settings > Secrets and variables >
+          # Actions > New repository secret, name SEED_PASSWORD. Never put
+          # the password in this file or in a workflow_dispatch input --
+          # inputs show up in plain text in the run log.
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
