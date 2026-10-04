@@ -1,0 +1,19 @@
+name: Create Startup Shuffle challenges
+
+# Manual only: creates and publishes 15 live challenges across 7 companies.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  create:
+    name: Create and publish challenges
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/create_startup_shuffle_challenges.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
