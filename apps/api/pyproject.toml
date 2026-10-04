@@ -16,6 +16,7 @@ dependencies = [
     "google-auth>=2.36",
     "httpx>=0.27",
     "python-multipart>=0.0.17",
+    "pillow>=12.3.0",
 ]
 
 [project.optional-dependencies]
@@ -29,6 +30,7 @@ dev = [
 [project.scripts]
 projet-seed = "projet.seeds.cli:main"
 projet-verify-sources = "projet.seeds.verify:main"
+projet-seed-startup-shuffle = "projet.scripts.seed_startup_shuffle:main"
 projet-worker = "projet.outbox.worker:main"
 projet-scheduler = "projet.jobs.scheduler:main"
 
