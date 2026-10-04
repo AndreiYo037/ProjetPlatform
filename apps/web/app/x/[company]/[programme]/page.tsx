@@ -48,6 +48,8 @@ export default async function ListingPage({
   if (!listing) notFound();
 
   const open = listing.state === "open";
+  const onsite = listing.delivery_mode === "in_person";
+  const startLabel = listing.start_at ? formatMoment(listing.start_at) : null;
   const applyPath = `/x/${company}/${programme}/apply`;
   const applyHref = (await participantSignedIn())
     ? applyPath
@@ -56,15 +58,23 @@ export default async function ListingPage({
   return (
     <main>
       <div className="row" style={{ marginBottom: "0.5rem" }}>
-        <span className={`tag ${open ? "open" : "closed"}`}>
-          {open
-            ? "Applications open"
-            : listing.state === "complete"
+        <span className={`tag ${open ? "open" : onsite ? "" : "closed"}`}>
+          {onsite
+            ? listing.state === "complete"
               ? "Programme complete"
-              : "Applications closed"}
+              : open
+                ? "Open"
+                : startLabel
+                  ? `Starts ${startLabel}`
+                  : "On-site"
+            : open
+              ? "Applications open"
+              : listing.state === "complete"
+                ? "Programme complete"
+                : "Applications closed"}
         </span>
         <span className="tag">
-          {listing.delivery_mode === "in_person" ? "On-site" : "Online"}
+          {onsite ? "On-site" : "Online"}
         </span>
         {listing.seats_total !== null && (
           <span className="small muted">
@@ -116,7 +126,7 @@ export default async function ListingPage({
 
       <h2>The commitment</h2>
       <dl className="facts">
-        {listing.applications_close_at && (
+        {!onsite && listing.applications_close_at && (
           <>
             <dt>Applications close</dt>
             <dd>{formatClose(listing.applications_close_at)}</dd>
@@ -128,7 +138,7 @@ export default async function ListingPage({
             <dd>{formatMoment(listing.start_at)}</dd>
           </>
         )}
-        {listing.delivery_mode !== "in_person" && listing.kickoff_at && (
+        {!onsite && listing.kickoff_at && (
           <>
             <dt>Kickoff</dt>
             <dd>{formatSlot(listing.kickoff_at)}</dd>
@@ -142,8 +152,8 @@ export default async function ListingPage({
         )}
         <dt>Time</dt>
         <dd>
-          {listing.delivery_mode === "in_person"
-            ? "On site with the company. Submissions open from start through the end time."
+          {onsite
+            ? "On site with the company. Apply from start with the room access code; submissions open through the end time."
             : "Submissions open from the start time through the deadline"}
         </dd>
         <dt>You get</dt>
@@ -191,6 +201,22 @@ export default async function ListingPage({
           <Link className="btn" href={applyHref}>
             {applyHref === applyPath ? "Apply" : "Sign in to apply"}
           </Link>
+        ) : onsite ? (
+          <div className="panel">
+            <strong>
+              {listing.state === "complete"
+                ? "This challenge has ended."
+                : startLabel
+                  ? `Starts ${startLabel}`
+                  : "Not open to join yet."}
+            </strong>
+            {listing.state !== "complete" && (
+              <p className="small muted" style={{ margin: "0.4rem 0 0" }}>
+                Join opens at the start time. You’ll need the access code from the
+                organisers in the room.
+              </p>
+            )}
+          </div>
         ) : (
           <div className="panel">
             <strong>Applications are closed.</strong>

@@ -6,10 +6,18 @@ function formatDate(value: string | null | undefined) {
   return formatDay(value);
 }
 
-function stateLabel(state: string) {
+function onlineStateLabel(state: string) {
   if (state === "open") return "Applications open";
   if (state === "complete") return "Complete";
   return "Applications closed";
+}
+
+function onsiteStartLabel(item: PublicListingSummary) {
+  if (!item.start_at) return null;
+  const day = formatDate(item.start_at);
+  if (!day) return null;
+  if (item.state === "complete" || item.state === "open") return `Started ${day}`;
+  return `Starts ${day}`;
 }
 
 /**
@@ -20,13 +28,18 @@ function stateLabel(state: string) {
  * same line on every card, so a reader scans down one column rather than
  * hunting for it in each box. Cards stretch to the tallest in the row and the
  * footer is pushed down, so ragged content does not leave a hole.
+ *
+ * On-site cards never talk about an applications window — they show the start
+ * date instead.
  */
 export default function ChallengeCards({ items }: { items: PublicListingSummary[] }) {
   return (
     <div className="grid-challenges">
       {items.map((item) => {
+        const onsite = item.delivery_mode === "in_person";
         const appsOpen = item.state === "open";
         const clusters = (item.clusters?.length ? item.clusters : [item.cluster]).filter(Boolean);
+        const startLabel = onsite ? onsiteStartLabel(item) : null;
         return (
           <Link
             key={`${item.company_slug}/${item.programme_slug}`}
@@ -40,11 +53,17 @@ export default function ChallengeCards({ items }: { items: PublicListingSummary[
               ) : (
                 <span className="challenge-company">{item.company}</span>
               )}
-              <span className={`tag ${appsOpen ? "open" : "closed"}`}>
-                {stateLabel(item.state)}
-              </span>
+              {onsite ? (
+                startLabel && (
+                  <span className={`tag ${appsOpen ? "open" : ""}`}>{startLabel}</span>
+                )
+              ) : (
+                <span className={`tag ${appsOpen ? "open" : "closed"}`}>
+                  {onlineStateLabel(item.state)}
+                </span>
+              )}
               <span className="tag">
-                {item.delivery_mode === "in_person" ? "On-site" : "Online"}
+                {onsite ? "On-site" : "Online"}
               </span>
             </div>
 
@@ -66,13 +85,17 @@ export default function ChallengeCards({ items }: { items: PublicListingSummary[
 
             <div className="challenge-foot">
               <span className="small">
-                {appsOpen && item.applications_close_at
-                  ? `Apply by ${formatDate(item.applications_close_at)}`
-                  : item.state === "closed"
-                    ? "Window closed — challenge running"
-                    : item.state === "complete" && item.start_at
-                      ? `Started ${formatDate(item.start_at)}`
-                      : ""}
+                {onsite
+                  ? item.submit_deadline_at
+                    ? `Ends ${formatDate(item.submit_deadline_at)}`
+                    : startLabel ?? ""
+                  : appsOpen && item.applications_close_at
+                    ? `Apply by ${formatDate(item.applications_close_at)}`
+                    : item.state === "closed"
+                      ? "Window closed — challenge running"
+                      : item.state === "complete" && item.start_at
+                        ? `Started ${formatDate(item.start_at)}`
+                        : ""}
               </span>
               {item.seats_total !== null && item.state !== "complete" && (
                 <span className="small muted">
