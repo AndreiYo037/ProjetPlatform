@@ -1,0 +1,20 @@
+name: Upload manual Startup Shuffle logos
+
+# Manual only: uploads whatever is committed under .github/scripts/logos/ to
+# the matching company account on the live platform.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  upload:
+    name: Upload logos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/upload_manual_logos.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
