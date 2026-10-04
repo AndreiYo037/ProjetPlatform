@@ -95,6 +95,12 @@ class SubmissionCard(BaseModel):
     participant_id: uuid.UUID
     name: str
     organisation: str | None
+    contact_email: str | None = None
+    google_email: str | None = None
+    phone: str | None = None
+    year_course: str | None = None
+    job_title: str | None = None
+    linkedin_url: str | None = None
     run_order: int | None
     status: str
     submitted_at: datetime | None
@@ -106,6 +112,7 @@ class SubmissionCard(BaseModel):
     scored: bool
     your_total: int | None
     max_total: int
+    would_refer: str | None = None
     pitch_at: datetime | None = None
     meet_link: str | None = None
 
@@ -195,6 +202,14 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
             )
 
     score = score_for(db, team, scorer_id) if team and scorer_id else None
+    referral = None
+    if score is not None:
+        member = db.scalar(
+            select(ScoreMember)
+            .where(ScoreMember.score_id == score.id)
+            .where(ScoreMember.participant_id == participant.id)
+        )
+        referral = member.would_refer.value if member and member.would_refer else None
     slot = db.get(JudgingSession, participant.judging_session_id) if participant.judging_session_id else None
     programme = db.get(Programme, participant.programme_id)
     needed = len(criteria_for(db, participant.programme_id))
@@ -208,6 +223,12 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         participant_id=participant.id,
         name=person.name if person else "",
         organisation=person.organisation if person else None,
+        contact_email=person.contact_email if person else None,
+        google_email=person.google_email if person else None,
+        phone=person.phone if person else None,
+        year_course=person.year_course if person else None,
+        job_title=person.job_title if person else None,
+        linkedin_url=person.linkedin_url if person else None,
         run_order=participant.run_order,
         status=submission.status.value if submission else "draft",
         submitted_at=submission.submitted_at if submission else None,
@@ -224,6 +245,7 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         scored=score is not None,
         your_total=score.total if score else None,
         max_total=needed * 5,
+        would_refer=referral,
         pitch_at=slot.starts_at if slot else None,
         meet_link=meet,
     )

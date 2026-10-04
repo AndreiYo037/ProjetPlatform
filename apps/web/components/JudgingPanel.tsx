@@ -2,23 +2,59 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { closeProgramme, listSubmissionCards, type SubmissionCard } from "@/lib/api";
+import {
+  assetUrl,
+  closeProgramme,
+  externalHref,
+  listSubmissionCards,
+  type SubmissionCard,
+} from "@/lib/api";
 import { formatSlot, formatSlotTime } from "@/lib/dates";
 
-function byTimeslot(cards: SubmissionCard[]): SubmissionCard[] {
+type View = "score" | "referral";
+
+const REFERRAL_ORDER = ["yes", "maybe", "no", "unset"] as const;
+
+function referralLabel(value: string | null | undefined) {
+  if (value === "yes") return "Would refer";
+  if (value === "maybe") return "Maybe";
+  if (value === "no") return "Would not refer";
+  return "Referral not set";
+}
+
+function referralKey(card: SubmissionCard): (typeof REFERRAL_ORDER)[number] {
+  if (card.would_refer === "yes" || card.would_refer === "maybe" || card.would_refer === "no") {
+    return card.would_refer;
+  }
+  return "unset";
+}
+
+function byScore(cards: SubmissionCard[]): SubmissionCard[] {
   return [...cards].sort((a, b) => {
-    if (a.pitch_at && b.pitch_at) return a.pitch_at.localeCompare(b.pitch_at);
-    if (a.pitch_at) return -1;
-    if (b.pitch_at) return 1;
+    if (a.your_total !== null && b.your_total !== null) {
+      if (b.your_total !== a.your_total) return b.your_total - a.your_total;
+    } else if (a.your_total !== null) return -1;
+    else if (b.your_total !== null) return 1;
     return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   });
 }
 
+function byReferral(cards: SubmissionCard[]): { key: string; label: string; cards: SubmissionCard[] }[] {
+  const groups = new Map<string, SubmissionCard[]>();
+  for (const key of REFERRAL_ORDER) groups.set(key, []);
+  for (const card of cards) {
+    groups.get(referralKey(card))!.push(card);
+  }
+  return REFERRAL_ORDER.map((key) => ({
+    key,
+    label: referralLabel(key === "unset" ? null : key),
+    cards: byScore(groups.get(key) ?? []),
+  })).filter((group) => group.cards.length > 0);
+}
+
 /**
- * The cohort as a stack of submission cards, in pitch order.
- *
- * Lives on the challenge page under Judging. Opening a name still goes to that
- * person's scoring card — that page needs the room.
+ * Cohort submissions and scores for the company — during the run and after
+ * close-out. Ranked by score, or grouped by referral answer.
  */
 export default function JudgingPanel({
   programmeId,
@@ -39,6 +75,7 @@ export default function JudgingPanel({
   const [confirmStep, setConfirmStep] = useState<0 | 1 | 2>(0);
   const [closed, setClosed] = useState<string | null>(null);
   const [issuedNow, setIssuedNow] = useState(false);
+  const [view, setView] = useState<View>("score");
 
   const alreadyIssued = issued || issuedNow;
 
@@ -54,7 +91,8 @@ export default function JudgingPanel({
     load();
   }, [load]);
 
-  const shown = useMemo(() => (cards ? byTimeslot(cards) : []), [cards]);
+  const ranked = useMemo(() => (cards ? byScore(cards) : []), [cards]);
+  const referralGroups = useMemo(() => (cards ? byReferral(cards) : []), [cards]);
 
   async function close() {
     if (alreadyIssued) return;
@@ -112,10 +150,11 @@ export default function JudgingPanel({
   return (
     <>
       <p className="small muted">
-        {scored} of {cards.length} scored. Score a candidate to watch the
-        pitch against the rubric; it saves as you go.
+        {alreadyIssued
+          ? "Issued. Submissions, scores, and referral answers stay here."
+          : `${scored} of ${cards.length} scored. Score a candidate against the rubric; it saves as you go.`}
       </p>
-      {room && (
+      {room && !alreadyIssued && (
         <p className="small" style={{ margin: "0 0 1rem" }}>
           One room for the whole cohort.{" "}
           <a href={room} target="_blank" rel="noreferrer">
@@ -123,51 +162,62 @@ export default function JudgingPanel({
           </a>
         </p>
       )}
+
+      <nav className="tabs" style={{ marginBottom: "1rem" }}>
+        <button
+          type="button"
+          className="tab"
+          aria-current={view === "score" ? "page" : undefined}
+          onClick={() => setView("score")}
+        >
+          By score
+        </button>
+        <button
+          type="button"
+          className="tab"
+          aria-current={view === "referral" ? "page" : undefined}
+          onClick={() => setView("referral")}
+        >
+          By referral
+        </button>
+      </nav>
+
       {error && <div className="notice bad">{error}</div>}
       {closed && <div className="notice good">{closed}</div>}
-      {shown.map((card) => (
-        <div className="card" key={card.participant_id}>
-          <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
-            <div>
-              <strong>
-                {card.pitch_at
-                  ? `${formatSlotTime(card.pitch_at)} · `
-                  : card.run_order !== null
-                    ? `${card.run_order}. `
-                    : ""}
-                {card.name}
-              </strong>
-              <div className="small muted">
-                {card.pitch_at ? `${formatSlot(card.pitch_at)} · ` : ""}
-                {card.organisation ?? "—"} · {card.links.length} file
-                {card.links.length === 1 ? "" : "s"}
-              </div>
-            </div>
-            <div className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
-              {!card.complete && <span className="tag">incomplete</span>}
-              {card.locked && <span className="tag">locked</span>}
-              <span className={`tag ${card.your_total !== null ? "open" : ""}`}>
-                {card.your_total !== null
-                  ? `${card.your_total}/${card.max_total}`
-                  : "not scored"}
-              </span>
-            </div>
-          </div>
-          <div className="row" style={{ justifyContent: "flex-end", marginTop: "0.75rem" }}>
-            <Link
-              className="btn"
-              href={`/company/challenges/${programmeId}/judging/${card.participant_id}`}
-            >
-              Score candidate
-            </Link>
-          </div>
-        </div>
-      ))}
+
+      {view === "score"
+        ? ranked.map((card, index) => (
+            <ParticipantJudgingCard
+              key={card.participant_id}
+              programmeId={programmeId}
+              card={card}
+              rank={card.your_total !== null ? index + 1 : null}
+              issued={alreadyIssued}
+            />
+          ))
+        : referralGroups.map((group) => (
+            <section key={group.key} style={{ marginBottom: "1.5rem" }}>
+              <h2 style={{ marginBottom: "0.75rem" }}>
+                {group.label}{" "}
+                <span className="small muted">({group.cards.length})</span>
+              </h2>
+              {group.cards.map((card) => (
+                <ParticipantJudgingCard
+                  key={card.participant_id}
+                  programmeId={programmeId}
+                  card={card}
+                  issued={alreadyIssued}
+                />
+              ))}
+            </section>
+          ))}
+
       <div className="panel" style={{ marginTop: "1.5rem" }}>
         <strong>Close and issue</strong>
         {alreadyIssued ? (
           <p className="small muted" style={{ marginBottom: 0 }}>
-            Issued. Candidate profiles were updated. This cannot run again.
+            Issued. Candidate profiles were updated. This cannot run again —
+            the lists above stay available.
           </p>
         ) : (
           <>
@@ -221,5 +271,173 @@ export default function JudgingPanel({
         )}
       </div>
     </>
+  );
+}
+
+function ParticipantJudgingCard({
+  programmeId,
+  card,
+  rank = null,
+  issued,
+}: {
+  programmeId: string;
+  card: SubmissionCard;
+  rank?: number | null;
+  issued: boolean;
+}) {
+  const [showContact, setShowContact] = useState(false);
+  const summary = [
+    card.organisation,
+    `${card.links.length} file${card.links.length === 1 ? "" : "s"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="card">
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ minWidth: 0 }}>
+          <strong>
+            {rank !== null ? `${rank}. ` : ""}
+            {card.pitch_at ? `${formatSlotTime(card.pitch_at)} · ` : ""}
+            {card.name}
+          </strong>
+          <div className="small muted" style={{ overflowWrap: "anywhere" }}>
+            {summary || "—"}
+            {card.pitch_at ? ` · ${formatSlot(card.pitch_at)}` : ""}
+          </div>
+        </div>
+        <div className="row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <span className="tag">{referralLabel(card.would_refer)}</span>
+          {!card.complete && <span className="tag">incomplete</span>}
+          {card.locked && <span className="tag">locked</span>}
+          <span className={`tag ${card.your_total !== null ? "open" : ""}`}>
+            {card.your_total !== null
+              ? `${card.your_total}/${card.max_total}`
+              : "not scored"}
+          </span>
+        </div>
+      </div>
+
+      {showContact && (
+        <div className="panel" style={{ marginTop: "0.85rem" }}>
+          <dl className="facts" style={{ margin: 0 }}>
+            {card.contact_email && (
+              <>
+                <dt>Contact</dt>
+                <dd style={{ overflowWrap: "anywhere" }}>{card.contact_email}</dd>
+              </>
+            )}
+            {card.google_email && (
+              <>
+                <dt>Google</dt>
+                <dd style={{ overflowWrap: "anywhere" }}>{card.google_email}</dd>
+              </>
+            )}
+            {card.phone && (
+              <>
+                <dt>Phone</dt>
+                <dd>{card.phone}</dd>
+              </>
+            )}
+            {card.organisation && (
+              <>
+                <dt>Organisation</dt>
+                <dd>{card.organisation}</dd>
+              </>
+            )}
+            {(card.year_course || card.job_title) && (
+              <>
+                <dt>{card.year_course ? "Year / course" : "Job title"}</dt>
+                <dd>{card.year_course || card.job_title}</dd>
+              </>
+            )}
+            {card.linkedin_url && externalHref(card.linkedin_url) && (
+              <>
+                <dt>LinkedIn</dt>
+                <dd>
+                  <a href={externalHref(card.linkedin_url)} target="_blank" rel="noreferrer">
+                    {card.linkedin_url}
+                  </a>
+                </dd>
+              </>
+            )}
+          </dl>
+          {!card.contact_email &&
+            !card.google_email &&
+            !card.phone &&
+            !card.linkedin_url &&
+            !card.organisation &&
+            !card.year_course &&
+            !card.job_title && (
+              <p className="small muted" style={{ margin: 0 }}>
+                No contact details on file.
+              </p>
+            )}
+        </div>
+      )}
+
+      <div style={{ marginTop: "0.85rem" }}>
+        <div className="small muted" style={{ marginBottom: "0.35rem" }}>
+          Submissions
+        </div>
+        {card.links.length === 0 ? (
+          <p className="small muted" style={{ margin: 0 }}>
+            Nothing submitted.
+          </p>
+        ) : (
+          <div className="panel" style={{ margin: 0 }}>
+            {card.links.map((link) => (
+              <div
+                className="row"
+                key={link.slot}
+                style={{ justifyContent: "space-between", gap: "0.75rem" }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ textTransform: "capitalize" }}>{link.slot}</strong>
+                  <div className="small muted" style={{ overflowWrap: "anywhere" }}>
+                    {link.filename ?? link.url ?? "Nothing submitted"}
+                  </div>
+                </div>
+                <div className="row" style={{ gap: "0.5rem", flexShrink: 0, alignItems: "center" }}>
+                  {link.access_status !== "ok" && (
+                    <span className="tag">{link.access_status}</span>
+                  )}
+                  {link.snapshot_url && (
+                    <a href={assetUrl(link.snapshot_url)} target="_blank" rel="noreferrer">
+                      File
+                    </a>
+                  )}
+                  {link.url && (
+                    <a href={externalHref(link.url)} target="_blank" rel="noreferrer">
+                      Link
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div
+        className="row"
+        style={{ justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}
+      >
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => setShowContact((open) => !open)}
+        >
+          {showContact ? "Hide contact details" : "View contact details"}
+        </button>
+        <Link
+          className="btn"
+          href={`/company/challenges/${programmeId}/judging/${card.participant_id}`}
+        >
+          {issued ? "View scorecard" : "Score candidate"}
+        </Link>
+      </div>
+    </div>
   );
 }

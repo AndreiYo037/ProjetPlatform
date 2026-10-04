@@ -57,10 +57,10 @@ function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
   ];
   if (isDraft) return setup;
   return [
+    { key: "judging", label: "Judging" },
     { key: "applicants", label: "Applicants" },
     ...setup,
     { key: "messages", label: "Messages" },
-    { key: "judging", label: "Judging" },
   ];
 }
 
@@ -151,7 +151,7 @@ export default function ChallengeDetailPage({
   const isDraft = programme.status === "draft";
   const isOpen = programme.status === "open";
   const sections = sectionsFor(isDraft);
-  const active: SectionKey = section ?? (isDraft ? "schedule" : "messages");
+  const active: SectionKey = section ?? (isDraft ? "schedule" : "judging");
 
   return (
     <main className={active === "messages" ? "wide" : undefined}>

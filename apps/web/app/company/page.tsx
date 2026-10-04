@@ -75,8 +75,11 @@ export default function CompanyProgrammesPage() {
                     : null}
                 </div>
               </div>
-              <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
-                Open
+              <Link
+                className="btn secondary"
+                href={`/company/challenges/${programme.id}?section=judging`}
+              >
+                Judging
               </Link>
             </div>
           </div>
@@ -88,6 +91,10 @@ export default function CompanyProgrammesPage() {
       {home.past_programmes.length > 0 && (
         <>
           <h2>Past programmes</h2>
+          <p className="small muted">
+            Closed challenges stay open here. Submissions, scores, and referral
+            answers are under Judging.
+          </p>
           {home.past_programmes.map((programme) => (
             <div className="card" key={programme.id}>
               <div className="row" style={{ justifyContent: "space-between" }}>
@@ -98,8 +105,11 @@ export default function CompanyProgrammesPage() {
                   {` · ${programme.delivery_mode === "in_person" ? "On-site" : "Online"}`}
                 </div>
                 </div>
-                <Link className="btn secondary" href={`/company/challenges/${programme.id}`}>
-                  Open
+                <Link
+                  className="btn secondary"
+                  href={`/company/challenges/${programme.id}?section=judging`}
+                >
+                  Judging
                 </Link>
               </div>
             </div>
