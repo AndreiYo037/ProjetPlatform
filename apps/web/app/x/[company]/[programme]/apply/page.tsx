@@ -13,6 +13,11 @@ import {
   type PublicListing,
 } from "@/lib/api";
 import { formatSlot } from "@/lib/dates";
+import {
+  clearApplyCode,
+  readApplyCode,
+  storeApplyCode,
+} from "@/lib/onsite-apply-code";
 
 function formatMoment(value: string | null | undefined) {
   return formatSlot(value);
@@ -63,8 +68,10 @@ export default function ApplyPage({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ warning: string | null } | null>(null);
   const [alreadyApplied, setAlreadyApplied] = useState(false);
+  const [codeReady, setCodeReady] = useState(false);
 
   const onsite = listing?.delivery_mode === "in_person";
+  const listingPath = `/x/${company}/${programme}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +102,31 @@ export default function ApplyPage({
       })
       .catch(() => setListing(null));
   }, [company, programme]);
+
+  // On-site: code is collected on the listing page, then carried here.
+  useEffect(() => {
+    if (!listing) return;
+    if (listing.delivery_mode !== "in_person" || listing.already_applied) {
+      setCodeReady(true);
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = (params.get("code") ?? "").trim();
+    if (fromQuery) {
+      storeApplyCode(company, programme, fromQuery);
+      setAccessCode(fromQuery);
+      setCodeReady(true);
+      router.replace(window.location.pathname);
+      return;
+    }
+    const stored = readApplyCode(company, programme);
+    if (!stored) {
+      router.replace(listingPath);
+      return;
+    }
+    setAccessCode(stored);
+    setCodeReady(true);
+  }, [listing, company, programme, listingPath, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,7 +184,14 @@ export default function ApplyPage({
       form.delete("writeup");
       form.delete("timezone");
       form.delete("cv");
-      form.set("access_code", accessCode.trim());
+      const code = accessCode.trim() || readApplyCode(company, programme);
+      if (!code) {
+        setError("Enter the access code on the challenge page first.");
+        setBusy(false);
+        router.replace(listingPath);
+        return;
+      }
+      form.set("access_code", code);
     } else {
       form.set("google_email", googleEmail);
       form.set("writeup", writeup);
@@ -179,9 +218,18 @@ export default function ApplyPage({
         }
         throw new Error(detail);
       }
+      if (onsite) clearApplyCode(company, programme);
       setDone({ warning: body.google_email_warning ?? null });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not submit your application.");
+      const message =
+        err instanceof Error ? err.message : "Could not submit your application.";
+      if (onsite && /access code/i.test(message)) {
+        clearApplyCode(company, programme);
+        setError(`${message} Enter the code again on the challenge page.`);
+        router.replace(listingPath);
+        return;
+      }
+      setError(message);
     } finally {
       setBusy(false);
     }
@@ -201,11 +249,15 @@ export default function ApplyPage({
     );
   }
 
-  if (!allowed) {
+  if (!allowed || (onsite && !codeReady && !alreadyApplied)) {
     return (
       <main className="narrow">
         <h1>Apply</h1>
-        <p className="lede">Sign in to apply to this challenge.</p>
+        <p className="lede">
+          {!allowed
+            ? "Sign in to apply to this challenge."
+            : "Checking your access code…"}
+        </p>
       </main>
     );
   }
@@ -231,30 +283,12 @@ export default function ApplyPage({
         {profile
           ? "Filled from your profile — change anything that should be different for this challenge."
           : onsite
-            ? "You need the access code from the organisers, and a WhatsApp number."
+            ? "Your access code is set. Finish with your details and WhatsApp number."
             : "Required fields first — including a CV and a short writeup. Phone is optional."}
       </p>
 
       <form onSubmit={submit}>
         <h2>Required</h2>
-
-        {onsite && (
-          <div className="field">
-            <label htmlFor="access_code">Access code</label>
-            <input
-              id="access_code"
-              name="access_code"
-              type="text"
-              required
-              autoComplete="off"
-              autoCapitalize="characters"
-              spellCheck={false}
-              value={accessCode}
-              onChange={(e) => setAccessCode(e.target.value)}
-            />
-            <div className="hint">Ask the organisers in the room for today’s code.</div>
-          </div>
-        )}
 
         <div className="field">
           <label htmlFor="name">Full name</label>

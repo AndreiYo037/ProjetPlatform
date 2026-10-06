@@ -38,9 +38,9 @@ The challenge goes live on public listings. Participants can apply.
 
 - **Online** — review applications, then offer, waitlist, or reject. Offers go
   out by email; the person accepts to get a seat.
-- **On-site** — apply only once the start time has begun, with the room access
-  code from the company; that puts them in immediately. There is no offer /
-  waitlist / reject flow and no applicant email.
+- **On-site** — apply only once the start time has begun; enter the room access
+  code on the challenge page, then complete details. That puts them in
+  immediately. There is no offer / waitlist / reject flow and no applicant email.
 
 ### 5. The challenge runs
 

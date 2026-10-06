@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
+import OnsiteApplyGate from "@/components/OnsiteApplyGate";
 import { API_BASE_URL, assetUrl, externalHref, type PublicListing } from "@/lib/api";
 import { formatDayClock, formatSlot } from "@/lib/dates";
 import { SHOW_RUBRICS, SHOW_SUBMISSION_MEMO } from "@/lib/features";
@@ -52,7 +53,8 @@ export default async function ListingPage({
   const onsite = listing.delivery_mode === "in_person";
   const startLabel = listing.start_at ? formatMoment(listing.start_at) : null;
   const applyPath = `/x/${company}/${programme}/apply`;
-  const applyHref = (await participantSignedIn())
+  const signedIn = await participantSignedIn();
+  const applyHref = signedIn
     ? applyPath
     : `/signin?next=${encodeURIComponent(applyPath)}`;
 
@@ -156,7 +158,7 @@ export default async function ListingPage({
         <dt>Time</dt>
         <dd>
           {onsite
-            ? "On site with the company. Apply from start with the room access code; submissions open through the end time."
+            ? "On site with the company. Enter the room access code below to apply; submissions open through the end time."
             : "Submissions open from the start time through the deadline"}
         </dd>
         <dt>You get</dt>
@@ -200,10 +202,18 @@ export default async function ListingPage({
           <div className="panel">
             <strong>You have already applied.</strong>
             <p className="small muted" style={{ margin: "0.4rem 0 0" }}>
-              We will email you when there is a decision. You cannot apply again to this
-              challenge.
+              {onsite
+                ? "Your place is confirmed. You cannot apply again to this challenge."
+                : "We will email you when there is a decision. You cannot apply again to this challenge."}
             </p>
           </div>
+        ) : open && onsite ? (
+          <OnsiteApplyGate
+            company={company}
+            programme={programme}
+            signedIn={signedIn}
+            applyPath={applyPath}
+          />
         ) : open ? (
           <Link className="btn" href={applyHref}>
             {applyHref === applyPath ? "Apply" : "Sign in to apply"}
