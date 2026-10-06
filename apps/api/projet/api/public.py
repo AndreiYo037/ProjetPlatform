@@ -494,6 +494,13 @@ async def apply(
     if not looks_like_email(contact_email):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid contact email.")
 
+    phone_value = (phone or "").strip() or None
+    if onsite and not phone_value:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "A WhatsApp phone number is required.",
+        )
+
     google = (google_email or "").strip() or None
     if not onsite:
         if not google or not looks_like_email(google):
@@ -576,7 +583,7 @@ async def apply(
         name=name.strip(),
         contact_email=contact_email,
         google_email=google,
-        phone=phone,
+        phone=phone_value,
         organisation=org,
         org_type=kind,
         year_course=course,

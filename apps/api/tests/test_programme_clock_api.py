@@ -200,6 +200,7 @@ def test_an_onsite_application_before_start_is_refused(client, company_id, role_
         data={
             "name": "Too Early",
             "contact_email": "early@school.edu.sg",
+            "phone": "+6591234567",
             "organisation": "NUS",
             "org_type": "school",
             "year_course": "Y2 CS",
@@ -253,6 +254,7 @@ def test_an_onsite_application_joins_immediately(client, company_id, role_id, se
         data={
             "name": "Wrong Code",
             "contact_email": "wrong@school.edu.sg",
+            "phone": "+6591234567",
             "organisation": "NUS",
             "org_type": "school",
             "year_course": "Y2 CS",
@@ -269,11 +271,29 @@ def test_an_onsite_application_joins_immediately(client, company_id, role_id, se
     assert listing["requires_apply_code"] is True
     assert "apply_access_code" not in listing
 
+    no_phone = client.post(
+        "/public/x/acme/onsite-apply/apply",
+        data={
+            "name": "No Phone",
+            "contact_email": "nophone@school.edu.sg",
+            "organisation": "NUS",
+            "org_type": "school",
+            "year_course": "Y2 CS",
+            "linkedin_url": "https://www.linkedin.com/in/no-phone",
+            "access_code": code.lower(),
+            "availability_confirmed": "true",
+            "consent_share_company": "true",
+            "consent_recording": "true",
+        },
+    )
+    assert no_phone.status_code == 422
+
     applied = client.post(
         "/public/x/acme/onsite-apply/apply",
         data={
             "name": "On Site",
             "contact_email": "onsite@school.edu.sg",
+            "phone": "+6598765432",
             "organisation": "NUS",
             "org_type": "school",
             "year_course": "Y2 CS",

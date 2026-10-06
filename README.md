@@ -95,8 +95,8 @@ Fill the apply form for that challenge.
 
 - **Online** — more fields required (including writeup and CV); you wait for an
   offer, then accept.
-- **On-site** — lighter form; apply from start with the organisers’ access code;
-  you’re in as soon as you apply.
+- **On-site** — lighter form; apply from start with the organisers’ access code
+  and a WhatsApp number; you’re in as soon as you apply.
 
 ### 3. Do the work
 

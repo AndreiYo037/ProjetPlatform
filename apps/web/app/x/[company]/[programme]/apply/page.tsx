@@ -231,7 +231,7 @@ export default function ApplyPage({
         {profile
           ? "Filled from your profile — change anything that should be different for this challenge."
           : onsite
-            ? "You need the access code from the organisers. Phone is optional."
+            ? "You need the access code from the organisers, and a WhatsApp number."
             : "Required fields first — including a CV and a short writeup. Phone is optional."}
       </p>
 
@@ -286,6 +286,24 @@ export default function ApplyPage({
               : "Where we email you — your application confirmation, the decision, and anything else about this application."}
           </div>
         </div>
+
+        {onsite && (
+          <div className="field">
+            <label htmlFor="phone">WhatsApp number</label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              required
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <div className="hint">
+              Include country code. The organisers will use this on WhatsApp.
+            </div>
+          </div>
+        )}
 
         {!onsite && (
           <div className="field">
@@ -499,21 +517,25 @@ export default function ApplyPage({
         </div>
         <p className="small muted">Both need to be ticked to apply.</p>
 
-        <h2>Optional</h2>
-        <p className="small muted">You can leave this blank.</p>
-        <div className="field">
-          <label htmlFor="phone">
-            Phone <span className="muted">(optional)</span>
-          </label>
-          <input
-            id="phone"
-            name="phone"
-            type="tel"
-            autoComplete="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </div>
+        {!onsite && (
+          <>
+            <h2>Optional</h2>
+            <p className="small muted">You can leave this blank.</p>
+            <div className="field">
+              <label htmlFor="phone">
+                Phone <span className="muted">(optional)</span>
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+          </>
+        )}
 
         {error && <div className="notice bad">{error}</div>}
 
