@@ -27,17 +27,25 @@ import { useActor } from "@/lib/useActor";
  * the programme, and live on Home.
  */
 
-const SECTIONS = [
-  { key: "messages", label: "Messages" },
-  { key: "submission", label: "Submission" },
-  { key: "brief", label: "Brief & resources" },
-  {
-    key: "judging",
-    label: SHOW_RUBRICS ? "How you're judged" : "Pitching",
-  },
-] as const;
+type SectionKey = "messages" | "submission" | "brief" | "judging";
 
-type SectionKey = (typeof SECTIONS)[number]["key"];
+function sectionsFor(onsite: boolean): { key: SectionKey; label: string }[] {
+  const base: { key: SectionKey; label: string }[] = [
+    { key: "messages", label: "Messages" },
+    { key: "submission", label: "Submission" },
+    { key: "brief", label: "Brief & resources" },
+  ];
+  // On-site: no Meet pitch booking. Rubrics are also hidden platform-wide for
+  // now, so this tab has nothing to show and stays off.
+  if (onsite) return base;
+  return [
+    ...base,
+    {
+      key: "judging",
+      label: SHOW_RUBRICS ? "How you're judged" : "Pitch",
+    },
+  ];
+}
 
 export default function ProgrammePage() {
   return (
@@ -100,6 +108,12 @@ function ProgrammePageInner() {
 
   if (!data) return <main><p className="muted">Loading…</p></main>;
 
+  const onsite = data.programme.delivery_mode === "in_person";
+  const sections = sectionsFor(onsite);
+  const activeSection = sections.some((s) => s.key === section)
+    ? section
+    : "messages";
+
   const allProgrammes = [...data.active_programmes, ...data.past_programmes];
   const showSwitcher = allProgrammes.length > 1;
 
@@ -126,7 +140,7 @@ function ProgrammePageInner() {
   }
 
   return (
-    <main className={section === "messages" ? "wide" : undefined}>
+    <main className={activeSection === "messages" ? "wide" : undefined}>
       <Link className="small muted" href="/home">
         ← Home
       </Link>
@@ -169,11 +183,11 @@ function ProgrammePageInner() {
       />
 
       <nav className="tabs">
-        {SECTIONS.map((s) => (
+        {sections.map((s) => (
           <button
             key={s.key}
             className="tab"
-            aria-current={section === s.key ? "page" : undefined}
+            aria-current={activeSection === s.key ? "page" : undefined}
             onClick={() => setSection(s.key)}
           >
             {s.label}
@@ -181,18 +195,16 @@ function ProgrammePageInner() {
         ))}
       </nav>
 
-      {section === "messages" && (
+      {activeSection === "messages" && (
         <Channel
           programmeId={data.programme.id}
-          kickoffMeetLink={
-            data.programme.delivery_mode === "in_person" ? null : data.programme.kickoff_meet_link
-          }
-          kickoffAt={data.programme.delivery_mode === "in_person" ? null : data.programme.kickoff_at}
+          kickoffMeetLink={onsite ? null : data.programme.kickoff_meet_link}
+          kickoffAt={onsite ? null : data.programme.kickoff_at}
           onChange={load}
         />
       )}
 
-      {section === "submission" && (
+      {activeSection === "submission" && (
         <>
           <SubmissionPanel
             submission={data.submission}
@@ -203,7 +215,7 @@ function ProgrammePageInner() {
         </>
       )}
 
-      {section === "brief" && (
+      {activeSection === "brief" && (
         <>
           {data.programme.problem_statement && (
             <>
@@ -250,7 +262,7 @@ function ProgrammePageInner() {
         </>
       )}
 
-      {section === "judging" && (
+      {activeSection === "judging" && !onsite && (
         <PitchSection data={data} onBooked={load} />
       )}
     </main>
@@ -285,12 +297,8 @@ function PitchSection({
     }
   }
 
-  const onsite = data.programme.delivery_mode === "in_person";
-
   return (
     <>
-      {!onsite && (
-      <>
       <h2 style={{ marginTop: 0 }}>Your pitch</h2>
       {slots.length === 0 && !booked ? (
         <p className="small muted">
@@ -345,8 +353,6 @@ function PitchSection({
         </>
       )}
       {error && <div className="notice bad">{error}</div>}
-      </>
-      )}
 
       {SHOW_RUBRICS && (
         <>
