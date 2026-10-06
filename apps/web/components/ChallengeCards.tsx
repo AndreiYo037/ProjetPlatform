@@ -16,8 +16,11 @@ function onsiteStartLabel(item: PublicListingSummary) {
   if (!item.start_at) return null;
   const day = formatDate(item.start_at);
   if (!day) return null;
-  if (item.state === "complete" || item.state === "open") return `Started ${day}`;
-  return `Starts ${day}`;
+  // Use the real start clock — applications can open early without the event
+  // having started.
+  const started =
+    item.state === "complete" || new Date(item.start_at).getTime() <= Date.now();
+  return started ? `Started ${day}` : `Starts ${day}`;
 }
 
 /**

@@ -96,6 +96,10 @@ class PublicListing(BaseModel):
     requires_apply_code: bool = False
 
 
+# Temporary: accept applications before start for these on-site slugs only.
+_ONSITE_EARLY_APPLY_SLUGS = frozenset({"business-partnerships-intern"})
+
+
 def _state(programme: Programme) -> str:
     """FR-102 — one of three states, and nothing else.
 
@@ -118,8 +122,18 @@ def _state(programme: Programme) -> str:
         return "closed"
     if programme.applications_open_at and programme.applications_open_at > now:
         return "closed"
+    # On-site default: apply opens at start. Early applications when
+    # applications_open_at is already reached, or for a one-off allowlist.
     if programme.onsite and programme.start_at and programme.start_at > now:
-        return "closed"
+        early = (
+            programme.slug in _ONSITE_EARLY_APPLY_SLUGS
+            or (
+                programme.applications_open_at is not None
+                and programme.applications_open_at <= now
+            )
+        )
+        if not early:
+            return "closed"
     return "open"
 
 
