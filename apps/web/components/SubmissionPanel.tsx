@@ -10,6 +10,7 @@ import {
   type SubmissionOut,
 } from "@/lib/api";
 import { formatSlot } from "@/lib/dates";
+import { SHOW_SUBMISSION_MEMO } from "@/lib/features";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 
 const SLOT_LABELS: Record<string, string> = {
@@ -108,6 +109,9 @@ export default function SubmissionPanel({
 
   const complete = submission.status === "complete";
   const handedIn = Boolean(submission.submitted_at);
+  const visibleSlots = submission.slots.filter(
+    (slot) => SHOW_SUBMISSION_MEMO || slot.slot !== "memo",
+  );
 
   return (
     <>
@@ -142,7 +146,7 @@ export default function SubmissionPanel({
 
       {error && <div className="notice bad">{error}</div>}
 
-      {submission.slots.map((slot) => {
+      {visibleSlots.map((slot) => {
         const isUpload = UPLOAD_SLOTS.has(slot.slot);
         const failed = slot.drive_url && slot.access_status !== "ok";
         return (
@@ -222,8 +226,9 @@ export default function SubmissionPanel({
         <div className="panel" style={{ marginTop: "1rem" }}>
           {!complete && (
             <p className="small muted" style={{ marginTop: 0 }}>
-              Fill every slot — a link, or a file you have uploaded — then
-              submit. That is what opens a pitch timeslot.
+              {SHOW_SUBMISSION_MEMO
+                ? "Fill every slot — a link, or a file you have uploaded — then submit. That is what opens a pitch timeslot."
+                : "Paste your work link, then submit. That is what opens a pitch timeslot."}
             </p>
           )}
           {complete && !handedIn && (

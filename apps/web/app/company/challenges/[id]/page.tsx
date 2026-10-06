@@ -34,6 +34,7 @@ import {
   toDateInput,
   toDateTimeLocal,
 } from "@/lib/dates";
+import { SHOW_RUBRICS } from "@/lib/features";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { useActor } from "@/lib/useActor";
 
@@ -52,7 +53,7 @@ type SectionKey = "messages" | "applicants" | "judging" | "brief" | "rubric" | "
 function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
   const setup: { key: SectionKey; label: string }[] = [
     { key: "brief", label: "Brief & data pack" },
-    { key: "rubric", label: "Rubric" },
+    ...(SHOW_RUBRICS ? [{ key: "rubric" as const, label: "Rubric" }] : []),
     { key: "schedule", label: "Schedule" },
   ];
   if (isDraft) return setup;
@@ -151,7 +152,23 @@ export default function ChallengeDetailPage({
   const isDraft = programme.status === "draft";
   const isOpen = programme.status === "open";
   const sections = sectionsFor(isDraft);
-  const active: SectionKey = section ?? (isDraft ? "schedule" : "judging");
+  const fallback: SectionKey = isDraft ? "schedule" : "judging";
+  const active: SectionKey =
+    section && sections.some((s) => s.key === section) ? section : fallback;
+
+  const isRubricNoise = (p: string) =>
+    /slot \d|incomplete rubric|anchor|criterion/i.test(p);
+  const publishProblems = (pubCheck?.problems ?? []).filter(
+    (p) => SHOW_RUBRICS || !isRubricNoise(p),
+  );
+  const publishReady =
+    pubCheck !== null &&
+    (SHOW_RUBRICS
+      ? pubCheck.ready
+      : pubCheck.ready ||
+        pubCheck.problems.every(
+          (p) => isRubricNoise(p) || /Applications have no/i.test(p),
+        ));
 
   return (
     <main className={active === "messages" ? "wide" : undefined}>
@@ -221,12 +238,15 @@ export default function ChallengeDetailPage({
 
       {active === "brief" && (
         <>
+          {!SHOW_RUBRICS && isDraft && (
+            <RolesEditor programme={programme} onSaved={load} />
+          )}
           <BriefSection programme={programme} onSaved={load} />
           <DataPackPanel programmeId={programme.id} />
         </>
       )}
 
-      {active === "rubric" && (
+      {SHOW_RUBRICS && active === "rubric" && (
         <>
           <p className="small muted">
             Judges score each pitch against these boxes. Problem understanding and
@@ -271,11 +291,13 @@ export default function ChallengeDetailPage({
 
       {isDraft && (
         <>
-          {pubCheck && pubCheck.problems.length > 0 && (
+          {publishProblems.length > 0 && (
             <div className="notice warn">
-              <strong>{pubCheck.ready ? "Before you go live:" : "Not ready to publish:"}</strong>
+              <strong>
+                {publishReady ? "Before you go live:" : "Not ready to publish:"}
+              </strong>
               <ul className="small" style={{ margin: "0.3rem 0 0", paddingLeft: "1.2rem" }}>
-                {pubCheck.problems.map((p, i) => (
+                {publishProblems.map((p, i) => (
                   <li key={i}>{p}</li>
                 ))}
               </ul>
@@ -283,7 +305,7 @@ export default function ChallengeDetailPage({
           )}
           <div className="row" style={{ marginTop: "1.25rem", gap: "0.75rem" }}>
             <button
-              disabled={busy || deleting || (pubCheck !== null && !pubCheck.ready)}
+              disabled={busy || deleting || !publishReady}
               onClick={handlePublish}
             >
               {busy ? "Publishing…" : "Publish challenge"}

@@ -9,6 +9,7 @@ import Countdown from "@/components/Countdown";
 import SubmissionPanel from "@/components/SubmissionPanel";
 import { getDashboard, claimPitchSlot, markThreadRead, type Dashboard } from "@/lib/api";
 import { formatSlot, formatSlotTime } from "@/lib/dates";
+import { SHOW_RUBRICS } from "@/lib/features";
 import { useActor } from "@/lib/useActor";
 
 /**
@@ -30,7 +31,10 @@ const SECTIONS = [
   { key: "messages", label: "Messages" },
   { key: "submission", label: "Submission" },
   { key: "brief", label: "Brief & resources" },
-  { key: "judging", label: "How you're judged" },
+  {
+    key: "judging",
+    label: SHOW_RUBRICS ? "How you're judged" : "Pitching",
+  },
 ] as const;
 
 type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -344,29 +348,33 @@ function PitchSection({
       </>
       )}
 
-      <h2>How you're judged</h2>
-      <p className="small muted">
-        The criteria every pitch is scored against, with what each score means.
-      </p>
-      {data.criteria.map((criterion) => (
-        <div className="rubric" key={String(criterion.slot)}>
-          <strong>{criterion.name}</strong>
-          <div className="anchors">
-            <div>
-              <b>5</b>
-              <span>{criterion.anchor_5}</span>
+      {SHOW_RUBRICS && (
+        <>
+          <h2>How you're judged</h2>
+          <p className="small muted">
+            The criteria every pitch is scored against, with what each score means.
+          </p>
+          {data.criteria.map((criterion) => (
+            <div className="rubric" key={String(criterion.slot)}>
+              <strong>{criterion.name}</strong>
+              <div className="anchors">
+                <div>
+                  <b>5</b>
+                  <span>{criterion.anchor_5}</span>
+                </div>
+                <div>
+                  <b>3</b>
+                  <span>{criterion.anchor_3}</span>
+                </div>
+                <div>
+                  <b>1</b>
+                  <span>{criterion.anchor_1}</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <b>3</b>
-              <span>{criterion.anchor_3}</span>
-            </div>
-            <div>
-              <b>1</b>
-              <span>{criterion.anchor_1}</span>
-            </div>
-          </div>
-        </div>
-      ))}
+          ))}
+        </>
+      )}
     </>
   );
 }

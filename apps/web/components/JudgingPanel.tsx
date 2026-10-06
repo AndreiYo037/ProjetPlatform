@@ -10,6 +10,7 @@ import {
   type SubmissionCard,
 } from "@/lib/api";
 import { formatSlot, formatSlotTime } from "@/lib/dates";
+import { SHOW_SUBMISSION_MEMO } from "@/lib/features";
 
 type View = "score" | "referral";
 
@@ -152,7 +153,7 @@ export default function JudgingPanel({
       <p className="small muted">
         {alreadyIssued
           ? "Issued. Submissions, scores, and referral answers stay here."
-          : `${scored} of ${cards.length} scored. Score a candidate against the rubric; it saves as you go.`}
+          : `${scored} of ${cards.length} scored. Score a candidate; it saves as you go.`}
       </p>
       {room && !alreadyIssued && (
         <p className="small" style={{ margin: "0 0 1rem" }}>
@@ -286,9 +287,12 @@ function ParticipantJudgingCard({
   issued: boolean;
 }) {
   const [showContact, setShowContact] = useState(false);
+  const links = card.links.filter(
+    (link) => SHOW_SUBMISSION_MEMO || link.slot !== "memo",
+  );
   const summary = [
     card.organisation,
-    `${card.links.length} file${card.links.length === 1 ? "" : "s"}`,
+    `${links.length} file${links.length === 1 ? "" : "s"}`,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -381,13 +385,13 @@ function ParticipantJudgingCard({
         <div className="small muted" style={{ marginBottom: "0.35rem" }}>
           Submissions
         </div>
-        {card.links.length === 0 ? (
+        {links.length === 0 ? (
           <p className="small muted" style={{ margin: 0 }}>
             Nothing submitted.
           </p>
         ) : (
           <div className="panel" style={{ margin: 0 }}>
-            {card.links.map((link) => (
+            {links.map((link) => (
               <div
                 className="row"
                 key={link.slot}

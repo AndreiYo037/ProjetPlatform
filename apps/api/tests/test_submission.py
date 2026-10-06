@@ -54,12 +54,11 @@ def test_a_link_we_cannot_open_says_exactly_what_to_fix(session, submission, goo
     assert "Anyone with the link can view" in (result.message or "")
 
 
-def test_a_submission_is_not_complete_while_any_link_fails(session, submission, google):
+def test_a_submission_is_not_complete_while_the_artifact_fails(session, submission, google):
     """FR-802 — this is what stops a broken link reaching judging day."""
     _, sub = submission
+    google.stage_denied(GOOD_URL)
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
-    google.stage_denied(OTHER_URL)
-    set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
 
     assert sub.status == SubmissionStatus.DRAFT
     assert sub.submitted_at is None
@@ -87,11 +86,19 @@ def test_submit_hands_the_work_in(session, submission, google):
 
 def test_you_cannot_submit_with_an_empty_slot(session, submission, google):
     _, sub = submission
-    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
 
     with pytest.raises(SubmissionError, match="Fill every slot"):
         submit_work(session, sub, google=google)
     assert sub.submitted_at is None
+
+
+def test_artifact_alone_is_enough_to_complete(session, submission, google):
+    """Memo is optional for now — the artifact link is what counts."""
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    assert sub.status == SubmissionStatus.COMPLETE
+    submit_work(session, sub, google=google)
+    assert sub.submitted_at is not None
 
 
 def test_links_can_be_changed_freely_before_the_deadline(session, submission, google):

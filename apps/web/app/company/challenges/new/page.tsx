@@ -12,6 +12,7 @@ import {
   type RoleImplications,
 } from "@/lib/api";
 import { fromDateInput, fromDateTimeLocal, formatDayClock, formatSlot } from "@/lib/dates";
+import { SHOW_RUBRICS } from "@/lib/features";
 import { useActor } from "@/lib/useActor";
 
 type Step = "role" | "details" | "review";
@@ -293,24 +294,28 @@ function RolePicker({
             {picked.delivery_risk_note && (
               <div className="notice warn">{picked.delivery_risk_note}</div>
             )}
-            <h3>Craft criteria this role adds</h3>
-            {picked.judging_criteria
-              .filter((c) => !Boolean((c as Record<string, unknown>).universal))
-              .map((c, i) => {
-                const slot = String((c as Record<string, unknown>).slot ?? "");
-                const name = String((c as Record<string, unknown>).name ?? "");
-                const anchor5 = String((c as Record<string, unknown>).anchor_5 ?? "");
-                return (
-                  <div className="rubric" key={i}>
-                    <strong>{slot}. {name}</strong>
-                    {anchor5 && (
-                      <p className="small muted" style={{ margin: "0.3rem 0 0" }}>
-                        5 — {anchor5}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+            {SHOW_RUBRICS && (
+              <>
+                <h3>Craft criteria this role adds</h3>
+                {picked.judging_criteria
+                  .filter((c) => !Boolean((c as Record<string, unknown>).universal))
+                  .map((c, i) => {
+                    const slot = String((c as Record<string, unknown>).slot ?? "");
+                    const name = String((c as Record<string, unknown>).name ?? "");
+                    const anchor5 = String((c as Record<string, unknown>).anchor_5 ?? "");
+                    return (
+                      <div className="rubric" key={i}>
+                        <strong>{slot}. {name}</strong>
+                        {anchor5 && (
+                          <p className="small muted" style={{ margin: "0.3rem 0 0" }}>
+                            5 — {anchor5}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+              </>
+            )}
           </div>
         );
       })}

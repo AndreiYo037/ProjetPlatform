@@ -17,6 +17,7 @@ import {
 } from "@/lib/api";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 import { formatSlot } from "@/lib/dates";
+import { SHOW_SUBMISSION_MEMO } from "@/lib/features";
 import { useActor } from "@/lib/useActor";
 
 const REFERRAL = [
@@ -109,11 +110,16 @@ export default function ScoringCardPage({
       )}
 
       <h2>What they handed in</h2>
-      {card.submission.links.length === 0 ? (
-        <p className="muted small">Nothing submitted.</p>
-      ) : (
+      {(() => {
+        const links = card.submission.links.filter(
+          (link) => SHOW_SUBMISSION_MEMO || link.slot !== "memo",
+        );
+        if (links.length === 0) {
+          return <p className="muted small">Nothing submitted.</p>;
+        }
+        return (
         <div className="panel">
-          {card.submission.links.map((link) => (
+          {links.map((link) => (
             <div className="row" key={link.slot} style={{ justifyContent: "space-between" }}>
               <div style={{ minWidth: 0, paddingRight: "0.75rem" }}>
                 <strong style={{ textTransform: "capitalize" }}>{link.slot}</strong>
@@ -146,7 +152,8 @@ export default function ScoringCardPage({
             changed since, so judge the submission when there is one.
           </p>
         </div>
-      )}
+        );
+      })()}
 
       <h2>Score</h2>
       <p className="small muted">

@@ -22,6 +22,7 @@ import {
   roleLabel,
 } from "@/lib/api";
 import { formatDayClock, formatSlot } from "@/lib/dates";
+import { SHOW_RUBRICS } from "@/lib/features";
 import { useActor } from "@/lib/useActor";
 
 const CRITERIA = ["relevance", "specificity", "capability", "followthrough"] as const;
@@ -44,7 +45,7 @@ type SectionKey = "messages" | "applicants" | "judging" | "brief" | "rubric" | "
 function sectionsFor(isDraft: boolean): { key: SectionKey; label: string }[] {
   const setup: { key: SectionKey; label: string }[] = [
     { key: "brief", label: "Brief & data pack" },
-    { key: "rubric", label: "Rubric" },
+    ...(SHOW_RUBRICS ? [{ key: "rubric" as const, label: "Rubric" }] : []),
     { key: "schedule", label: "Schedule" },
   ];
   if (isDraft) return setup;
@@ -144,7 +145,9 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
   const isOpen = programme.status === "open";
   const onsite = programme.delivery_mode === "in_person";
   const sections = sectionsFor(isDraft);
-  const active: SectionKey = section ?? (isDraft ? "schedule" : "applicants");
+  const fallback: SectionKey = isDraft ? "schedule" : "applicants";
+  const active: SectionKey =
+    section && sections.some((s) => s.key === section) ? section : fallback;
 
   return (
     <main className={active === "messages" ? "wide" : undefined}>
@@ -396,7 +399,7 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
         </>
       )}
 
-      {active === "rubric" && (
+      {SHOW_RUBRICS && active === "rubric" && (
         <>
           <p className="small muted">
             Published to applicants. Slot 1 and slot 4 sit once. Every extra

@@ -269,16 +269,22 @@ def clear_link(session: Session, submission: Submission, slot: SubmissionSlot) -
 
 
 def _refresh_status(session: Session, submission: Submission) -> None:
-    """Complete means every slot is filled and openable. That is not a hand-in;
-    submit_work stamps submitted_at, and that is what opens a timeslot."""
+    """Complete means the required slots are filled and openable. That is not a
+    hand-in; submit_work stamps submitted_at, and that is what opens a timeslot.
+
+    The memo slot is optional for now — only the artifact link is required.
+    """
     links = list(
         session.scalars(select(SubmissionLink).where(SubmissionLink.submission_id == submission.id))
     )
-    filled = [link for link in links if link.drive_url or link.snapshot_key]
+    required = [link for link in links if link.slot == SubmissionSlot.ARTIFACT]
+    if not required:
+        required = [link for link in links if link.slot != SubmissionSlot.MEMO]
+    filled = [link for link in required if link.drive_url or link.snapshot_key]
     complete = (
-        bool(links)
-        and len(filled) == len(links)
-        and all(link.access_status == AccessStatus.OK for link in links)
+        bool(required)
+        and len(filled) == len(required)
+        and all(link.access_status == AccessStatus.OK for link in required)
     )
     if complete:
         submission.status = SubmissionStatus.COMPLETE

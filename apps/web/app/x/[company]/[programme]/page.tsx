@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { API_BASE_URL, assetUrl, externalHref, type PublicListing } from "@/lib/api";
 import { formatDayClock, formatSlot } from "@/lib/dates";
+import { SHOW_RUBRICS, SHOW_SUBMISSION_MEMO } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -119,10 +120,12 @@ export default async function ListingPage({
 
       <h2>What you produce</h2>
       <p>{listing.deliverable}</p>
-      <p className="small muted">
-        Plus a half-page memo: what the problem is, how you approached it, what you
-        recommend, and what you would do next. The memo is what a judge reads first.
-      </p>
+      {SHOW_SUBMISSION_MEMO && (
+        <p className="small muted">
+          Plus a half-page memo: what the problem is, how you approached it, what you
+          recommend, and what you would do next. The memo is what a judge reads first.
+        </p>
+      )}
 
       <h2>The commitment</h2>
       <dl className="facts">
@@ -162,31 +165,35 @@ export default async function ListingPage({
         </dd>
       </dl>
 
-      <h2>How you are judged</h2>
-      <p className="small muted">
-        All criteria, published up front. There is no advantage in concealing them.
-      </p>
-      {listing.criteria.map((criterion) => (
-        <div className="rubric" key={String(criterion.slot)}>
-          <strong>
-            {criterion.slot}. {criterion.name}
-          </strong>
-          <div className="anchors">
-            <div>
-              <b>5</b>
-              <span>{criterion.anchor_5}</span>
+      {SHOW_RUBRICS && (
+        <>
+          <h2>How you are judged</h2>
+          <p className="small muted">
+            All criteria, published up front. There is no advantage in concealing them.
+          </p>
+          {listing.criteria.map((criterion) => (
+            <div className="rubric" key={String(criterion.slot)}>
+              <strong>
+                {criterion.slot}. {criterion.name}
+              </strong>
+              <div className="anchors">
+                <div>
+                  <b>5</b>
+                  <span>{criterion.anchor_5}</span>
+                </div>
+                <div>
+                  <b>3</b>
+                  <span>{criterion.anchor_3}</span>
+                </div>
+                <div>
+                  <b>1</b>
+                  <span>{criterion.anchor_1}</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <b>3</b>
-              <span>{criterion.anchor_3}</span>
-            </div>
-            <div>
-              <b>1</b>
-              <span>{criterion.anchor_1}</span>
-            </div>
-          </div>
-        </div>
-      ))}
+          ))}
+        </>
+      )}
 
       <div style={{ marginTop: "2rem" }}>
         {listing.already_applied ? (
