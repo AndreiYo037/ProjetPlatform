@@ -387,6 +387,30 @@ def change_my_email(
     return ActorResponse.of(updated)
 
 
+class ChangePasswordRequest(BaseModel):
+    password: str = Field(min_length=1, max_length=200)
+
+
+@router.patch("/me/password", response_model=ActorResponse)
+def change_my_password(
+    payload: ChangePasswordRequest,
+    actor: Actor = Depends(require_actor),
+    db: Session = Depends(get_session),
+) -> ActorResponse:
+    """Self-service password change while already signed in — distinct from
+    the forgot/reset flow, which is for someone who cannot sign in at all."""
+    error = validate_password(payload.password)
+    if error:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, error)
+
+    set_password(db, actor.actor_type, actor.id, payload.password)
+    db.commit()
+
+    updated = load_actor(db, actor.actor_type, actor.id)
+    assert updated is not None
+    return ActorResponse.of(updated)
+
+
 @router.get("/session", response_model=ActorResponse | None)
 def session_probe(actor: Actor | None = Depends(current_actor)) -> ActorResponse | None:
     """Unauthenticated probe, so the frontend can render signed-out state

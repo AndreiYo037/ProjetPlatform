@@ -389,6 +389,66 @@
         }
       }
     },
+    "/auth/me/password": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change My Password",
+        "description": "Self-service password change while already signed in \u2014 distinct from\nthe forgot/reset flow, which is for someone who cannot sign in at all.",
+        "operationId": "change_my_password_auth_me_password_patch",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "tags": [
@@ -7288,6 +7348,21 @@
           "email"
         ],
         "title": "ChangeEmailRequest"
+      },
+      "ChangePasswordRequest": {
+        "properties": {
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "title": "ChangePasswordRequest"
       },
       "ClaimPitchSlot": {
         "properties": {
