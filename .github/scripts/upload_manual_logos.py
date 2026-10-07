@@ -29,6 +29,8 @@ ACCOUNT_BY_KEY = {
     "maleo-systems": "rija.hilmi@gmail.com",
     "snowball": "sindhu@snowball.day",
     "acorn-labs": "eugenewang1227@gmail.com",
+    "hyphn": "verrell88.kc@gmail.com",
+    "b71-scaps": "faithlum@u.nus.edu",
 }
 
 CONTENT_TYPE_BY_SUFFIX = {
