@@ -97,6 +97,11 @@ TARGETS: list[Target] = [
         "slug": "marketing-and-communications-associate",
         "title": "Marketing and Communications Associate",
     },
+    {
+        "email": "zqingyuan@flowcoffee.sg",
+        "slug": "brand-growth-and-partnerships-intern",
+        "title": "Brand Growth & Partnerships Intern",
+    },
 ]
 
 

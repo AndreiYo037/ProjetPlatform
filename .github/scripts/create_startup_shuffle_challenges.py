@@ -668,6 +668,40 @@ CHALLENGES: list[Challenge] = [
             "recognisable, sustainable B71 content property, not a one-off post or campaign."
         ),
     },
+    {
+        "email": "zqingyuan@flowcoffee.sg",
+        "title": "Brand Growth & Partnerships Intern",
+        "slug": "brand-growth-and-partnerships-intern",
+        "role_name": "Brand Management",
+        "problem_statement": (
+            "Duration: Jan-May '27. Working arrangement: Hybrid. Expected commitment: 12+ "
+            "hrs/week. Key responsibilities: Help build Flow from a vending-machine business "
+            "into a recognised consumer brand. Identify and execute growth opportunities "
+            "through partnerships, activations, campaigns, communities and new channels. "
+            "Conduct outreach, develop proposals, run experiments, and measure what drives "
+            "brand awareness, customer adoption and repeat usage.\n\n"
+            "Challenge — From Vending Machine to Brand: Flow operates smart coffee machines "
+            "across campuses, offices, hospitals and public spaces. Unlike a cafe, there is no "
+            "storefront or barista interaction - for many customers, Flow is first experienced "
+            "as a machine. Assume product quality, reliability and pricing are not issues, and "
+            "locations cannot be changed. You have S$1,000 and 90 days. How would you turn "
+            "Flow from 'a vending machine I walk past' into a coffee brand people recognise, "
+            "remember and actively choose? You may use partnerships, activations, communities, "
+            "loyalty, content, events or collaborations.\n\n"
+            "Helpful resources: Flow overview, menu/pricing and examples of our location "
+            "types. Candidates may ask Qing Yuan clarifying questions and make reasonable "
+            "assumptions.\n\n"
+            "Note: Ideas should be commercially sensible and executable by a small startup "
+            "team. Avoid relying mainly on product changes, permanent price cuts, relocation "
+            "or large ad spend. We care more about initiative and actionability than polish."
+        ),
+        "deliverable_spec": (
+            "Maximum 3 slides: (1) What should Flow stand for and what customer insight are "
+            "you building around? (2) Propose 2-3 initiatives, including at least one partner "
+            "or community collaboration. (3) What would you do first, how would you allocate "
+            "S$1,000, and how would you measure success?"
+        ),
+    },
 ]
 
 

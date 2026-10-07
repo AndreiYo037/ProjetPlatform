@@ -112,6 +112,13 @@ COMPANIES: list[CompanySeed] = [
         "logo_domain": None,
         "logo_page": "",
     },
+    {
+        "email": "zqingyuan@flowcoffee.sg",
+        "name": "Flow Coffee",
+        "website_url": "https://www.flowcoffee.sg/",
+        "logo_domain": "flowcoffee.sg",
+        "logo_page": "https://www.flowcoffee.sg/",
+    },
 ]
 
 _OG_IMAGE_RE = re.compile(
