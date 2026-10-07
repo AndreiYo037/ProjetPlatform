@@ -1,0 +1,19 @@
+name: Check submissions since event start
+
+# Read-only diagnostic, manual trigger.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    name: Check submissions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/check_submissions_since_event_start.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
