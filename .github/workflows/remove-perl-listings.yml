@@ -1,0 +1,20 @@
+name: Remove PĒRL challenge listings
+
+# Manual only: moves PĒRL's 3 challenges' dates into the past so they drop
+# off the public /challenges directory. Fully reversible, destroys nothing.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  remove:
+    name: Remove from directory
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/remove_perl_listings.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
