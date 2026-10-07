@@ -441,6 +441,33 @@ def set_password(
     session.flush()
 
 
+def set_company_user_email(session: Session, subject_id: uuid.UUID, email: str) -> str:
+    """Change the login email of a company user.
+
+    Company-user only: Person (participants) stores its address as
+    contact_email, not email, so this cannot be generalised across actor
+    types without that field also changing.
+
+    Uses resolve_actor_of_type for the collision check, the same lookup login
+    itself uses (not scoped to one company), so "already taken" here means
+    the same thing it means at sign-in.
+    """
+    normalised = normalise_email(email)
+    if not normalised:
+        raise AuthError("That does not look like an email address.")
+
+    existing_id = resolve_actor_of_type(session, normalised, ActorType.COMPANY_USER)
+    if existing_id is not None and existing_id != subject_id:
+        raise AuthError("An account with that email already exists.")
+
+    company_user = session.get(CompanyUser, subject_id)
+    if company_user is None:
+        raise AuthError("That account no longer exists.")
+    company_user.email = normalised
+    session.flush()
+    return normalised
+
+
 # -- one-time account tokens: setup and reset only, never login --------------
 
 

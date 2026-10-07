@@ -329,6 +329,66 @@
         }
       }
     },
+    "/auth/me/email": {
+      "patch": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change My Email",
+        "description": "Self-service login-email change. Company users only for now \u2014 a\nparticipant's address lives on a different column (contact_email), so\nthis would need its own path rather than reusing this one.",
+        "operationId": "change_my_email_auth_me_email_patch",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeEmailRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "tags": [
@@ -7214,6 +7274,20 @@
           "name"
         ],
         "title": "CandidateOut"
+      },
+      "ChangeEmailRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "ChangeEmailRequest"
       },
       "ClaimPitchSlot": {
         "properties": {

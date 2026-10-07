@@ -32,6 +32,7 @@ from projet.services.auth import (
     issue_password_reset,
     load_actor,
     register_account,
+    set_company_user_email,
     set_password,
     start_session,
     validate_password,
@@ -350,6 +351,40 @@ def sign_in_with_admin_code(
 @router.get("/me", response_model=ActorResponse)
 def me(actor: Actor = Depends(require_actor)) -> ActorResponse:
     return ActorResponse.of(actor)
+
+
+class ChangeEmailRequest(BaseModel):
+    email: str = Field(max_length=320)
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, value: str) -> str:
+        if not looks_like_email(value):
+            raise ValueError("That does not look like an email address.")
+        return value
+
+
+@router.patch("/me/email", response_model=ActorResponse)
+def change_my_email(
+    payload: ChangeEmailRequest,
+    actor: Actor = Depends(require_actor),
+    db: Session = Depends(get_session),
+) -> ActorResponse:
+    """Self-service login-email change. Company users only for now — a
+    participant's address lives on a different column (contact_email), so
+    this would need its own path rather than reusing this one."""
+    if actor.actor_type != ActorType.COMPANY_USER:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+
+    try:
+        set_company_user_email(db, actor.id, payload.email)
+    except AuthError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    db.commit()
+
+    updated = load_actor(db, actor.actor_type, actor.id)
+    assert updated is not None
+    return ActorResponse.of(updated)
 
 
 @router.get("/session", response_model=ActorResponse | None)
