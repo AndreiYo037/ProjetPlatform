@@ -401,6 +401,9 @@ export const setPitchSchedule = (
 export const getListing = (company: string, programme: string) =>
   api.get<PublicListing>(`/public/x/${company}/${programme}`);
 
+export const checkAccessCode = (company: string, programme: string, code: string) =>
+  api.post<{ valid: boolean }>(`/public/x/${company}/${programme}/check-access-code`, { code });
+
 export const listCompanyChallenges = (company: string) =>
   api.get<PublicListingSummary[]>(`/public/x/${company}`);
 

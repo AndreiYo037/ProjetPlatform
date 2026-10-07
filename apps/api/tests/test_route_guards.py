@@ -59,6 +59,10 @@ PUBLIC: dict[tuple[str, str], str] = {
     # The advertised challenge and its application form (FR-030).
     ("GET", "/public/x/{company_slug}/{programme_slug}"): "the public listing",
     ("POST", "/public/x/{company_slug}/{programme_slug}/apply"): "applying precedes an account",
+    (
+        "POST",
+        "/public/x/{company_slug}/{programme_slug}/check-access-code",
+    ): "lets the apply gate reject a wrong code before sign-in, same as apply itself checks it",
     ("POST", "/public/x/{company_slug}/{programme_slug}/notify-me"): "interest in a closed listing",
     ("GET", "/public/x/{company_slug}"): "a company's own careers page (FR-104)",
     ("GET", "/public/challenges"): "the platform-wide directory (FR-105)",

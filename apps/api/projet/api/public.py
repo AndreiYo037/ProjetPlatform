@@ -169,6 +169,19 @@ def _company_website(company: Company) -> str | None:
     return url or None
 
 
+def _apply_code_matches(programme: Programme, provided: str | None) -> bool:
+    """Same comparison the apply submission uses, shared so the gate on the
+    listing page can check a code without creating an application."""
+    expected = "".join((programme.apply_access_code or "").split()).upper()
+    candidate = "".join((provided or "").split()).upper()
+    return (
+        bool(expected)
+        and bool(candidate)
+        and len(candidate) == len(expected)
+        and secrets.compare_digest(candidate, expected)
+    )
+
+
 def _summarize(db: Session, programme: Programme, company: Company) -> PublicListingSummary:
     from projet.services.rubric import load_programme_roles
 
@@ -423,6 +436,42 @@ class ApplicationAccepted(BaseModel):
     google_email_warning: str | None = None
 
 
+class AccessCodeCheck(BaseModel):
+    code: str = Field(max_length=32)
+
+
+class AccessCodeResult(BaseModel):
+    valid: bool
+
+
+@router.post(
+    "/x/{company_slug}/{programme_slug}/check-access-code",
+    response_model=AccessCodeResult,
+)
+def check_access_code(
+    company_slug: str,
+    programme_slug: str,
+    payload: AccessCodeCheck,
+    db: Session = Depends(get_session),
+) -> AccessCodeResult:
+    """Lets the apply-gate page tell a wrong code apart from a right one
+    before the applicant fills in the rest of the form — the apply endpoint
+    itself still re-checks it, this is purely so the error shows up early."""
+    company = db.scalar(select(Company).where(Company.slug == company_slug))
+    programme = (
+        db.scalar(
+            select(Programme)
+            .where(Programme.company_id == company.id)
+            .where(Programme.slug == programme_slug)
+        )
+        if company
+        else None
+    )
+    if company is None or programme is None or not programme.onsite:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+    return AccessCodeResult(valid=_apply_code_matches(programme, payload.code))
+
+
 @router.post(
     "/x/{company_slug}/{programme_slug}/apply",
     response_model=ApplicationAccepted,
@@ -474,21 +523,11 @@ async def apply(
         raise HTTPException(status.HTTP_409_CONFLICT, "Applications are closed.")
 
     onsite = programme.onsite
-    if onsite:
-        expected = "".join((programme.apply_access_code or "").split()).upper()
-        provided = "".join((access_code or "").split()).upper()
-        # compare_digest requires equal length; mismatch is just a wrong code.
-        ok = (
-            bool(expected)
-            and bool(provided)
-            and len(provided) == len(expected)
-            and secrets.compare_digest(provided, expected)
+    if onsite and not _apply_code_matches(programme, access_code):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "That access code is not valid for this challenge.",
         )
-        if not ok:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN,
-                "That access code is not valid for this challenge.",
-            )
     if not (name or "").strip():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Name is required.")
     if not looks_like_email(contact_email):

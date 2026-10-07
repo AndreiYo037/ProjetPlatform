@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { checkAccessCode } from "@/lib/api";
 import { storeApplyCode } from "@/lib/onsite-apply-code";
 
 /**
@@ -22,13 +23,28 @@ export default function OnsiteApplyGate({
   const router = useRouter();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
-  function continueApply(event: React.FormEvent) {
+  async function continueApply(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = code.trim();
     if (!trimmed) {
       setError("Enter the access code from the organisers.");
       return;
+    }
+    setChecking(true);
+    setError(null);
+    try {
+      const result = await checkAccessCode(company, programme, trimmed);
+      if (!result.valid) {
+        setError("That code isn't right. Check with the organisers and try again.");
+        return;
+      }
+    } catch {
+      setError("Couldn't check that code right now. Try again.");
+      return;
+    } finally {
+      setChecking(false);
     }
     storeApplyCode(company, programme, trimmed);
     if (signedIn) {
@@ -61,7 +77,9 @@ export default function OnsiteApplyGate({
         />
       </div>
       {error && <div className="notice bad">{error}</div>}
-      <button type="submit">{signedIn ? "Continue to apply" : "Sign in to apply"}</button>
+      <button type="submit" disabled={checking}>
+        {checking ? "Checking…" : signedIn ? "Continue to apply" : "Sign in to apply"}
+      </button>
     </form>
   );
 }

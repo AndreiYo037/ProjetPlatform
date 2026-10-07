@@ -3734,6 +3734,68 @@
         }
       }
     },
+    "/public/x/{company_slug}/{programme_slug}/check-access-code": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Check Access Code",
+        "description": "Lets the apply-gate page tell a wrong code apart from a right one\nbefore the applicant fills in the rest of the form \u2014 the apply endpoint\nitself still re-checks it, this is purely so the error shows up early.",
+        "operationId": "check_access_code_public_x__company_slug___programme_slug__check_access_code_post",
+        "parameters": [
+          {
+            "name": "company_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Company Slug"
+            }
+          },
+          {
+            "name": "programme_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Programme Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessCodeCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessCodeResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/public/x/{company_slug}/{programme_slug}/apply": {
       "post": {
         "tags": [
@@ -6139,6 +6201,33 @@
           "message"
         ],
         "title": "AcceptResponse"
+      },
+      "AccessCodeCheck": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "AccessCodeCheck"
+      },
+      "AccessCodeResult": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "title": "AccessCodeResult"
       },
       "ActorResponse": {
         "properties": {
