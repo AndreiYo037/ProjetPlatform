@@ -1,11 +1,11 @@
-"""Create and publish the 15 Startup Shuffle challenges, 1 role per challenge.
+"""Create and publish the Startup Shuffle challenges, 1 role per challenge.
 
-Companion to seed_startup_shuffle.py: that created the 8 company accounts,
+Companion to seed_startup_shuffle.py: that creates the company accounts,
 this creates each company's on-site challenges against the live public API
-(signup already done, so this just logs in). Hyphn is skipped — its Role &
-Challenge Template doc isn't accessible, so there's no content to post.
+(signup already done, so this just logs in). Hyphn and B71 SCAPS were added
+once their Role & Challenge Template docs became accessible/available.
 
-All 15: delivery_mode in_person, start_at/submit_deadline_at pinned to the
+All of these: delivery_mode in_person, start_at/submit_deadline_at pinned to the
 event (7 Oct 2026, 6-10PM SGT), no capacity, no data pack. Each uses the role
 content verbatim from the founder's Role & Challenge Template doc, filed
 under the closest matching role in the platform's fixed taxonomy (there's no
@@ -580,6 +580,92 @@ CHALLENGES: list[Challenge] = [
             "Written proposal or deck with a prioritised partner shortlist, the reasoning "
             "behind the ranking, a one-page value proposition for your top segment, and a "
             "draft approach plan or outreach message."
+        ),
+    },
+    {
+        "email": "verrell88.kc@gmail.com",
+        "title": "Engineering Intern",
+        "slug": "engineering-intern",
+        "role_name": "Mechanical / Civil / Chemical",
+        "problem_statement": (
+            "Duration: Sept-Dec 2027. Working arrangement: In person. Expected commitment: Min "
+            "5 hrs/week. Key responsibilities: Support the development and scale-up of Hyphn's "
+            "mycelium material production process. Conduct growth experiments, optimise "
+            "substrate formulations and processing conditions, improve consistency between "
+            "batches, develop repeatable production procedures, and support the design of a "
+            "scalable manufacturing workflow from substrate preparation through growing, "
+            "moulding, drying and finishing.\n\n"
+            "Challenge — Mycelium Process Engineering Intern: Scale a Lab-Grown Material into "
+            "a Repeatable Production Process: Hyphn develops sustainable products using "
+            "mycelium-based materials. One of our key engineering challenges is moving from "
+            "small experimental batches toward a production process that is faster, more "
+            "consistent and scalable. You will investigate how factors such as substrate "
+            "composition, inoculation, moisture, temperature, humidity, mould geometry, "
+            "growth time and drying conditions affect material growth and quality. Using "
+            "experiments and process analysis, you will help identify bottlenecks, improve "
+            "process reliability and propose how the current workflow can be scaled to produce "
+            "larger quantities without compromising product quality.\n\n"
+            "Helpful resources: Existing Hyphn growth procedures and experimental data, "
+            "substrate and mycelium samples, moulds and prototype products, access to the "
+            "team's existing R&D framework, and guidance from the Hyphn team and research "
+            "collaborators.\n\n"
+            "Note: This is a hands-on engineering and R&D role. Students should be comfortable "
+            "running experiments, recording data and iterating when results are inconsistent. "
+            "Experience in chemical engineering, bioengineering, materials science, "
+            "biotechnology, mechanical engineering or related fields would be useful, but "
+            "prior experience with mycelium is not required. The work may involve biological "
+            "materials, laboratory equipment and prototype manufacturing processes."
+        ),
+        "deliverable_spec": (
+            "1. Experimental study and results identifying key parameters affecting mycelium "
+            "growth and material quality. 2. Recommended operating conditions and improved "
+            "growth protocol/SOP. 3. Process flow and proposed scale-up workflow for "
+            "higher-volume production. 4. Final presentation/report summarising findings, "
+            "experiments and recommendations."
+        ),
+    },
+    {
+        "email": "faithlum@u.nus.edu",
+        "title": "Marketing and Communications Associate",
+        "slug": "marketing-and-communications-associate",
+        "role_name": "Social Media Management",
+        "problem_statement": (
+            "Duration: Now - Dec 2027 (can be discussed). Working arrangement: Hybrid. "
+            "Expected commitment: Min. 6 hrs/week. Key responsibilities: Content & Social — "
+            "manage the Instagram/LinkedIn calendar, draft and schedule content to the startup "
+            "community, identify storytelling angles around our startups and founders. "
+            "On-Ground Capture — be the lens of the community, capture photos and videos at "
+            "events, cohort onboarding days, and community gatherings. Fast-Turnaround Editing "
+            "— edit short-form video content (using CapCut/Adobe tools) for social pushes. "
+            "Design & Creative — create sharp, consistent digital assets for events and "
+            "campaigns using Canva. Campaign Support — assist with comms for workshops, cohort "
+            "announcements, and student outreach campaigns. Job requirements: content strategy "
+            "& planning; visual production in photography and videography; digital editing "
+            "proficiency (CapCut or basic Adobe Suite for fast-turnaround); design & brand "
+            "consistency (Canva, adhering to brand standards).\n\n"
+            "Challenge: Develop a repeatable content series that tells the stories of B71's "
+            "startup and student founder community. The initiative should give audiences a "
+            "reason to follow B71 beyond event publicity, while being realistic for a small "
+            "team (1-2 people max) to produce consistently. The format is open — e.g. a "
+            "podcast/interview series, founder features, short-form video series or another "
+            "recurring concept — but it should be designed to continue beyond a single "
+            "campaign.\n\n"
+            "Helpful resources: B71 SEC New Brandkit: "
+            "https://drive.google.com/file/d/1xFsKGSRKnkdXbvwqe2TBtoYbxP55oB00/view?usp=drive_link "
+            "(no need to use the logo).\n\n"
+            "Note: Be realistic but creative with themes and concepts! Don't be boring."
+        ),
+        "deliverable_spec": (
+            "Develop a detailed content series plan covering: Concept & audience — series "
+            "idea, objectives, target audience & why it would resonate. Content format — "
+            "recurring structure, topics/themes, platforms & publishing cadence. Execution — "
+            "how each instalment would be sourced, filmed/designed, edited and published. "
+            "Content rollout — how one feature can be repurposed across Instagram, LinkedIn "
+            "and other relevant channels. Sample creative — produce/mock up one instalment, "
+            "including key visuals and copy (use Canva/Adobe or any other relevant "
+            "application/software). Continuation plan — a practical workflow/template that "
+            "allows B71 to keep the series running consistently. Focus on building a "
+            "recognisable, sustainable B71 content property, not a one-off post or campaign."
         ),
     },
 ]

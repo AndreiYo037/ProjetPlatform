@@ -105,6 +105,13 @@ COMPANIES: list[CompanySeed] = [
         "logo_domain": None,
         "logo_page": "https://www.linkedin.com/company/acornlabssg/",
     },
+    {
+        "email": "faithlum@u.nus.edu",
+        "name": "B71 SCAPS",
+        "website_url": "",
+        "logo_domain": None,
+        "logo_page": "",
+    },
 ]
 
 _OG_IMAGE_RE = re.compile(

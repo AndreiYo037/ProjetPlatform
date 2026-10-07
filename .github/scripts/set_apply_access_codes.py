@@ -87,6 +87,16 @@ TARGETS: list[Target] = [
         "slug": "business-partnerships-intern",
         "title": "Business & Partnerships Intern",
     },
+    {
+        "email": "verrell88.kc@gmail.com",
+        "slug": "engineering-intern",
+        "title": "Engineering Intern",
+    },
+    {
+        "email": "faithlum@u.nus.edu",
+        "slug": "marketing-and-communications-associate",
+        "title": "Marketing and Communications Associate",
+    },
 ]
 
 
