@@ -31,6 +31,7 @@ ACCOUNT_BY_KEY = {
     "acorn-labs": "eugenewang1227@gmail.com",
     "hyphn": "verrell88.kc@gmail.com",
     "b71-scaps": "faithlum@u.nus.edu",
+    "flow-coffee": "zqingyuan@flowcoffee.sg",
 }
 
 CONTENT_TYPE_BY_SUFFIX = {
