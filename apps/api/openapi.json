@@ -449,6 +449,58 @@
         }
       }
     },
+    "/auth/me/logout-everywhere": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout Everywhere",
+        "description": "Revoke every live session for this account, this one included \u2014 a\nstronger version of /logout for \"something is wrong, sign me out\neverywhere\" rather than just this browser.",
+        "operationId": "logout_everywhere_auth_me_logout_everywhere_post",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Logout Everywhere Auth Me Logout Everywhere Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/auth/session": {
       "get": {
         "tags": [

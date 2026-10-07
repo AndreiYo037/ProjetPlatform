@@ -32,6 +32,7 @@ from projet.services.auth import (
     issue_password_reset,
     load_actor,
     register_account,
+    revoke_all_sessions,
     set_company_user_email,
     set_password,
     start_session,
@@ -409,6 +410,21 @@ def change_my_password(
     updated = load_actor(db, actor.actor_type, actor.id)
     assert updated is not None
     return ActorResponse.of(updated)
+
+
+@router.post("/me/logout-everywhere")
+def logout_everywhere(
+    response: Response,
+    actor: Actor = Depends(require_actor),
+    db: Session = Depends(get_session),
+) -> dict:
+    """Revoke every live session for this account, this one included — a
+    stronger version of /logout for "something is wrong, sign me out
+    everywhere" rather than just this browser."""
+    revoked = revoke_all_sessions(db, actor.actor_type, actor.id)
+    db.commit()
+    response.delete_cookie(SESSION_COOKIE, path="/")
+    return {"revoked": revoked}
 
 
 @router.get("/session", response_model=ActorResponse | None)
