@@ -982,10 +982,20 @@ a.challenge-card:hover {
   margin-bottom: 0.7rem;
 }
 
+.challenge-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
 .challenge-company {
   font-size: 0.85rem;
   font-weight: 560;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Takes the slack so every card's footer lands on the same line. */

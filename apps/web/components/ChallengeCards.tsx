@@ -50,12 +50,17 @@ export default function ChallengeCards({ items }: { items: PublicListingSummary[
             className="card challenge-card"
           >
             <div className="challenge-top">
-              {item.company_logo_url ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img className="challenge-logo" src={assetUrl(item.company_logo_url)} alt="" />
-              ) : (
+              <div className="challenge-brand">
+                {item.company_logo_url && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    className="challenge-logo"
+                    src={assetUrl(item.company_logo_url)}
+                    alt={item.company}
+                  />
+                )}
                 <span className="challenge-company">{item.company}</span>
-              )}
+              </div>
               {onsite ? (
                 startLabel && (
                   <span className={`tag ${appsOpen ? "open" : ""}`}>{startLabel}</span>
