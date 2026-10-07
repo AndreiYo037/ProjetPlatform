@@ -32,6 +32,7 @@ ACCOUNT_BY_KEY = {
     "hyphn": "verrell88.kc@gmail.com",
     "b71-scaps": "faithlum@u.nus.edu",
     "flow-coffee": "zqingyuan@flowcoffee.sg",
+    "royo-material": "royomaterial@royomaterial.com",
 }
 
 CONTENT_TYPE_BY_SUFFIX = {

@@ -119,6 +119,13 @@ COMPANIES: list[CompanySeed] = [
         "logo_domain": "flowcoffee.sg",
         "logo_page": "https://www.flowcoffee.sg/",
     },
+    {
+        "email": "royomaterial@royomaterial.com",
+        "name": "ROYO Material",
+        "website_url": "https://royomaterial.com/pages/sustainability",
+        "logo_domain": "royomaterial.com",
+        "logo_page": "https://royomaterial.com/pages/sustainability",
+    },
 ]
 
 _OG_IMAGE_RE = re.compile(

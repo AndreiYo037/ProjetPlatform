@@ -702,6 +702,39 @@ CHALLENGES: list[Challenge] = [
             "S$1,000, and how would you measure success?"
         ),
     },
+    {
+        "email": "royomaterial@royomaterial.com",
+        "title": "Find new clients",
+        "slug": "find-new-clients",
+        "role_name": "Business Development / Partnerships",
+        "problem_statement": (
+            "Duration: Nov 2027 - Jun 2028. Working arrangement: On-site. Expected commitment: "
+            "Min 30 hrs/week. Key responsibilities: Support exploring and engaging with new "
+            "clients.\n\n"
+            "Challenge — Find new clients: Imagine now you are the salesperson of ROYO "
+            "Material. What are the different ways you plan to use to find and acquire new "
+            "clients for ROYO Material?\n\n"
+            "Helpful resources: ROYO Material Website is at: www.royomaterial.com"
+        ),
+        "deliverable_spec": (
+            "An explanation of the methods and steps you will use in finding new clients for "
+            "ROYO Material."
+        ),
+    },
+    {
+        "email": "royomaterial@royomaterial.com",
+        "title": "Design a product",
+        "slug": "design-a-product",
+        "role_name": "Industrial Design",
+        "problem_statement": (
+            "Duration: Nov - Jan. Working arrangement: On-site. Expected commitment: Min 30 "
+            "hrs/week. Key responsibilities: Handle graphic and product design need of ROYO.\n\n"
+            "Challenge — Design a product: Design a wallet for ROYO Material, given that ROYO "
+            "Material is a sustainable material made using paper waste.\n\n"
+            "Helpful resources: ROYO Material Website is at: www.royomaterial.com"
+        ),
+        "deliverable_spec": "An image of the wallet you designed for ROYO Material.",
+    },
 ]
 
 

@@ -102,6 +102,16 @@ TARGETS: list[Target] = [
         "slug": "brand-growth-and-partnerships-intern",
         "title": "Brand Growth & Partnerships Intern",
     },
+    {
+        "email": "royomaterial@royomaterial.com",
+        "slug": "find-new-clients",
+        "title": "Find new clients",
+    },
+    {
+        "email": "royomaterial@royomaterial.com",
+        "slug": "design-a-product",
+        "title": "Design a product",
+    },
 ]
 
 
