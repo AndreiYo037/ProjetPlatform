@@ -10,7 +10,7 @@ import {
   type SubmissionOut,
 } from "@/lib/api";
 import { formatSlot } from "@/lib/dates";
-import { SHOW_SUBMISSION_MEMO } from "@/lib/features";
+import { SHOW_RUBRICS, SHOW_SUBMISSION_MEMO } from "@/lib/features";
 import { autosaveLabel, useAutosave } from "@/lib/useAutosave";
 
 const SLOT_LABELS: Record<string, string> = {
@@ -240,8 +240,9 @@ export default function SubmissionPanel({
           {justSubmitted && submission.submitted_at && (
             <div className="notice good">
               Submitted {formatSubmittedAt(submission.submitted_at)}. Pick a
-              pitch timeslot under How you&apos;re judged. You can keep making
-              changes and submit again any time before the deadline.
+              pitch timeslot under {SHOW_RUBRICS ? "How you're judged" : "Your pitch"}.
+              You can keep making changes and submit again any time before the
+              deadline.
             </div>
           )}
           <button onClick={submit} disabled={!complete || busy !== null}>
