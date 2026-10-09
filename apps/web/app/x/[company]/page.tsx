@@ -25,6 +25,14 @@ export default async function CompanyChallengesPage({
   const companyName = items[0]?.company ?? company;
   const logo = items[0]?.company_logo_url;
   const website = externalHref(items[0]?.company_website_url);
+  const active = items.filter((item) => item.state !== "complete");
+  const past = items
+    .filter((item) => item.state === "complete")
+    .sort((a, b) => {
+      const aEnd = a.submit_deadline_at ?? a.start_at ?? "";
+      const bEnd = b.submit_deadline_at ?? b.start_at ?? "";
+      return bEnd.localeCompare(aEnd);
+    });
 
   return (
     <main>
@@ -56,7 +64,15 @@ export default async function CompanyChallengesPage({
       {items.length === 0 ? (
         <p className="muted">No published challenges yet.</p>
       ) : (
-        <ChallengeCards items={items} />
+        <>
+          {active.length > 0 && <ChallengeCards items={active} />}
+          {past.length > 0 && (
+            <>
+              <h2 style={{ marginTop: active.length > 0 ? "2.5rem" : 0 }}>Past challenges</h2>
+              <ChallengeCards items={past} />
+            </>
+          )}
+        </>
       )}
     </main>
   );

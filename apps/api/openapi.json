@@ -3752,7 +3752,7 @@
           "public"
         ],
         "summary": "Platform Directory",
-        "description": "FR-105 \u2014 every active programme across companies, for a browse page.\n\nActive means the week is not over yet: both accepting applications (`open`)\nand still running with applications shut (`closed`). A programme the company\nhas closed out, or whose week is over, drops off. The single-company\nlisting above also shows complete ones, since a company's own careers page\nis a different audience.",
+        "description": "FR-105 \u2014 every programme across companies, for a browse page.\n\nActive (accepting applications or still running with the window shut) and\npast (the week is over) both show here, so a browser sees the full\npicture \u2014 a past challenge still shows what a company asked for and what\n\"complete\" looks like. A past one drops off LISTING_RETENTION after it\nends, not the moment it ends.",
         "operationId": "platform_directory_public_challenges_get",
         "parameters": [
           {

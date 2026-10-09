@@ -34,13 +34,24 @@ export default async function ChallengesPage({
         (item.clusters?.length ? item.clusters : [item.cluster]).includes(cluster),
       )
     : all;
+  const active = items.filter((item) => item.state !== "complete");
+  // Most recently ended first — that's what "recently" means to a browser,
+  // not the ascending apply-by order the active list sorts by.
+  const past = items
+    .filter((item) => item.state === "complete")
+    .sort((a, b) => {
+      const aEnd = a.submit_deadline_at ?? a.start_at ?? "";
+      const bEnd = b.submit_deadline_at ?? b.start_at ?? "";
+      return bEnd.localeCompare(aEnd);
+    });
 
   return (
     <main>
       <h1>Challenges</h1>
       <p className="lede">
         Live problems from real companies. Apply while the window is open — closed
-        windows still show until the challenge week ends.
+        windows still show until the challenge week ends, and a finished challenge
+        stays visible for two weeks after.
       </p>
 
       {clusters.length > 0 && (
@@ -60,14 +71,24 @@ export default async function ChallengesPage({
         </div>
       )}
 
-      {items.length === 0 ? (
+      {active.length === 0 ? (
         <p className="muted">
           {cluster
             ? "No active challenges in this cluster right now."
             : "No active challenges right now — check back soon."}
         </p>
       ) : (
-        <ChallengeCards items={items} />
+        <ChallengeCards items={active} />
+      )}
+
+      {past.length > 0 && (
+        <>
+          <h2 style={{ marginTop: "2.5rem" }}>Past challenges</h2>
+          <p className="small muted" style={{ marginTop: "-0.5rem" }}>
+            Finished challenges stay here for two weeks after they end.
+          </p>
+          <ChallengeCards items={past} />
+        </>
       )}
     </main>
   );

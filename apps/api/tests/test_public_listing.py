@@ -231,6 +231,56 @@ def test_a_closed_programme_drops_off_the_directory(client, session, admin, role
     assert "closed-out" not in slugs
 
 
+def test_a_naturally_ended_programme_still_lists_as_past_within_retention(
+    client, session, admin, roles
+):
+    """The submit deadline passing on its own, with status unchanged, still
+    shows up — just as state "complete" — until LISTING_RETENTION passes."""
+    import uuid
+
+    from projet.models import Programme
+    from projet.models.base import utcnow
+
+    role_id = roles["data-analytics"].id
+    acme = make_company(client, session, admin, name="AcmeEnded", slug="acme-ended")
+    programme_id = make_programme(
+        client, session, admin, company_id=acme, role_id=role_id,
+        title="Ran its course", slug="ran-its-course",
+    )
+    programme = session.get(Programme, uuid.UUID(programme_id))
+    assert programme is not None
+    programme.submit_deadline_at = utcnow() - timedelta(days=3)
+    session.flush()
+
+    client.cookies.clear()
+    body = client.get("/public/challenges").json()
+    row = next((r for r in body if r["programme_slug"] == "ran-its-course"), None)
+    assert row is not None
+    assert row["state"] == "complete"
+
+
+def test_a_naturally_ended_programme_drops_off_after_retention(client, session, admin, roles):
+    import uuid
+
+    from projet.models import Programme
+    from projet.models.base import utcnow
+
+    role_id = roles["data-analytics"].id
+    acme = make_company(client, session, admin, name="AcmeStale", slug="acme-stale")
+    programme_id = make_programme(
+        client, session, admin, company_id=acme, role_id=role_id,
+        title="Long over", slug="long-over",
+    )
+    programme = session.get(Programme, uuid.UUID(programme_id))
+    assert programme is not None
+    programme.submit_deadline_at = utcnow() - timedelta(days=15)
+    session.flush()
+
+    client.cookies.clear()
+    slugs = [row["programme_slug"] for row in client.get("/public/challenges").json()]
+    assert "long-over" not in slugs
+
+
 def test_the_directory_filters_by_role_slug(client, session, admin, roles):
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="Acme4", slug="acme4")

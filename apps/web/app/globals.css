@@ -973,6 +973,17 @@ a.challenge-card:hover {
   color: inherit;
 }
 
+/* A past challenge still opens and reads the same — it just shouldn't read
+   as live. Dimmed rather than hidden: the point of keeping it listed is that
+   someone can still see it. */
+a.challenge-card.challenge-past {
+  opacity: 0.6;
+}
+
+a.challenge-card.challenge-past:hover {
+  opacity: 0.85;
+}
+
 .challenge-top {
   display: flex;
   align-items: flex-start;

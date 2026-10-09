@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import secrets
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
@@ -98,6 +98,33 @@ class PublicListing(BaseModel):
 
 # Temporary: accept applications before start for these on-site slugs only.
 _ONSITE_EARLY_APPLY_SLUGS = frozenset({"business-partnerships-intern"})
+
+# How long a finished challenge stays visible in the public listings after it
+# ends, before dropping off entirely — a past challenge is still worth seeing
+# for a while, just not forever.
+LISTING_RETENTION = timedelta(days=14)
+
+
+def _past_retention(programme: Programme, now: datetime) -> bool:
+    """Whether a finished challenge should no longer appear in the public
+    listings — true both for one that has fully aged out and for one a
+    company closed out early.
+
+    A company setting status to COMPLETE while its own schedule still has
+    time left is a deliberate "stop showing this" — it leaves immediately,
+    no 14-day grace period, same as before this window existed. A challenge
+    that simply ran its course (the submit deadline or pitch date passed on
+    its own) is the case LISTING_RETENTION is for: it stays past-but-visible
+    for a while rather than vanishing the instant the clock passes. With no
+    end date at all there is nothing to count 14 days from, so it never
+    expires that way — DRAFT exclusion is the only gate left for those.
+    """
+    if programme.status == ProgrammeStatus.COMPLETE and not programme_is_past(programme, now):
+        return True
+    end = programme.submit_deadline_at or programme.pitch_at
+    if end is None:
+        return False
+    return (now - end) > LISTING_RETENTION
 
 
 def _state(programme: Programme) -> str:
@@ -243,12 +270,15 @@ def company_listing(
     if company is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
 
+    now = utcnow()
     programmes = db.scalars(
         select(Programme)
         .where(Programme.company_id == company.id)
         .where(Programme.status != ProgrammeStatus.DRAFT)
     )
-    summaries = [_summarize(db, p, company) for p in programmes]
+    summaries = [
+        _summarize(db, p, company) for p in programmes if not _past_retention(p, now)
+    ]
     summaries.sort(key=_sort_key)
     return summaries
 
@@ -261,19 +291,16 @@ def platform_directory(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_session),
 ) -> list[PublicListingSummary]:
-    """FR-105 — every active programme across companies, for a browse page.
+    """FR-105 — every programme across companies, for a browse page.
 
-    Active means the week is not over yet: both accepting applications (`open`)
-    and still running with applications shut (`closed`). A programme the company
-    has closed out, or whose week is over, drops off. The single-company
-    listing above also shows complete ones, since a company's own careers page
-    is a different audience.
+    Active (accepting applications or still running with the window shut) and
+    past (the week is over) both show here, so a browser sees the full
+    picture — a past challenge still shows what a company asked for and what
+    "complete" looks like. A past one drops off LISTING_RETENTION after it
+    ends, not the moment it ends.
     """
-    query = (
-        select(Programme)
-        .where(Programme.status != ProgrammeStatus.DRAFT)
-        .where(Programme.status != ProgrammeStatus.COMPLETE)
-    )
+    now = utcnow()
+    query = select(Programme).where(Programme.status != ProgrammeStatus.DRAFT)
     if role_slug is not None:
         role = db.scalar(select(Role).where(Role.slug == role_slug))
         if role is None:
@@ -287,9 +314,9 @@ def platform_directory(
         company = companies.get(programme.company_id)
         if company is None:
             continue
-        summary = _summarize(db, programme, company)
-        if summary.state == "complete":
+        if _past_retention(programme, now):
             continue
+        summary = _summarize(db, programme, company)
         if cluster is not None and cluster not in summary.clusters:
             continue
         summaries.append(summary)

@@ -41,13 +41,14 @@ export default function ChallengeCards({ items }: { items: PublicListingSummary[
       {items.map((item) => {
         const onsite = item.delivery_mode === "in_person";
         const appsOpen = item.state === "open";
+        const isPast = item.state === "complete";
         const clusters = (item.clusters?.length ? item.clusters : [item.cluster]).filter(Boolean);
         const startLabel = onsite ? onsiteStartLabel(item) : null;
         return (
           <Link
             key={`${item.company_slug}/${item.programme_slug}`}
             href={`/x/${item.company_slug}/${item.programme_slug}`}
-            className="card challenge-card"
+            className={`card challenge-card${isPast ? " challenge-past" : ""}`}
           >
             <div className="challenge-top">
               <div className="challenge-brand">
@@ -62,8 +63,12 @@ export default function ChallengeCards({ items }: { items: PublicListingSummary[
                 <span className="challenge-company">{item.company}</span>
               </div>
               {onsite ? (
-                startLabel && (
-                  <span className={`tag ${appsOpen ? "open" : ""}`}>{startLabel}</span>
+                isPast ? (
+                  <span className="tag">Past</span>
+                ) : (
+                  startLabel && (
+                    <span className={`tag ${appsOpen ? "open" : ""}`}>{startLabel}</span>
+                  )
                 )
               ) : (
                 <span className={`tag ${appsOpen ? "open" : "closed"}`}>
