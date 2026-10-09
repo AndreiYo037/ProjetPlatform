@@ -210,6 +210,7 @@ function ProgrammePageInner() {
             submission={data.submission}
             programmeId={data.programme.id}
             startAt={data.programme.start_at}
+            onsite={onsite}
             onChange={load}
           />
         </>

@@ -34,11 +34,13 @@ export default function SubmissionPanel({
   submission,
   programmeId,
   startAt = null,
+  onsite = false,
   onChange,
 }: {
   submission: SubmissionOut | null;
   programmeId?: string;
   startAt?: string | null;
+  onsite?: boolean;
   onChange: () => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -226,12 +228,14 @@ export default function SubmissionPanel({
         <div className="panel" style={{ marginTop: "1rem" }}>
           {!complete && (
             <p className="small muted" style={{ marginTop: 0 }}>
-              {SHOW_SUBMISSION_MEMO
-                ? "Fill every slot — a link, or a file you have uploaded — then submit. That is what opens a pitch timeslot."
-                : "Paste your work link, then submit. That is what opens a pitch timeslot."}
+              {onsite
+                ? "Fill every slot — a link, or a file you have uploaded — then submit."
+                : SHOW_SUBMISSION_MEMO
+                  ? "Fill every slot — a link, or a file you have uploaded — then submit. That is what opens a pitch timeslot."
+                  : "Paste your work link, then submit. That is what opens a pitch timeslot."}
             </p>
           )}
-          {complete && !handedIn && (
+          {complete && !handedIn && !onsite && (
             <p className="small muted" style={{ marginTop: 0 }}>
               Submit to hand this in. Then you can pick a pitch timeslot.
             </p>
@@ -239,10 +243,12 @@ export default function SubmissionPanel({
           {submitError && <div className="notice bad">{submitError}</div>}
           {justSubmitted && submission.submitted_at && (
             <div className="notice good">
-              Submitted {formatSubmittedAt(submission.submitted_at)}. Pick a
-              pitch timeslot under {SHOW_RUBRICS ? "How you're judged" : "Your pitch"}.
-              You can keep making changes and submit again any time before the
-              deadline.
+              Submitted {formatSubmittedAt(submission.submitted_at)}.
+              {onsite
+                ? " You can keep making changes and submit again any time before the deadline."
+                : ` Pick a pitch timeslot under ${
+                    SHOW_RUBRICS ? "How you're judged" : "Your pitch"
+                  }. You can keep making changes and submit again any time before the deadline.`}
             </div>
           )}
           <button onClick={submit} disabled={!complete || busy !== null}>
