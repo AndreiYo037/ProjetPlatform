@@ -1,0 +1,31 @@
+name: Create Hack n Hire challenges
+
+# Manual trigger. Password and access code are run inputs, masked in logs.
+on:
+  workflow_dispatch:
+    inputs:
+      company_password:
+        description: "Password for the company accounts"
+        required: true
+      access_code:
+        description: "On-site apply access code"
+        required: true
+
+jobs:
+  create:
+    name: Create and publish challenges
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask inputs
+        run: |
+          echo "::add-mask::${{ inputs.company_password }}"
+          echo "::add-mask::${{ inputs.access_code }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/create_hacknhire_challenges.py
+        env:
+          COMPANY_PASSWORD: ${{ inputs.company_password }}
+          ACCESS_CODE: ${{ inputs.access_code }}
