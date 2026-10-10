@@ -1,0 +1,23 @@
+name: Seed Hack n Hire accounts
+
+# Manual trigger. The account password is a run input, never committed.
+on:
+  workflow_dispatch:
+    inputs:
+      company_password:
+        description: "Password for the company accounts"
+        required: true
+
+jobs:
+  seed:
+    name: Create company accounts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/seed_hacknhire.py
+        env:
+          COMPANY_PASSWORD: ${{ inputs.company_password }}
