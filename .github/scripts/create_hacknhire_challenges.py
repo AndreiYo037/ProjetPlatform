@@ -96,22 +96,26 @@ CHALLENGES: list[Challenge] = [
         "role_names": ["Business Development / Partnerships", "AI / AI Engineering"],
         "problem_statement": (
             "Problem statement: How might we develop a scalable strategy to generate "
-            "qualified leads and drive sales among homeowners?\n\n"
-            "Teams may explore cold emailing a sizeable list of relevant people, aiming for a "
-            "strong positive response rate, while using AI tools and free resources. They may "
-            "also choose to create a conversion-focused website, with or without AI, and "
-            "apply effective copywriting techniques that are direct, concise, and "
-            "storytelling-driven."
+            "qualified leads and drive sales across both B2C and B2B markets?\n\n"
+            "Teams may explore cold emailing a sizeable list of relevant prospects, aiming "
+            "for a strong positive response rate, while leveraging AI tools and free "
+            "resources. They may target individual consumers (B2C) or businesses (B2B), "
+            "depending on their chosen market and strategy. Teams may also choose to create "
+            "a conversion-focused website or landing page tailored to their target audience, "
+            "with or without AI, using effective copywriting techniques that are direct, "
+            "concise, and storytelling-driven."
         ),
         "deliverable_spec": (
-            "- Cold email a sizeable list of relevant people, aiming for a strong positive "
-            "response rate.\n"
-            "- Use AI tools and free resources.\n"
-            "- Learn and apply effective copywriting, including direct, concise, and "
-            "storytelling-based approaches.\n"
-            "- Choose to create a conversion-focused website targeting homeowners, with or "
-            "without AI.\n"
-            "- Develop a strategy that has the potential to scale."
+            "- Lead generation: Build and execute an outreach strategy targeting a sizeable "
+            "list of relevant B2C and/or B2B prospects.\n"
+            "- AI-powered execution: Use AI tools and free resources to improve prospect "
+            "research, outreach, and sales processes.\n"
+            "- Effective copywriting: Apply direct, concise, and storytelling-driven "
+            "approaches to cold emails and other marketing content.\n"
+            "- Conversion-focused website (optional): Create a website or landing page "
+            "tailored to your target audience, with or without AI.\n"
+            "- Scalable sales strategy: Develop a repeatable strategy with the potential to "
+            "scale lead generation, improve conversion rates, and drive sales."
         ),
     },
     {

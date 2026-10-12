@@ -1,0 +1,31 @@
+name: Update Hack n Hire challenge text
+
+# Manual trigger. Pushes the brief and deliverables from
+# create_hacknhire_challenges.py to one live challenge.
+on:
+  workflow_dispatch:
+    inputs:
+      company_password:
+        description: "Password for the company accounts"
+        required: true
+      slug:
+        description: "Challenge slug"
+        required: true
+
+jobs:
+  update:
+    name: Update challenge text
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask password
+        run: echo "::add-mask::${{ inputs.company_password }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python update_hacknhire_text.py
+        working-directory: .github/scripts
+        env:
+          COMPANY_PASSWORD: ${{ inputs.company_password }}
+          SLUG: ${{ inputs.slug }}
