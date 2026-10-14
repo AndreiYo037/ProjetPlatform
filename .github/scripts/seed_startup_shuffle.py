@@ -93,7 +93,7 @@ COMPANIES: list[CompanySeed] = [
     },
     {
         "email": "hello@thirdspacesmarketing.com",
-        "name": "Third Spaces Marketing / Beans&Beats",
+        "name": "Beans&Beats",
         "website_url": "https://thirdspacesmarketing.com",
         "logo_domain": "thirdspacesmarketing.com",
         "logo_page": "https://thirdspacesmarketing.com",
