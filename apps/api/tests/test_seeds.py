@@ -29,8 +29,7 @@ def test_split_source_refs_extracts_markdown_links():
     """A named source may carry a link; a category or company-specific thing
     ('sector datasets', 'their open-source repos') never gets one invented."""
     refs = split_source_refs(
-        "[SingStat](https://www.singstat.gov.sg), sector datasets, "
-        "[Kaggle](https://www.kaggle.com)"
+        "[SingStat](https://www.singstat.gov.sg), sector datasets, [Kaggle](https://www.kaggle.com)"
     )
     assert refs == [
         SourceRef(label="SingStat", url="https://www.singstat.gov.sg"),

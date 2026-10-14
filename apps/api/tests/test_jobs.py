@@ -102,7 +102,11 @@ def test_an_uploaded_slot_is_locked_but_not_requeued_for_snapshotting(
     participant.judging_session_id = judging_session.id
     submission = _submit(session, participant)
     set_upload(
-        session, submission, SubmissionSlot.MEMO, content=b"%PDF-1.4", filename="memo.pdf",
+        session,
+        submission,
+        SubmissionSlot.MEMO,
+        content=b"%PDF-1.4",
+        filename="memo.pdf",
         mime_type="application/pdf",
     )
     programme.submit_deadline_at = datetime.now(UTC) - timedelta(minutes=1)
@@ -245,9 +249,7 @@ def _booked_pitch(session, programme, participant_factory, *, excluded=False):
     return person
 
 
-def test_pitch_day_email_waits_until_midnight_sgt(
-    session, programme, participant_factory
-):
+def test_pitch_day_email_waits_until_midnight_sgt(session, programme, participant_factory):
     from projet.services.schedule import PROGRAMME_TZ
 
     _booked_pitch(session, programme, participant_factory)

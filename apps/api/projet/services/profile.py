@@ -129,9 +129,7 @@ def sync_profile_skills_from_tags(session: Session, participant_id: uuid.UUID) -
 
     tagged = set(
         session.scalars(
-            select(ScoreSkillTag.skill_id).where(
-                ScoreSkillTag.participant_id == participant_id
-            )
+            select(ScoreSkillTag.skill_id).where(ScoreSkillTag.participant_id == participant_id)
         )
     )
     for row in session.scalars(

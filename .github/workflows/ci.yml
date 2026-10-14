@@ -63,7 +63,11 @@ jobs:
           --health-retries 5
     env:
       PROJET_DATABASE_URL: postgresql+psycopg://projet:projet@localhost:5432/projet
-      PROJET_TEST_DATABASE_URL: postgresql+psycopg://projet:projet@localhost:5432/projet
+      # A separate, empty database for the tests. Migrate and seed run against
+      # `projet` above; tests insert their own fixtures (including skills with
+      # real names like "SQL") and expect to start from nothing, the same as
+      # the SQLite in-memory run.
+      PROJET_TEST_DATABASE_URL: postgresql+psycopg://projet:projet@localhost:5432/projet_test
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -77,6 +81,10 @@ jobs:
         run: |
           . .venv/bin/activate
           python -m projet.seeds.cli
+      - name: Create the empty test database
+        run: |
+          . .venv/bin/activate
+          python -c "import psycopg; c = psycopg.connect('postgresql://projet:projet@localhost:5432/projet', autocommit=True); c.execute('CREATE DATABASE projet_test')"
       - name: Tests against the production dialect
         # The only real Postgres verification available: JSONB, native UUID,
         # timestamptz and the expression index all behave differently to SQLite.

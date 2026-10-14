@@ -31,7 +31,9 @@ def client(session, google):
 
 
 def sign_in(client, session, participant) -> None:
-    _, raw = start_session(session, actor_type=ActorType.PARTICIPANT, subject_id=participant.person_id)
+    _, raw = start_session(
+        session, actor_type=ActorType.PARTICIPANT, subject_id=participant.person_id
+    )
     client.cookies.set(SESSION_COOKIE, raw)
 
 

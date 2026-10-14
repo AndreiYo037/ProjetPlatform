@@ -484,7 +484,10 @@ def test_a_company_signup_creates_an_owner(session):
     assert company.slug.startswith("company")
     assert (
         authenticate(
-            session, email="dana@startup.test", password="hunter22", actor_type=ActorType.COMPANY_USER
+            session,
+            email="dana@startup.test",
+            password="hunter22",
+            actor_type=ActorType.COMPANY_USER,
         )
         == subject_id
     )

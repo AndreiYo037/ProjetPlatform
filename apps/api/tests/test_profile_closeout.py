@@ -197,9 +197,7 @@ def test_a_participant_no_judge_scored_gets_no_credential(
     assert sat["sam"].person_id in issued
 
 
-def test_a_half_scored_card_does_not_earn_a_credential(
-    client, session, programme, manager, sat
-):
+def test_a_half_scored_card_does_not_earn_a_credential(client, session, programme, manager, sat):
     """The total is null until all four are rated, and that is the bar."""
     sign_in_company(client, session, manager)
     url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/score"
@@ -336,9 +334,7 @@ def test_the_portfolio_shows_attested_skills_with_the_attester(
     assert body["programme_count"] == 1
 
 
-def test_the_portfolio_never_carries_a_score(
-    client, session, programme, manager, sat, skill
-):
+def test_the_portfolio_never_carries_a_score(client, session, programme, manager, sat, skill):
     """FR-1004 - the participant sees the evidence, never the arithmetic."""
     sign_in_company(client, session, manager)
     score_fully(client, programme, sat["sam"], skill)
@@ -350,9 +346,7 @@ def test_the_portfolio_never_carries_a_score(
         assert leak not in raw, f"{leak!r} must not reach a participant"
 
 
-def test_a_testimonial_lands_on_the_profile_at_close(
-    client, session, programme, manager, sat
-):
+def test_a_testimonial_lands_on_the_profile_at_close(client, session, programme, manager, sat):
     sign_in_company(client, session, manager)
     url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
 
@@ -374,7 +368,9 @@ def test_a_testimonial_lands_on_the_profile_at_close(
 
     sign_in_participant(client, session, sat["sam"])
     assert client.get("/me/portfolio").json()["testimonials"] == []
-    notes = list(session.scalars(select(Outbox).where(Outbox.effect_type == "profile_updated_email")))
+    notes = list(
+        session.scalars(select(Outbox).where(Outbox.effect_type == "profile_updated_email"))
+    )
     assert not any("testimonial" in (row.payload.get("html_body") or "") for row in notes)
 
     sign_in_company(client, session, manager)
@@ -388,7 +384,9 @@ def test_a_testimonial_lands_on_the_profile_at_close(
     assert kept[0]["author_name"] == "Mo Manager"
     assert kept[0]["author_title"] == "Head of Data"
     assert kept[0]["company"] == "Acme Pte Ltd"
-    notes = list(session.scalars(select(Outbox).where(Outbox.effect_type == "profile_updated_email")))
+    notes = list(
+        session.scalars(select(Outbox).where(Outbox.effect_type == "profile_updated_email"))
+    )
     assert any("testimonial" in (row.payload.get("html_body") or "") for row in notes)
 
 
@@ -422,9 +420,7 @@ def test_editing_a_published_testimonial_does_not_unpublish_it(
     assert edited["body"] == "Good work, and a clear memo."
 
 
-def test_a_testimonial_is_read_back_as_your_own(
-    client, session, programme, company, manager, sat
-):
+def test_a_testimonial_is_read_back_as_your_own(client, session, programme, company, manager, sat):
     other = CompanyUser(
         company_id=company.id,
         name="Ren Reviewer",
@@ -442,9 +438,7 @@ def test_a_testimonial_is_read_back_as_your_own(
     assert client.get(url).json() is None
 
 
-def test_platform_staff_do_not_write_the_company_s_testimonial(
-    client, session, programme, sat
-):
+def test_platform_staff_do_not_write_the_company_s_testimonial(client, session, programme, sat):
     admin = PlatformUser(name="Andrei", email="andrei@projet.sg")
     session.add(admin)
     session.flush()

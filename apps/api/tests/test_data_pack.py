@@ -209,9 +209,7 @@ def test_the_public_listing_never_names_the_data_pack(client, programme_id):
     assert listing.json()["data_pack_preview"] == []
 
 
-def test_legacy_public_sources_are_hidden_from_the_company_pack(
-    client, session, programme_id
-):
+def test_legacy_public_sources_are_hidden_from_the_company_pack(client, session, programme_id):
     programme = session.get(Programme, uuid.UUID(programme_id))
     session.add(
         DataPackResource(
@@ -247,9 +245,7 @@ def test_a_resource_from_another_programme_is_not_reachable(client, session, pro
     assert response.status_code == 404
 
 
-def test_the_participant_dashboard_gets_the_included_pack_with_links(
-    client, session, programme_id
-):
+def test_the_participant_dashboard_gets_the_included_pack_with_links(client, session, programme_id):
     upload(client, programme_id, label="Q3 churn extract", confidential="true")
     dropped = add_link(client, programme_id, label="Superseded extract")
     client.patch(

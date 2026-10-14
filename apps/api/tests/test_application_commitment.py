@@ -136,9 +136,7 @@ def test_the_declaration_is_stored_with_the_application(client, listing, session
     _, raw = start_session(session, actor_type=ActorType.PLATFORM, subject_id=admin.id)
     client.cookies.set(SESSION_COOKIE, raw)
     applications = client.get(f"/programmes/{listing['id']}/applications").json()
-    detail = client.get(
-        f"/programmes/{listing['id']}/applications/{applications[0]['id']}"
-    ).json()
+    detail = client.get(f"/programmes/{listing['id']}/applications/{applications[0]['id']}").json()
     assert detail["availability_confirmed"] is True
 
 
@@ -148,9 +146,7 @@ def test_a_linkedin_profile_is_kept(client, listing, session, admin):
     _, raw = start_session(session, actor_type=ActorType.PLATFORM, subject_id=admin.id)
     client.cookies.set(SESSION_COOKIE, raw)
     applications = client.get(f"/programmes/{listing['id']}/applications").json()
-    detail = client.get(
-        f"/programmes/{listing['id']}/applications/{applications[0]['id']}"
-    ).json()
+    detail = client.get(f"/programmes/{listing['id']}/applications/{applications[0]['id']}").json()
     assert detail["linkedin_url"] == "https://linkedin.com/in/sam"
 
 
@@ -231,14 +227,14 @@ def test_point_3_uses_the_company_deliverable_not_the_role_default(session, role
     seed default that came with the role."""
     template = session.get(RoleTemplate, role.id)
     company_spec = (
-        "- A live deck of three churn views\n"
-        "- A half-page memo on which lever to pull first"
+        "- A live deck of three churn views\n- A half-page memo on which lever to pull first"
     )
     prompt = derive_writeup_prompt(role, template, deliverable=company_spec)
 
     assert "A live deck of three churn views" in prompt
     assert "which lever to pull first" in prompt
     assert _first_sentence(template.default_deliverable) not in prompt
+
 
 def test_a_second_application_from_the_same_person_is_refused(client, listing):
     first = apply(client)

@@ -456,9 +456,7 @@ def test_the_end_date_can_be_set_by_hand(client, company_id, role_id):
         json={"submit_deadline_at": new_end.isoformat()},
     )
     assert updated.status_code == 200, updated.text
-    stored = datetime.fromisoformat(updated.json()["submit_deadline_at"]).astimezone(
-        PROGRAMME_TZ
-    )
+    stored = datetime.fromisoformat(updated.json()["submit_deadline_at"]).astimezone(PROGRAMME_TZ)
     assert stored.date() == new_end.astimezone(PROGRAMME_TZ).date()
     assert (stored.hour, stored.minute) == (
         new_end.astimezone(PROGRAMME_TZ).hour,

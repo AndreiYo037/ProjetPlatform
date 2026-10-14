@@ -110,9 +110,7 @@ def close_programme(db: Session, programme: Programme) -> CloseoutResult:
     # listing that still treats status as gospel — and the week is not over
     # until the submit deadline has passed.
     if not programme_is_past(programme):
-        raise CloseoutError(
-            "This challenge is still running. Close it after the pitch day."
-        )
+        raise CloseoutError("This challenge is still running. Close it after the pitch day.")
 
     result = CloseoutResult()
     participants = db.scalars(

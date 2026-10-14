@@ -15,6 +15,7 @@ listing. PNG, JPEG and WebP cannot do that.
 from __future__ import annotations
 
 import uuid
+from typing import TypeGuard
 
 STORAGE_PREFIX = "logos"
 
@@ -28,9 +29,9 @@ LOGO_TYPES = {
 _MEDIA_BY_EXTENSION = {extension: media for media, extension in LOGO_TYPES.items()}
 
 
-def is_stored_logo(value: str | None) -> bool:
+def is_stored_logo(value: str | None) -> TypeGuard[str]:
     """A key we uploaded, as opposed to a link the company pasted."""
-    return bool(value) and value.startswith(f"{STORAGE_PREFIX}/")  # type: ignore[union-attr]
+    return isinstance(value, str) and value.startswith(f"{STORAGE_PREFIX}/")
 
 
 def new_logo_key(company_id: uuid.UUID, content_type: str) -> str:

@@ -73,6 +73,7 @@ class Programme(Base):
     def onsite(self) -> bool:
         """In person: start and end clocks only — no kickoff or Meet."""
         return self.delivery_mode == DeliveryMode.IN_PERSON
+
     team_size_max: Mapped[int] = mapped_column(Integer, default=1)
 
     applications_open_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
@@ -138,9 +139,7 @@ class ProgrammeRole(Base):
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()
-    programme_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("programme.id", ondelete="CASCADE")
-    )
+    programme_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("programme.id", ondelete="CASCADE"))
     role_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("role.id"))
     position: Mapped[int] = mapped_column(Integer)
 

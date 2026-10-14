@@ -296,9 +296,7 @@ def create_thread(
     )
 
 
-@router.post(
-    "/programmes/{programme_id}/announcements", response_model=ThreadOut, status_code=201
-)
+@router.post("/programmes/{programme_id}/announcements", response_model=ThreadOut, status_code=201)
 async def post_to_announcements(
     body: str = Form(default=""),
     requires_ack: bool = Form(default=False),

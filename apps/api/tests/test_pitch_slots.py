@@ -5,7 +5,7 @@ How many slots exist is how many submissions have been handed in.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -74,7 +74,11 @@ def hand_in(session, participant):
 
 
 def set_clock(client, programme, *, slots_minutes=10):
-    starts = datetime(2026, 10, 24, 14, 0, tzinfo=UTC)
+    # Inside the programme's own window, the same way conftest.scheduled() picks it,
+    # so the test doesn't expire as the calendar moves.
+    starts = programme.submit_deadline_at - timedelta(hours=5)
+    if starts <= programme.start_at:
+        starts = programme.start_at + timedelta(hours=2)
     response = client.put(
         f"/programmes/{programme.id}/pitch-schedule",
         json={"starts_at": starts.isoformat(), "duration_minutes": slots_minutes},
@@ -83,9 +87,7 @@ def set_clock(client, programme, *, slots_minutes=10):
     return response.json()
 
 
-def test_the_clock_opens_one_slot_per_submission(
-    client, session, programme, manager, google
-):
+def test_the_clock_opens_one_slot_per_submission(client, session, programme, manager, google):
     sign_in_company(client, session, manager)
     for name in ("Sam", "Ada", "Lin"):
         hand_in(session, make_participant(session, programme, name=name))
@@ -144,9 +146,7 @@ def test_the_first_claim_gets_the_slot_without_emailing(
     assert taken.json()["judging"]["id"] == second
 
 
-def test_you_cannot_claim_a_slot_before_you_submit(
-    client, session, programme, manager
-):
+def test_you_cannot_claim_a_slot_before_you_submit(client, session, programme, manager):
     sam = make_participant(session, programme, name="Sam Student")
     ada = make_participant(session, programme, name="Ada Analyst")
     hand_in(session, ada)
@@ -159,9 +159,7 @@ def test_you_cannot_claim_a_slot_before_you_submit(
     assert "Submit" in refused.json()["detail"]
 
 
-def test_filling_slots_does_not_open_a_timeslot_until_submit(
-    client, session, programme, manager
-):
+def test_filling_slots_does_not_open_a_timeslot_until_submit(client, session, programme, manager):
     sam = make_participant(session, programme, name="Sam Student")
     team = ensure_team_for_participant(session, sam)
     submission = ensure_submission(session, team)
@@ -189,9 +187,7 @@ def test_filling_slots_does_not_open_a_timeslot_until_submit(
     assert after["submission"]["submitted_at"]
 
 
-def test_judging_cards_sort_by_booked_slot_and_carry_the_meet(
-    client, session, programme, manager
-):
+def test_judging_cards_sort_by_booked_slot_and_carry_the_meet(client, session, programme, manager):
     sam = make_participant(session, programme, name="Sam Student")
     ada = make_participant(session, programme, name="Ada Analyst")
     hand_in(session, sam)
@@ -209,15 +205,11 @@ def test_judging_cards_sort_by_booked_slot_and_carry_the_meet(
     assert [card["name"] for card in cards] == ["Ada Analyst", "Sam Student"]
     assert cards[0]["meet_link"]
     assert cards[0]["pitch_at"]
-    score = client.get(
-        f"/programmes/{programme.id}/participants/{ada.id}/score"
-    ).json()
+    score = client.get(f"/programmes/{programme.id}/participants/{ada.id}/score").json()
     assert score["submission"]["meet_link"] == cards[0]["meet_link"]
 
 
-def test_pickable_slots_are_not_auto_assigned_at_acceptance(
-    client, session, programme, manager
-):
+def test_pickable_slots_are_not_auto_assigned_at_acceptance(client, session, programme, manager):
     sign_in_company(client, session, manager)
     set_clock(client, programme)
     sam = make_participant(session, programme, name="Sam Student")
@@ -237,9 +229,7 @@ def test_pickable_slots_are_not_auto_assigned_at_acceptance(
     assert after["pitch_slots"][0]["available"] is True
 
 
-def test_a_slot_can_be_changed_before_judging_day(
-    client, session, programme, manager
-):
+def test_a_slot_can_be_changed_before_judging_day(client, session, programme, manager):
     sam = make_participant(session, programme, name="Sam Student")
     ada = make_participant(session, programme, name="Ada Analyst")
     hand_in(session, sam)
@@ -254,9 +244,7 @@ def test_a_slot_can_be_changed_before_judging_day(
     assert changed.json()["judging"]["id"] == second
 
 
-def test_a_slot_cannot_be_changed_on_judging_day(
-    client, session, programme, manager
-):
+def test_a_slot_cannot_be_changed_on_judging_day(client, session, programme, manager):
     """Lock is 00:00 SGT that day, even if the first pitch is still hours away."""
     from projet.services.schedule import PROGRAMME_TZ, in_programme_tz
 
@@ -271,7 +259,9 @@ def test_a_slot_cannot_be_changed_on_judging_day(
     assert client.post("/me/pitch-slot", json={"session_id": first}).status_code == 200
 
     today = in_programme_tz(datetime.now(UTC)).date()
-    programme.pitch_starts_at = datetime(today.year, today.month, today.day, 23, 59, tzinfo=PROGRAMME_TZ)
+    programme.pitch_starts_at = datetime(
+        today.year, today.month, today.day, 23, 59, tzinfo=PROGRAMME_TZ
+    )
     session.flush()
 
     refused = client.post("/me/pitch-slot", json={"session_id": second})

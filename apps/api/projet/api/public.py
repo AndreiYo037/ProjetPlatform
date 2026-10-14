@@ -152,12 +152,8 @@ def _state(programme: Programme) -> str:
     # On-site default: apply opens at start. Early applications when
     # applications_open_at is already reached, or for a one-off allowlist.
     if programme.onsite and programme.start_at and programme.start_at > now:
-        early = (
-            programme.slug in _ONSITE_EARLY_APPLY_SLUGS
-            or (
-                programme.applications_open_at is not None
-                and programme.applications_open_at <= now
-            )
+        early = programme.slug in _ONSITE_EARLY_APPLY_SLUGS or (
+            programme.applications_open_at is not None and programme.applications_open_at <= now
         )
         if not early:
             return "closed"
@@ -276,9 +272,7 @@ def company_listing(
         .where(Programme.company_id == company.id)
         .where(Programme.status != ProgrammeStatus.DRAFT)
     )
-    summaries = [
-        _summarize(db, p, company) for p in programmes if not _past_retention(p, now)
-    ]
+    summaries = [_summarize(db, p, company) for p in programmes if not _past_retention(p, now)]
     summaries.sort(key=_sort_key)
     return summaries
 
@@ -358,7 +352,6 @@ def listing(
         )
     )
     template = db.get(RoleTemplate, roles[0].id) if roles else None
-
 
     seats_remaining = None
     if programme.capacity is not None:
@@ -441,10 +434,7 @@ def _commitment_refusal(programme: Programme) -> str:
     kickoff = _readable(programme.start_at)
     end = _readable(programme.submit_deadline_at or programme.pitch_at)
     if kickoff and end:
-        return (
-            f"Applications need the commitment confirmed: starts on {kickoff} and "
-            f"ends on {end}."
-        )
+        return f"Applications need the commitment confirmed: starts on {kickoff} and ends on {end}."
     return "Applications need the commitment to the start and end dates confirmed."
 
 
@@ -570,9 +560,7 @@ async def apply(
     google = (google_email or "").strip() or None
     if not onsite:
         if not google or not looks_like_email(google):
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email."
-            )
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email.")
     elif google and not looks_like_email(google):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Invalid Google email.")
 

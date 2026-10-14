@@ -95,14 +95,11 @@ def offer_email(ctx: EffectContext) -> dict:
             # plain-text client, or a forwarded copy needs the address itself,
             # not link text that survives only as "Join on Google Meet".
             meet = programme.kickoff_meet_link
-            kickoff_line += (
-                f'<p><strong>Google Meet:</strong> <a href="{meet}">{meet}</a></p>'
-            )
+            kickoff_line += f'<p><strong>Google Meet:</strong> <a href="{meet}">{meet}</a></p>'
 
     if programme and programme.submit_deadline_at:
         pitch_line = (
-            f"<p><strong>Ends:</strong> "
-            f"{format_sgt_datetime(programme.submit_deadline_at)}</p>"
+            f"<p><strong>Ends:</strong> {format_sgt_datetime(programme.submit_deadline_at)}</p>"
         )
 
     sent = ctx.google.send_email(

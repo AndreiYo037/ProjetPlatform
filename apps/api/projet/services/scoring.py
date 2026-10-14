@@ -157,7 +157,5 @@ def set_skill_tags(
         else:
             wanted.discard(tag.skill_id)
     for skill_id in wanted:
-        db.add(
-            ScoreSkillTag(score_id=score.id, participant_id=participant.id, skill_id=skill_id)
-        )
+        db.add(ScoreSkillTag(score_id=score.id, participant_id=participant.id, skill_id=skill_id))
     db.flush()

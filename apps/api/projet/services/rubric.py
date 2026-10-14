@@ -90,9 +90,7 @@ def load_programme_roles(session: Session, programme: Programme) -> list[Role]:
     return roles
 
 
-def set_programme_roles(
-    session: Session, programme: Programme, role_ids: list[uuid.UUID]
-) -> None:
+def set_programme_roles(session: Session, programme: Programme, role_ids: list[uuid.UUID]) -> None:
     """Replace the role list. Draft only — adding a role appends its craft pair."""
     if programme.status != ProgrammeStatus.DRAFT:
         raise RubricError("roles can only be changed on a draft")
@@ -111,17 +109,13 @@ def set_programme_roles(
             raise RubricError("Role not found.")
 
     existing = list(
-        session.scalars(
-            select(ProgrammeRole).where(ProgrammeRole.programme_id == programme.id)
-        )
+        session.scalars(select(ProgrammeRole).where(ProgrammeRole.programme_id == programme.id))
     )
     for row in existing:
         session.delete(row)
     session.flush()
     for position, role_id in enumerate(seen):
-        session.add(
-            ProgrammeRole(programme_id=programme.id, role_id=role_id, position=position)
-        )
+        session.add(ProgrammeRole(programme_id=programme.id, role_id=role_id, position=position))
     programme.role_id = seen[0]
     session.flush()
 

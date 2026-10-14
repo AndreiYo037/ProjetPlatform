@@ -152,8 +152,9 @@ def writeup_prompt_from_programme(session: Session, programme: Programme) -> str
     override = None
     if len(role_ids) <= 1 and role_ids:
         template = session.get(RoleTemplate, role_ids[0])
-        if template is not None and (template.writeup_prompt or "").strip():
-            override = template.writeup_prompt.strip()
+        prompt = (template.writeup_prompt or "").strip() if template is not None else ""
+        if prompt:
+            override = prompt
     return writeup_prompt_for_programme(
         role_names=role_names,
         craft3=[c.name for c in criteria if c.family == 3],

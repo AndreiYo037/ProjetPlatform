@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import PurePosixPath
+from typing import TypeGuard
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -42,9 +43,9 @@ ALLOWED_UPLOAD_TYPES = {
 }
 
 
-def is_storage_key(value: str | None) -> bool:
+def is_storage_key(value: str | None) -> TypeGuard[str]:
     """Uploads are keys under our own prefix; everything else is a link."""
-    return bool(value) and value.startswith(f"{STORAGE_PREFIX}/")  # type: ignore[union-attr]
+    return isinstance(value, str) and value.startswith(f"{STORAGE_PREFIX}/")
 
 
 def new_storage_key(programme_id: uuid.UUID, filename: str | None) -> str:

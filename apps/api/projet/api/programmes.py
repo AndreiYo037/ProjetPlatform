@@ -211,9 +211,7 @@ def _resource_out(resource: DataPackResource) -> dict:
     }
 
 
-def _resource_or_404(
-    db: Session, programme: Programme, resource_id: uuid.UUID
-) -> DataPackResource:
+def _resource_or_404(db: Session, programme: Programme, resource_id: uuid.UUID) -> DataPackResource:
     resource = db.get(DataPackResource, resource_id)
     if resource is None or resource.programme_id != programme.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such resource in this data pack.")
@@ -675,7 +673,7 @@ def set_pitch_schedule(
     db.commit()
     taken = occupant_map(db, programme.id)
     return PitchScheduleOut(
-        starts_at=programme.pitch_starts_at,
+        starts_at=programme.pitch_starts_at or payload.starts_at,
         duration_minutes=programme.pitch_duration_minutes or payload.duration_minutes,
         meet_link=programme.pitch_meet_link,
         slots=[
@@ -914,9 +912,7 @@ def _draft_out(draft: ProblemStatementDraft, role_name: str) -> DraftOut:
     )
 
 
-@router.post(
-    "/programmes/{programme_id}/problem-statement/draft", response_model=list[DraftOut]
-)
+@router.post("/programmes/{programme_id}/problem-statement/draft", response_model=list[DraftOut])
 def draft_problem_statement_endpoint(
     payload: DraftRequest,
     programme: Programme = Depends(get_programme_or_404),

@@ -109,9 +109,7 @@ def assert_submissions_open(session: Session, submission: Submission) -> None:
 
     programme = _programme_for(session, submission)
     if programme is not None and not submissions_open(programme):
-        raise SubmissionError(
-            "Submissions open when the challenge starts. Come back then."
-        )
+        raise SubmissionError("Submissions open when the challenge starts. Come back then.")
 
 
 def set_link(

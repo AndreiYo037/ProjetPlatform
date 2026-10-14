@@ -72,9 +72,7 @@ def validate_pitch_window(
     return pitch
 
 
-def bind_kickoff(
-    start_at: datetime | None, kickoff_at: datetime | None
-) -> datetime | None:
+def bind_kickoff(start_at: datetime | None, kickoff_at: datetime | None) -> datetime | None:
     """Keep the kickoff call the company picked; it must be after start.
 
     Kickoff is its own date and time. It is not pinned to the start calendar

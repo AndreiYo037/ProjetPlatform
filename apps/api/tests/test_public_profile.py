@@ -77,7 +77,9 @@ def test_a_public_profile_carries_no_score_or_ranking(client, session, participa
         assert forbidden not in raw
 
 
-def test_verified_and_self_declared_are_counted_apart(client, session, programme, participant_factory):
+def test_verified_and_self_declared_are_counted_apart(
+    client, session, programme, participant_factory
+):
     from tests._programme_finish import finish_programme
 
     finish_programme(programme, session)
@@ -154,7 +156,12 @@ def test_an_uploaded_file_is_hidden_and_shown_by_the_same_consent(
     person = _make_public(session, participant)
     entry = create_entry(session, person.id, title="Client dashboard")
     attach_file(
-        session, person.id, entry.id, filename="deck.pdf", content_type="application/pdf", data=b"%PDF-1.4"
+        session,
+        person.id,
+        entry.id,
+        filename="deck.pdf",
+        content_type="application/pdf",
+        data=b"%PDF-1.4",
     )
     session.flush()
 

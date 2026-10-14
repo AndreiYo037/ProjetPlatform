@@ -113,12 +113,24 @@ def test_a_companys_listing_includes_open_and_excludes_draft(client, session, ad
     company_id = make_company(client, session, admin, name="Acme", slug="acme")
     role_id = roles["data-analytics"].id
     make_programme(
-        client, session, admin, company_id=company_id, role_id=role_id,
-        title="Churn dashboard", slug="churn", capacity=2,
+        client,
+        session,
+        admin,
+        company_id=company_id,
+        role_id=role_id,
+        title="Churn dashboard",
+        slug="churn",
+        capacity=2,
     )
     make_programme(
-        client, session, admin, company_id=company_id, role_id=role_id,
-        title="Unpublished", slug="draft-prog", publish=False,
+        client,
+        session,
+        admin,
+        company_id=company_id,
+        role_id=role_id,
+        title="Unpublished",
+        slug="draft-prog",
+        publish=False,
     )
 
     client.cookies.clear()
@@ -133,12 +145,24 @@ def test_a_companys_listing_shows_seats_only_when_capacity_is_set(client, sessio
     company_id = make_company(client, session, admin, name="Acme2", slug="acme2")
     role_id = roles["data-analytics"].id
     make_programme(
-        client, session, admin, company_id=company_id, role_id=role_id,
-        title="Capped", slug="capped", capacity=3,
+        client,
+        session,
+        admin,
+        company_id=company_id,
+        role_id=role_id,
+        title="Capped",
+        slug="capped",
+        capacity=3,
     )
     make_programme(
-        client, session, admin, company_id=company_id, role_id=role_id,
-        title="Uncapped", slug="uncapped", capacity=None,
+        client,
+        session,
+        admin,
+        company_id=company_id,
+        role_id=role_id,
+        title="Uncapped",
+        slug="uncapped",
+        capacity=None,
     )
 
     client.cookies.clear()
@@ -156,19 +180,28 @@ def test_an_unknown_company_slug_404s(client):
 # -- platform directory (FR-105) ---------------------------------------------
 
 
-def test_the_directory_lists_active_programmes_across_companies(
-    client, session, admin, roles
-):
+def test_the_directory_lists_active_programmes_across_companies(client, session, admin, roles):
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="Acme3", slug="acme3")
     beta = make_company(client, session, admin, name="Beta", slug="beta")
     make_programme(
-        client, session, admin, company_id=acme, role_id=role_id,
-        title="Acme open", slug="acme-open",
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role_id,
+        title="Acme open",
+        slug="acme-open",
     )
     make_programme(
-        client, session, admin, company_id=beta, role_id=role_id,
-        title="Beta draft", slug="beta-draft", publish=False,
+        client,
+        session,
+        admin,
+        company_id=beta,
+        role_id=role_id,
+        title="Beta draft",
+        slug="beta-draft",
+        publish=False,
     )
 
     client.cookies.clear()
@@ -181,9 +214,7 @@ def test_the_directory_lists_active_programmes_across_companies(
     assert all(row["state"] in ("open", "closed") for row in body)
 
 
-def test_a_challenge_with_closed_applications_still_lists_as_active(
-    client, session, admin, roles
-):
+def test_a_challenge_with_closed_applications_still_lists_as_active(client, session, admin, roles):
     """Apps shut, week not over → state closed, still in the directory."""
     import uuid
 
@@ -193,8 +224,13 @@ def test_a_challenge_with_closed_applications_still_lists_as_active(
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="AcmeClosed", slug="acme-closed")
     programme_id = make_programme(
-        client, session, admin, company_id=acme, role_id=role_id,
-        title="Apps closed", slug="apps-closed",
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role_id,
+        title="Apps closed",
+        slug="apps-closed",
     )
     programme = session.get(Programme, uuid.UUID(programme_id))
     assert programme is not None
@@ -218,8 +254,13 @@ def test_a_closed_programme_drops_off_the_directory(client, session, admin, role
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="AcmeDone", slug="acme-done")
     programme_id = make_programme(
-        client, session, admin, company_id=acme, role_id=role_id,
-        title="Closed out", slug="closed-out",
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role_id,
+        title="Closed out",
+        slug="closed-out",
     )
     programme = session.get(Programme, uuid.UUID(programme_id))
     assert programme is not None
@@ -244,8 +285,13 @@ def test_a_naturally_ended_programme_still_lists_as_past_within_retention(
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="AcmeEnded", slug="acme-ended")
     programme_id = make_programme(
-        client, session, admin, company_id=acme, role_id=role_id,
-        title="Ran its course", slug="ran-its-course",
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role_id,
+        title="Ran its course",
+        slug="ran-its-course",
     )
     programme = session.get(Programme, uuid.UUID(programme_id))
     assert programme is not None
@@ -268,8 +314,13 @@ def test_a_naturally_ended_programme_drops_off_after_retention(client, session, 
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="AcmeStale", slug="acme-stale")
     programme_id = make_programme(
-        client, session, admin, company_id=acme, role_id=role_id,
-        title="Long over", slug="long-over",
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role_id,
+        title="Long over",
+        slug="long-over",
     )
     programme = session.get(Programme, uuid.UUID(programme_id))
     assert programme is not None
@@ -285,8 +336,13 @@ def test_the_directory_filters_by_role_slug(client, session, admin, roles):
     role_id = roles["data-analytics"].id
     acme = make_company(client, session, admin, name="Acme4", slug="acme4")
     make_programme(
-        client, session, admin, company_id=acme, role_id=role_id,
-        title="Filter me", slug="filter-me",
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role_id,
+        title="Filter me",
+        slug="filter-me",
     )
 
     client.cookies.clear()
@@ -301,8 +357,13 @@ def test_the_directory_filters_by_cluster(client, session, admin, roles):
     role = roles["data-analytics"]
     acme = make_company(client, session, admin, name="Acme5", slug="acme5")
     make_programme(
-        client, session, admin, company_id=acme, role_id=role.id,
-        title="Clustered", slug="clustered",
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role.id,
+        title="Clustered",
+        slug="clustered",
     )
 
     client.cookies.clear()
@@ -318,8 +379,13 @@ def test_the_directory_paginates(client, session, admin, roles):
     acme = make_company(client, session, admin, name="Acme6", slug="acme6")
     for i in range(5):
         make_programme(
-            client, session, admin, company_id=acme, role_id=role_id,
-            title=f"Prog {i}", slug=f"prog-{i}",
+            client,
+            session,
+            admin,
+            company_id=acme,
+            role_id=role_id,
+            title=f"Prog {i}",
+            slug=f"prog-{i}",
         )
 
     client.cookies.clear()

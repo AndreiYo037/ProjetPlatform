@@ -78,7 +78,9 @@ def test_an_angle_missing_its_question_does_not_count():
 
 
 def test_prose_around_the_json_is_tolerated():
-    text = "Here are the angles:\n```json\n" + run(angle("A"), angle("B")) + "\n```\nHope that helps."
+    text = (
+        "Here are the angles:\n```json\n" + run(angle("A"), angle("B")) + "\n```\nHope that helps."
+    )
     assert len(parse_angles(text)) == 2
 
 

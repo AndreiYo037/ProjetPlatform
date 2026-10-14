@@ -110,9 +110,7 @@ def pitch_slot_email_html(
 
     when = format_sgt_datetime(starts_at)
     meet = (
-        f'<p>Join the judging call: <a href="{meet_link}">{meet_link}</a></p>'
-        if meet_link
-        else ""
+        f'<p>Join the judging call: <a href="{meet_link}">{meet_link}</a></p>' if meet_link else ""
     )
     return (
         f"<p>Hi {name},</p>"

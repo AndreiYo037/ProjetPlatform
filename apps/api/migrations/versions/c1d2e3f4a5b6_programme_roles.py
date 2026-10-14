@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision = "c1d2e3f4a5b6"
 down_revision = "b9c0d1e2f3a4"
@@ -21,8 +21,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Offline (--sql) rendering starts from an empty schema: no stray table to
+    # clear and no rows to backfill. Both steps only apply to a live database.
+    offline = context.is_offline_mode()
     bind = op.get_bind()
-    if "programme_role" in sa.inspect(bind).get_table_names():
+    if not offline and "programme_role" in sa.inspect(bind).get_table_names():
         op.drop_table("programme_role")
     op.create_table(
         "programme_role",
@@ -36,7 +39,8 @@ def upgrade() -> None:
         sa.UniqueConstraint("programme_id", "role_id", name="uq_programme_role_pair"),
         sa.UniqueConstraint("programme_id", "position", name="uq_programme_role_position"),
     )
-    for programme_id, role_id in bind.execute(sa.text("SELECT id, role_id FROM programme")):
+    existing = [] if offline else bind.execute(sa.text("SELECT id, role_id FROM programme"))
+    for programme_id, role_id in existing:
         bind.execute(
             sa.text(
                 "INSERT INTO programme_role (id, programme_id, role_id, position) "
@@ -51,13 +55,9 @@ def upgrade() -> None:
     with op.batch_alter_table("rubric_criterion") as batch:
         # Alembic's SQLite batch helper prefixes ck_<table>_, so pass the suffix.
         batch.drop_constraint("slot_range", type_="check")
-        batch.add_column(
-            sa.Column("family", sa.Integer(), nullable=False, server_default="2")
-        )
+        batch.add_column(sa.Column("family", sa.Integer(), nullable=False, server_default="2"))
         batch.add_column(sa.Column("role_id", sa.Uuid(), nullable=True))
-        batch.add_column(
-            sa.Column("lane", sa.Integer(), nullable=False, server_default="0")
-        )
+        batch.add_column(sa.Column("lane", sa.Integer(), nullable=False, server_default="0"))
         batch.create_foreign_key(
             "fk_rubric_criterion_role_id_role",
             "role",

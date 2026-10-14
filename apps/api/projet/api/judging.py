@@ -241,8 +241,7 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         # a file we already hold. Memo is an upload, so snapshot_url is enough.
         complete=bool(links)
         and all(
-            (link.url or link.snapshot_url)
-            and link.access_status == AccessStatus.OK.value
+            (link.url or link.snapshot_url) and link.access_status == AccessStatus.OK.value
             for link in links
         ),
         links=links,

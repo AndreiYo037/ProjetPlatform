@@ -50,9 +50,7 @@ def ensure_kickoff_event(session: Session, programme: Programme) -> str | None:
     return result.event_id
 
 
-def ensure_pitch_event(
-    session: Session, programme: Programme, *, starts_at, ends_at
-) -> str | None:
+def ensure_pitch_event(session: Session, programme: Programme, *, starts_at, ends_at) -> str | None:
     """One Meet for the whole pitching block. Participants join at their slot."""
     if programme.pitch_event_id:
         return programme.pitch_event_id

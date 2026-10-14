@@ -116,9 +116,7 @@ def test_a_programme_stays_active_until_its_deadline_passes():
 def test_first_pitch_must_be_after_start_and_before_end():
     start = datetime(2026, 10, 8, 9, 0, tzinfo=SGT)
     end = datetime(2026, 10, 14, 18, 0, tzinfo=SGT)
-    pitch = schedule.validate_pitch_window(
-        start, end, datetime(2026, 10, 14, 13, 0, tzinfo=SGT)
-    )
+    pitch = schedule.validate_pitch_window(start, end, datetime(2026, 10, 14, 13, 0, tzinfo=SGT))
     assert pitch is not None
     assert (pitch.hour, pitch.minute) == (13, 0)
 

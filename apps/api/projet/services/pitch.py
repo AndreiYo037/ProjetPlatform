@@ -56,23 +56,29 @@ def occupant_map(session: Session, programme_id: uuid.UUID) -> dict[uuid.UUID, P
 
 def desired_slot_count(session: Session, programme: Programme) -> int:
     """One slot per handed-in submission, never fewer than already booked."""
-    submitted = session.scalar(
-        select(func.count(func.distinct(Submission.id)))
-        .select_from(Submission)
-        .join(Team, Team.id == Submission.team_id)
-        .join(TeamMember, TeamMember.team_id == Team.id)
-        .join(Participant, Participant.id == TeamMember.participant_id)
-        .where(Team.programme_id == programme.id)
-        .where(Participant.excluded.is_(False))
-        .where(Submission.submitted_at.isnot(None))
-    ) or 0
-    booked = session.scalar(
-        select(func.count())
-        .select_from(Participant)
-        .where(Participant.programme_id == programme.id)
-        .where(Participant.judging_session_id.is_not(None))
-        .where(Participant.excluded.is_(False))
-    ) or 0
+    submitted = (
+        session.scalar(
+            select(func.count(func.distinct(Submission.id)))
+            .select_from(Submission)
+            .join(Team, Team.id == Submission.team_id)
+            .join(TeamMember, TeamMember.team_id == Team.id)
+            .join(Participant, Participant.id == TeamMember.participant_id)
+            .where(Team.programme_id == programme.id)
+            .where(Participant.excluded.is_(False))
+            .where(Submission.submitted_at.isnot(None))
+        )
+        or 0
+    )
+    booked = (
+        session.scalar(
+            select(func.count())
+            .select_from(Participant)
+            .where(Participant.programme_id == programme.id)
+            .where(Participant.judging_session_id.is_not(None))
+            .where(Participant.excluded.is_(False))
+        )
+        or 0
+    )
     return max(int(submitted), int(booked))
 
 
@@ -119,9 +125,7 @@ def sync_pitch_schedule(
     if duration_minutes < 1 or duration_minutes > 180:
         raise PitchError("Duration per pitch must be between 1 and 180 minutes.")
     try:
-        start = validate_pitch_window(
-            programme.start_at, programme.submit_deadline_at, starts_at
-        )
+        start = validate_pitch_window(programme.start_at, programme.submit_deadline_at, starts_at)
     except ScheduleError as error:
         raise PitchError(str(error)) from error
     if start is None:
@@ -178,13 +182,14 @@ def sync_pitch_schedule(
 
 def ensure_free_pitch_slot(session: Session, programme: Programme) -> JudgingSession | None:
     """Resize the grid to one slot per handed-in submission."""
-    if not is_pickable_grid(programme):
+    starts_at, minutes = programme.pitch_starts_at, programme.pitch_duration_minutes
+    if starts_at is None or not minutes:
         return None
     rows = sync_pitch_schedule(
         session,
         programme,
-        starts_at=programme.pitch_starts_at,
-        duration_minutes=programme.pitch_duration_minutes,
+        starts_at=starts_at,
+        duration_minutes=minutes,
     )
     taken = occupant_map(session, programme.id)
     free = [row for row in rows if row.id not in taken]

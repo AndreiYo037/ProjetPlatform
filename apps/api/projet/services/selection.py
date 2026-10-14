@@ -47,6 +47,7 @@ def _enqueue_applicant_email(
         payload=payload or {},
     )
 
+
 # FR-079 — the prescreen rubric is admin-only and never published: publishing it
 # would teach applicants how to write the application.
 PRESCREEN_CRITERIA = ("relevance", "specificity", "capability", "followthrough")

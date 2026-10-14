@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision = "c84a9ceb3d1e"
 down_revision = "552df2a6b0f2"
@@ -55,13 +55,21 @@ def upgrade() -> None:
             sa.Column("ongoing", sa.Boolean(), nullable=False, server_default=sa.false())
         )
 
-    connection = op.get_bind()
-    rows = connection.execute(
-        sa.text(
-            "SELECT id, organisation_name, problem, approach, contribution, outcome "
-            "FROM project_entry"
+    # Offline (--sql) rendering has no rows to read; the backfill only applies
+    # against a live database, which is where it has always run.
+    rows = []
+    if not context.is_offline_mode():
+        rows = (
+            op.get_bind()
+            .execute(
+                sa.text(
+                    "SELECT id, organisation_name, problem, approach, contribution, outcome "
+                    "FROM project_entry"
+                )
+            )
+            .fetchall()
         )
-    ).fetchall()
+    connection = op.get_bind()
     for row in rows:
         connection.execute(
             sa.text(

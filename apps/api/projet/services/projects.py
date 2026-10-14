@@ -11,7 +11,7 @@ read the same.
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -63,8 +63,8 @@ class ProjectError(Exception):
     """A seed, edit, upload or delete that cannot be honoured."""
 
 
-def _as_date(value: object) -> date | None:
-    return value.date() if value is not None else None  # type: ignore[union-attr]
+def _as_date(value: datetime | None) -> date | None:
+    return value.date() if value is not None else None
 
 
 def seed_from_participant(

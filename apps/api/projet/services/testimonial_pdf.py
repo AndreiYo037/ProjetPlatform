@@ -101,12 +101,7 @@ def _wrap(text: str) -> list[str]:
 
 
 def _pdf_string(text: str) -> bytes:
-    escaped = (
-        text.replace("\\", "\\\\")
-        .replace("(", "\\(")
-        .replace(")", "\\)")
-        .replace("\r", " ")
-    )
+    escaped = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").replace("\r", " ")
     return f"({escaped})".encode("ascii")
 
 

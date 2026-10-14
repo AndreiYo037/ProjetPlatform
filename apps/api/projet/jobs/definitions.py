@@ -215,11 +215,7 @@ def due_pitch_days(session: Session, now: datetime | None = None) -> list[Progra
             select(Programme)
             .where(Programme.pitch_starts_at.is_not(None))
             .where(Programme.pitch_day_emailed_at.is_(None))
-            .where(
-                Programme.status.notin_(
-                    [ProgrammeStatus.DRAFT, ProgrammeStatus.COMPLETE]
-                )
-            )
+            .where(Programme.status.notin_([ProgrammeStatus.DRAFT, ProgrammeStatus.COMPLETE]))
         )
     )
     return [

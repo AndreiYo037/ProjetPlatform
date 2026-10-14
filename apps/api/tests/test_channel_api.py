@@ -53,7 +53,11 @@ def test_a_direct_message_reaches_the_company(
 
     opened = client.post(
         f"/programmes/{programme.id}/threads",
-        json={"type": "direct", "title": "Can I use last year's data?", "body": "Asking privately."},
+        json={
+            "type": "direct",
+            "title": "Can I use last year's data?",
+            "body": "Asking privately.",
+        },
     )
     assert opened.status_code == 201, opened.text
     thread_id = opened.json()["thread"]["id"]
@@ -127,9 +131,7 @@ def test_an_unassigned_rep_does_not_see_the_programmes_messages(
     assert client.get(f"/threads/{thread_id}").status_code == 404
 
 
-def test_a_participant_cannot_post_an_announcement(
-    client, session, programme, participant_factory
-):
+def test_a_participant_cannot_post_an_announcement(client, session, programme, participant_factory):
     participant = participant_factory()
     sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
     refused = client.post(
@@ -276,9 +278,7 @@ def test_a_participant_cannot_post_to_announcements(
 ):
     participant = participant_factory()
     sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
-    refused = client.post(
-        f"/programmes/{programme.id}/announcements", data={"body": "Listen up."}
-    )
+    refused = client.post(f"/programmes/{programme.id}/announcements", data={"body": "Listen up."})
     assert refused.status_code == 403
 
 
@@ -304,9 +304,7 @@ def test_a_participant_can_attach_a_file_to_their_own_question(
     assert [a["filename"] for a in attached.json()["posts"][-1]["attachments"]] == ["error.png"]
 
 
-def test_a_file_can_ride_on_the_opening_message(
-    client, session, programme, participant_factory
-):
+def test_a_file_can_ride_on_the_opening_message(client, session, programme, participant_factory):
     """Asking a question and attaching a screenshot is one message, not a
     follow-up after the question is already posted."""
     import io
@@ -357,9 +355,7 @@ def test_a_participant_can_reply_in_the_announcements_thread(
     assert seen["posts"][-1]["body"] == "Thanks, got it."
 
 
-def test_a_question_shows_the_participants_name(
-    client, session, programme, participant_factory
-):
+def test_a_question_shows_the_participants_name(client, session, programme, participant_factory):
     participant = participant_factory(name="Andrei Loh")
     sign_in(client, session, ActorType.PARTICIPANT, participant.person_id)
     opened = client.post(

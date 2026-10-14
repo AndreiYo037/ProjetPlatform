@@ -293,9 +293,7 @@ def _portfolio(db: Session, person: Person) -> Portfolio:
         programme_count=evidence.programme_count,
         credentials=credentials,
         testimonials=testimonials,
-        programmes_completed=len(
-            {c.programme_id for c in credentials_for(db, person.id)}
-        ),
+        programmes_completed=len({c.programme_id for c in credentials_for(db, person.id)}),
     )
 
 
@@ -436,17 +434,6 @@ def _parse_visibility(value: str) -> ArtifactVisibility:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown artifact visibility."
         ) from exc
-
-
-def _project_http_error(exc: ProjectError) -> HTTPException:
-    """404 when the entry is not theirs, 400 when the edit is not allowed.
-
-    A missing entry and someone else's entry answer identically, so the
-    response cannot be used to learn that an entry exists.
-    """
-    missing = "No project" in str(exc) or "No link" in str(exc)
-    code = status.HTTP_404_NOT_FOUND if missing else status.HTTP_400_BAD_REQUEST
-    return HTTPException(code, str(exc))
 
 
 @router.post("/projects", response_model=ProjectEntryOut, status_code=status.HTTP_201_CREATED)
@@ -905,7 +892,9 @@ def _participations_for(db: Session, person_id: uuid.UUID) -> list[tuple[Partici
             .join(Programme, Participant.programme_id == Programme.id)
             .where(Participant.person_id == person_id)
             .order_by(Programme.start_at.desc().nullslast(), Participant.created_at.desc())
-        ).all()
+        )
+        .tuples()
+        .all()
     )
 
 

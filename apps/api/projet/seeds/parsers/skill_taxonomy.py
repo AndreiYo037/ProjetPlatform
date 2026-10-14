@@ -70,9 +70,7 @@ def parse_skill_taxonomy(path: Path) -> list[TaxonomySkill]:
             if group is None:
                 raise ContentError(path, index, "skill with no section")
             if expecting_capabilities or not capabilities:
-                raise ContentError(
-                    path, index, f"section {group!r} is missing a Capabilities line"
-                )
+                raise ContentError(path, index, f"section {group!r} is missing a Capabilities line")
             name = strip_markdown(item.group(1))
             if not name:
                 raise ContentError(path, index, "empty skill name")

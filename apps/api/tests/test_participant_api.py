@@ -114,9 +114,7 @@ def test_a_participant_can_switch_between_active_programmes(
     assert selected["programme"]["title"] == "Pricing model"
 
 
-def test_a_programme_moves_to_past_once_its_deadline_passes(
-    client, signed_in, session, programme
-):
+def test_a_programme_moves_to_past_once_its_deadline_passes(client, signed_in, session, programme):
     # No kickoff → past is decided by the submit deadline alone.
     programme.start_at = None
     programme.submit_deadline_at = utcnow() - timedelta(days=1)
@@ -276,7 +274,9 @@ def test_seeding_before_the_programme_finishes_is_refused(client, signed_in, ses
     assert "not finished" in response.json()["detail"]
 
 
-def test_you_cannot_seed_a_programme_that_is_not_yours(client, signed_in, session, participant_factory, programme):
+def test_you_cannot_seed_a_programme_that_is_not_yours(
+    client, signed_in, session, participant_factory, programme
+):
     from tests._programme_finish import finish_programme
 
     finish_programme(programme, session)

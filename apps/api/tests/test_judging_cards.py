@@ -112,9 +112,7 @@ def test_the_cards_come_back_in_pitch_order(client, session, programme, manager,
     assert [card["run_order"] for card in cards] == [1, 2]
 
 
-def test_a_card_carries_the_work_and_a_signed_snapshot(
-    client, session, programme, manager, cohort
-):
+def test_a_card_carries_the_work_and_a_signed_snapshot(client, session, programme, manager, cohort):
     sign_in(client, session, manager)
     card = next(
         c
@@ -151,13 +149,12 @@ def test_someone_who_declined_recruitment_sharing_still_appears_for_judging(
     card = client.get(f"/programmes/{programme.id}/participants/{quiet.id}/score")
     assert card.status_code == 200
 
+
 def test_the_scoring_card_carries_the_submission_and_the_anchors(
     client, session, programme, manager, cohort
 ):
     sign_in(client, session, manager)
-    card = client.get(
-        f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
-    ).json()
+    card = client.get(f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score").json()
     assert card["name"] == "Sam Student"
     # The judge should not have to hold two tabs open during a pitch.
     assert card["submission"]["links"][0]["slot"] == "artifact"
@@ -169,9 +166,7 @@ def test_the_scoring_card_carries_the_submission_and_the_anchors(
     assert [c["is_universal"] for c in card["criteria"]] == [True, False, False, True]
 
 
-def test_a_total_arrives_only_once_all_four_are_rated(
-    client, session, programme, manager, cohort
-):
+def test_a_total_arrives_only_once_all_four_are_rated(client, session, programme, manager, cohort):
     sign_in(client, session, manager)
     url = f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
     criteria = client.get(url).json()["criteria"]
@@ -200,9 +195,7 @@ def test_a_total_arrives_only_once_all_four_are_rated(
     assert listed["max_total"] == 20
 
 
-def test_an_uploaded_memo_counts_as_complete(
-    client, session, programme, manager, content_dir
-):
+def test_an_uploaded_memo_counts_as_complete(client, session, programme, manager, content_dir):
     """Memo is a file, not a URL. The card must not call that incomplete."""
     compose_rubric(session, programme, content_dir)
     sam = make_participant(session, programme, name="Sam Student")
@@ -270,18 +263,14 @@ def test_a_criterion_from_another_programme_is_refused(
     assert "rubric" in refused.json()["detail"]
 
 
-def test_the_referral_verdict_and_skill_tags_are_kept(
-    client, session, programme, manager, cohort
-):
+def test_the_referral_verdict_and_skill_tags_are_kept(client, session, programme, manager, cohort):
     skill = Skill(name="SQL", slug="sql", type=SkillType.HARD)
     session.add(skill)
     session.flush()
 
     sign_in(client, session, manager)
     url = f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
-    saved = client.patch(
-        url, json={"would_refer": "yes", "skill_ids": [str(skill.id)]}
-    )
+    saved = client.patch(url, json={"would_refer": "yes", "skill_ids": [str(skill.id)]})
     assert saved.status_code == 200, saved.text
     assert saved.json()["would_refer"] == "yes"
     assert saved.json()["skill_ids"] == [str(skill.id)]
@@ -303,9 +292,7 @@ def test_a_skill_that_does_not_exist_is_refused(client, session, programme, mana
 
 def test_two_judges_keep_two_separate_cards(client, session, programme, manager, rep, cohort):
     session.add(
-        ProgrammeAssignment(
-            programme_id=programme.id, company_user_id=rep.id, can_score=True
-        )
+        ProgrammeAssignment(programme_id=programme.id, company_user_id=rep.id, can_score=True)
     )
     session.flush()
 
@@ -321,33 +308,23 @@ def test_two_judges_keep_two_separate_cards(client, session, programme, manager,
     assert all(c["value"] is None for c in fresh["criteria"])
 
 
-def test_a_rep_not_assigned_to_the_programme_sees_nothing(
-    client, session, programme, rep, cohort
-):
+def test_a_rep_not_assigned_to_the_programme_sees_nothing(client, session, programme, rep, cohort):
     """FR-015 - a rep sees only what they are assigned to, judging included."""
     sign_in(client, session, rep)
     assert client.get(f"/programmes/{programme.id}/submissions").status_code in (403, 404)
 
 
-def test_an_assignment_without_scoring_rights_cannot_score(
-    client, session, programme, rep, cohort
-):
+def test_an_assignment_without_scoring_rights_cannot_score(client, session, programme, rep, cohort):
     session.add(
-        ProgrammeAssignment(
-            programme_id=programme.id, company_user_id=rep.id, can_score=False
-        )
+        ProgrammeAssignment(programme_id=programme.id, company_user_id=rep.id, can_score=False)
     )
     session.flush()
     sign_in(client, session, rep)
-    response = client.get(
-        f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
-    )
+    response = client.get(f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score")
     assert response.status_code == 403
 
 
-def test_platform_staff_read_the_cohort_whole_but_do_not_score(
-    client, session, programme, cohort
-):
+def test_platform_staff_read_the_cohort_whole_but_do_not_score(client, session, programme, cohort):
     """An admin watching the sitting is not the judge; the verdict is the
     company's, and a score with no judge behind it is worth nothing."""
     admin = PlatformUser(name="Andrei", email="andrei@projet.sg")
@@ -376,9 +353,6 @@ def test_a_participant_cannot_read_a_scoring_card(client, session, programme, co
     )
     client.cookies.set(SESSION_COOKIE, raw)
     assert client.get(f"/programmes/{programme.id}/submissions").status_code in (403, 404)
-    assert (
-        client.get(
-            f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
-        ).status_code
-        in (403, 404)
-    )
+    assert client.get(
+        f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
+    ).status_code in (403, 404)

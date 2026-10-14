@@ -113,9 +113,7 @@ def test_publish_creates_kickoff_event(client, session, google, admin, seeded):
     assert prog.kickoff_event_id is not None
 
 
-def test_accept_does_not_add_participant_to_kickoff_event(
-    client, session, google, admin, seeded
-):
+def test_accept_does_not_add_participant_to_kickoff_event(client, session, google, admin, seeded):
     sign_in(client, session, ActorType.PLATFORM, admin.id)
     company = client.post(
         "/companies",
@@ -259,9 +257,7 @@ def test_the_offer_carries_the_meet_link_without_a_calendar_invite(
     assert google.calls_of("patch_event_attendees") == []
 
 
-def test_republish_does_not_create_duplicate_event(
-    client, session, google, admin, seeded
-):
+def test_republish_does_not_create_duplicate_event(client, session, google, admin, seeded):
     """ensure_kickoff_event is idempotent — a second publish reuses the event."""
     sign_in(client, session, ActorType.PLATFORM, admin.id)
     company = client.post(
