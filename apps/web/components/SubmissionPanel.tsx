@@ -333,7 +333,7 @@ function SlotLinkInput({
 
 const MEMO_PROMPTS: [string, string][] = [
   ["What you built", "Describe your solution in plain language."],
-  ["How it works", "The data, tools and AI you used."],
+  ["How it works", "Describe how your solution works, step by step, including the data, tools and AI you used."],
   [
     "Results",
     "What did you find or achieve? Include the numbers that matter, such as accuracy, response rate, views or time saved.",
