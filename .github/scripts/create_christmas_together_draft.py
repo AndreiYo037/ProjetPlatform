@@ -46,8 +46,7 @@ Hard requirements:
 - Payments stay on the organiser's POS, outside this build
 
 Timeline (Asia/Singapore):
-- Applications: 15 Oct to 24 Oct 2026, 23:59
-- Build (Stage 1): 25 Oct to 8 Nov 2026
+- Build (Stage 1): 14 Oct to 8 Nov 2026
 - Submission deadline: 8 Nov 2026, before pitches start
 - Pitch day: 8 Nov 2026
 - After the programme: the winner hardens the build 9 to 13 Nov, barista dry run the week of 16 Nov, and the build runs live 26 to 29 Nov with the team on call.
