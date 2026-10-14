@@ -1,0 +1,25 @@
+name: Check what logo production serves
+
+# Read-only diagnostic, manual trigger.
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Company account email"
+        required: false
+        default: "hello@thirdspacesmarketing.com"
+
+jobs:
+  check:
+    name: Check logo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/check_logo.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          CHECK_EMAIL: ${{ inputs.email }}
