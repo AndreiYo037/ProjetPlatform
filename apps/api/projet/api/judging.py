@@ -108,6 +108,7 @@ class SubmissionCard(BaseModel):
     locked: bool
     complete: bool
     links: list[SubmittedLink]
+    memo: str = ""
     # Your own card, not the cohort's. A judge comparing against someone else's
     # in-progress total is the failure mode calibration is supposed to prevent.
     scored: bool
@@ -247,6 +248,7 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
             for link in links
         ),
         links=links,
+        memo=(submission.memo_text or "") if submission else "",
         scored=score is not None,
         your_total=score.total if score else None,
         max_total=needed * 5,

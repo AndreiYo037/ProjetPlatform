@@ -5,6 +5,7 @@ import {
   assetUrl,
   deleteSubmissionSlot,
   putSubmissionLink,
+  putSubmissionMemo,
   submitSubmission,
   uploadSubmissionFile,
   type SubmissionOut,
@@ -224,15 +225,21 @@ export default function SubmissionPanel({
           </div>
         );
       })}
+      <MemoInput
+        initialMemo={submission.memo}
+        required={submission.memo_required}
+        locked={Boolean(submission.locked)}
+        programmeId={programmeId}
+        onSaved={onChange}
+        onError={setError}
+      />
       {!submission.locked && (
         <div className="panel" style={{ marginTop: "1rem" }}>
           {!complete && (
             <p className="small muted" style={{ marginTop: 0 }}>
               {onsite
-                ? "Fill every slot — a link, or a file you have uploaded — then submit."
-                : SHOW_SUBMISSION_MEMO
-                  ? "Fill every slot — a link, or a file you have uploaded — then submit. That is what opens a pitch timeslot."
-                  : "Paste your work link, then submit. That is what opens a pitch timeslot."}
+                ? "Add your work link and write your memo, then submit."
+                : "Add your work link and write your memo, then submit. That is what opens a pitch timeslot."}
             </p>
           )}
           {complete && !handedIn && !onsite && (
@@ -318,6 +325,93 @@ function SlotLinkInput({
       {!locked && (
         <div className="small muted" style={{ marginTop: "0.35rem" }}>
           {autosaveLabel(status) ?? "Saves when you pause typing"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const MEMO_PROMPTS: [string, string][] = [
+  ["What you built", "Describe your solution in plain language."],
+  ["How it works", "The data, tools and AI you used."],
+  [
+    "Results",
+    "What did you find or achieve? Include the numbers that matter, such as accuracy, response rate, views or time saved.",
+  ],
+  [
+    "Limitations and next steps",
+    "What doesn't work yet, and what would you do to improve it further?",
+  ],
+];
+
+const MEMO_MAX = 10000;
+
+function MemoInput({
+  initialMemo,
+  required,
+  locked,
+  programmeId,
+  onSaved,
+  onError,
+}: {
+  initialMemo: string;
+  required: boolean;
+  locked: boolean;
+  programmeId?: string;
+  onSaved: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const [memo, setMemo] = useState(initialMemo);
+  const [baseline, setBaseline] = useState(initialMemo);
+
+  useEffect(() => {
+    setBaseline(initialMemo);
+    // Don't clobber what is being typed when the refetch echoes an older save.
+    setMemo((current) => (current.trim() === initialMemo ? current : initialMemo));
+  }, [initialMemo]);
+
+  const { status, error } = useAutosave(
+    memo.trim(),
+    baseline.trim(),
+    async (next) => {
+      onError(null);
+      await putSubmissionMemo(next, programmeId);
+      setBaseline(next);
+      onSaved();
+    },
+    1000,
+  );
+
+  useEffect(() => {
+    if (error) onError(error);
+  }, [error, onError]);
+
+  return (
+    <div className="card">
+      <label htmlFor="submission-memo">
+        Your memo{required ? " (required)" : ""}
+      </label>
+      <ol className="small muted" style={{ margin: "0.4rem 0 0.75rem", paddingLeft: "1.2rem" }}>
+        {MEMO_PROMPTS.map(([title, hint]) => (
+          <li key={title}>
+            <strong>{title}:</strong> {hint}
+          </li>
+        ))}
+      </ol>
+      <textarea
+        id="submission-memo"
+        rows={12}
+        value={memo}
+        disabled={locked}
+        maxLength={MEMO_MAX}
+        placeholder="Write your memo here"
+        onChange={(e) => setMemo(e.target.value)}
+        style={{ width: "100%" }}
+      />
+      {!locked && (
+        <div className="small muted" style={{ marginTop: "0.35rem" }}>
+          {autosaveLabel(status) ?? "Saves when you pause typing"} · {memo.length.toLocaleString()}/
+          {MEMO_MAX.toLocaleString()}
         </div>
       )}
     </div>

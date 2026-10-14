@@ -69,6 +69,7 @@ from projet.services.submission import (
     is_locked,
     recheck,
     set_link,
+    set_memo,
     set_upload,
     submission_for_participant,
     submit_work,
@@ -805,6 +806,8 @@ class SubmissionOut(BaseModel):
     locked: bool
     submitted_at: datetime | None
     slots: list[SlotOut]
+    memo: str
+    memo_required: bool
 
 
 class ThreadSummary(BaseModel):
@@ -1002,6 +1005,9 @@ def _submission_out(db: Session, participant: Participant) -> SubmissionOut | No
         status=submission.status.value,
         locked=is_locked(db, submission),
         submitted_at=submission.submitted_at,
+        memo=submission.memo_text or "",
+        # Hand-ins from before the memo existed are not asked for one.
+        memo_required=not (submission.memo_text is None and submission.submitted_at is not None),
         slots=[
             SlotOut(
                 slot=link.slot.value,
@@ -1208,6 +1214,30 @@ def put_link(
         raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
     try:
         set_link(db, submission, SubmissionSlot(payload.slot), payload.drive_url)
+    except SubmissionError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    db.commit()
+    return _require_submission_out(db, participant)
+
+
+class MemoRequest(BaseModel):
+    text: str = Field(max_length=20_000)
+
+
+@router.put("/submission/memo", response_model=SubmissionOut)
+def put_memo(
+    payload: MemoRequest,
+    programme_id: uuid.UUID | None = Query(default=None),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> SubmissionOut:
+    """The typed write-up that goes with the work. Saved as it is typed."""
+    participant = _participant(db, actor, programme_id)
+    submission = submission_for_participant(db, participant)
+    if submission is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
+    try:
+        set_memo(db, submission, payload.text)
     except SubmissionError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     db.commit()

@@ -5194,6 +5194,83 @@
         }
       }
     },
+    "/me/submission/memo": {
+      "put": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Put Memo",
+        "description": "The typed write-up that goes with the work. Saved as it is typed.",
+        "operationId": "put_memo_me_submission_memo_put",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/submission/upload": {
       "put": {
         "tags": [
@@ -8737,6 +8814,20 @@
           "actor_type"
         ],
         "title": "LoginRequest"
+      },
+      "MemoRequest": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "MemoRequest"
       },
       "NotifyRequest": {
         "properties": {
@@ -12366,6 +12457,11 @@
             "type": "array",
             "title": "Links"
           },
+          "memo": {
+            "type": "string",
+            "title": "Memo",
+            "default": ""
+          },
           "scored": {
             "type": "boolean",
             "title": "Scored"
@@ -12466,6 +12562,14 @@
             },
             "type": "array",
             "title": "Slots"
+          },
+          "memo": {
+            "type": "string",
+            "title": "Memo"
+          },
+          "memo_required": {
+            "type": "boolean",
+            "title": "Memo Required"
           }
         },
         "type": "object",
@@ -12473,7 +12577,9 @@
           "status",
           "locked",
           "submitted_at",
-          "slots"
+          "slots",
+          "memo",
+          "memo_required"
         ],
         "title": "SubmissionOut"
       },

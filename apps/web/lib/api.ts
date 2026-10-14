@@ -597,6 +597,8 @@ export const putSubmissionLink = (slot: string, driveUrl: string, programmeId?: 
     slot,
     drive_url: driveUrl,
   });
+export const putSubmissionMemo = (text: string, programmeId?: string) =>
+  api.put<SubmissionOut>(withProgramme("/me/submission/memo", programmeId), { text });
 export const deleteSubmissionSlot = (slot: string, programmeId?: string) =>
   api.del<SubmissionOut>(withProgramme(`/me/submission/link/${slot}`, programmeId));
 export const recheckSubmission = (programmeId?: string) =>

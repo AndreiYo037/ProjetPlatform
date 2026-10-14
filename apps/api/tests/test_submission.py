@@ -17,6 +17,7 @@ from projet.services.submission import (
     is_locked,
     recheck,
     set_link,
+    set_memo,
     set_upload,
     submit_work,
 )
@@ -67,6 +68,7 @@ def test_a_submission_is_not_complete_while_the_artifact_fails(session, submissi
 def test_a_submission_completes_when_every_slot_opens(session, submission, google):
     _, sub = submission
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built and what we found.")
     set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
 
     assert sub.status == SubmissionStatus.COMPLETE
@@ -77,6 +79,7 @@ def test_submit_hands_the_work_in(session, submission, google):
     """Filling the slots is ready; Submit is what counts as handed in."""
     _, sub = submission
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built and what we found.")
     set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
 
     submit_work(session, sub, google=google)
@@ -87,15 +90,16 @@ def test_submit_hands_the_work_in(session, submission, google):
 def test_you_cannot_submit_with_an_empty_slot(session, submission, google):
     _, sub = submission
 
-    with pytest.raises(SubmissionError, match="Fill every slot"):
+    with pytest.raises(SubmissionError, match="write your memo"):
         submit_work(session, sub, google=google)
     assert sub.submitted_at is None
 
 
 def test_artifact_alone_is_enough_to_complete(session, submission, google):
-    """Memo is optional for now — the artifact link is what counts."""
+    """The Drive memo slot stays optional; the typed memo is what is required."""
     _, sub = submission
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built and what we found.")
     assert sub.status == SubmissionStatus.COMPLETE
     submit_work(session, sub, google=google)
     assert sub.submitted_at is not None
@@ -114,6 +118,7 @@ def test_links_can_be_changed_freely_before_the_deadline(session, submission, go
 def test_clearing_a_link_drops_the_submission_out_of_complete(session, submission, google):
     _, sub = submission
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built and what we found.")
     set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
     assert sub.status == SubmissionStatus.COMPLETE
 
@@ -144,6 +149,7 @@ def test_recheck_catches_a_link_unshared_after_pasting(session, submission, goog
     """A link shareable on day 2 can be un-shared by day 5."""
     _, sub = submission
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built and what we found.")
     set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
     assert sub.status == SubmissionStatus.COMPLETE
 
@@ -158,6 +164,7 @@ def test_a_recheck_after_fixing_sharing_restores_complete(session, submission, g
     _, sub = submission
     google.stage_denied(GOOD_URL)
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built and what we found.")
     set_link(session, sub, SubmissionSlot.MEMO, OTHER_URL, google=google)
     assert sub.status == SubmissionStatus.DRAFT
 
@@ -215,6 +222,7 @@ def test_an_uploaded_file_is_stored_and_marked_ok(session, submission):
 def test_an_upload_completes_the_submission_alongside_a_link(session, submission, google):
     _, sub = submission
     set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built and what we found.")
     set_upload(
         session,
         sub,
@@ -299,3 +307,60 @@ def test_the_deadline_locks_an_uploaded_slot_too(session, programme, submission)
             filename="c.pdf",
             mime_type="application/pdf",
         )
+
+
+def test_a_link_alone_is_not_enough_without_the_typed_memo(session, submission, google):
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+
+    assert sub.status == SubmissionStatus.DRAFT
+    with pytest.raises(SubmissionError, match="write your memo"):
+        submit_work(session, sub, google=google)
+
+
+def test_a_blank_memo_does_not_count(session, submission, google):
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "   \n  ")
+
+    assert sub.memo_text == ""
+    assert sub.status == SubmissionStatus.DRAFT
+
+
+def test_clearing_the_memo_takes_a_handed_in_submission_back_to_draft(session, submission, google):
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "Done.")
+    submit_work(session, sub, google=google)
+    assert sub.submitted_at is not None
+
+    set_memo(session, sub, "")
+    assert sub.status == SubmissionStatus.DRAFT
+    assert sub.submitted_at is None
+
+
+def test_work_handed_in_before_the_memo_existed_stays_valid(session, submission, google):
+    """memo_text NULL plus submitted_at set is a pre-memo hand-in; a recheck
+    must not un-submit it."""
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    sub.submitted_at = utcnow()
+    sub.memo_text = None
+    recheck(session, sub, google=google)
+
+    assert sub.status == SubmissionStatus.COMPLETE
+    assert sub.submitted_at is not None
+
+
+def test_an_overlong_memo_is_refused(session, submission):
+    _, sub = submission
+    with pytest.raises(SubmissionError, match="characters"):
+        set_memo(session, sub, "x" * 10_001)
+
+
+def test_the_memo_is_locked_with_the_submission(session, programme, submission):
+    _, sub = submission
+    programme.submit_deadline_at = utcnow() - timedelta(minutes=1)
+    session.flush()
+    with pytest.raises(SubmissionError, match="locked"):
+        set_memo(session, sub, "Too late.")

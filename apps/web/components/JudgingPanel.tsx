@@ -439,6 +439,17 @@ function ParticipantJudgingCard({
         )}
       </div>
 
+      {card.memo && (
+        <div style={{ marginTop: "0.85rem" }}>
+          <div className="small muted" style={{ marginBottom: "0.35rem" }}>
+            Memo
+          </div>
+          <div className="panel" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            {card.memo}
+          </div>
+        </div>
+      )}
+
       <div
         className="row"
         style={{ justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.75rem", flexWrap: "wrap" }}

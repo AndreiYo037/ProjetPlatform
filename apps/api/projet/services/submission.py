@@ -266,11 +266,35 @@ def clear_link(session: Session, submission: Submission, slot: SubmissionSlot) -
     session.flush()
 
 
+MEMO_MAX_CHARS = 10_000
+
+
+def memo_missing(submission: Submission) -> bool:
+    """True when the memo still has to be written. NULL on an already
+    handed-in submission is the grandfathered case: it predates the memo."""
+    if submission.memo_text is None:
+        return submission.submitted_at is None
+    return not submission.memo_text.strip()
+
+
+def set_memo(session: Session, submission: Submission, text: str) -> None:
+    if is_locked(session, submission):
+        raise SubmissionError("Submissions are locked.")
+    assert_submissions_open(session, submission)
+    text = text.strip()
+    if len(text) > MEMO_MAX_CHARS:
+        raise SubmissionError(f"Keep the memo under {MEMO_MAX_CHARS:,} characters.")
+    submission.memo_text = text
+    session.flush()
+    _refresh_status(session, submission)
+
+
 def _refresh_status(session: Session, submission: Submission) -> None:
     """Complete means the required slots are filled and openable. That is not a
     hand-in; submit_work stamps submitted_at, and that is what opens a timeslot.
 
-    The memo slot is optional for now — only the artifact link is required.
+    The artifact link and the typed memo are both required. A submission that
+    was handed in before the memo existed (memo_text still NULL) stays valid.
     """
     links = list(
         session.scalars(select(SubmissionLink).where(SubmissionLink.submission_id == submission.id))
@@ -283,6 +307,7 @@ def _refresh_status(session: Session, submission: Submission) -> None:
         bool(required)
         and len(filled) == len(required)
         and all(link.access_status == AccessStatus.OK for link in required)
+        and not memo_missing(submission)
     )
     if complete:
         submission.status = SubmissionStatus.COMPLETE
@@ -357,7 +382,7 @@ def submit_work(
     assert_submissions_open(session, submission)
     recheck(session, submission, google=google)
     if submission.status != SubmissionStatus.COMPLETE:
-        raise SubmissionError("Fill every slot before you submit.")
+        raise SubmissionError("Add your work link and write your memo before you submit.")
     submission.submitted_at = utcnow()
     _resize_pitch_grid(session, submission)
     session.flush()

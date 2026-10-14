@@ -182,8 +182,10 @@ def test_a_broken_link_keeps_the_submission_incomplete(client, signed_in, google
 
 def test_filling_every_slot_completes_the_submission(client, signed_in, google):
     client.put("/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL})
-    body = client.put("/me/submission/link", json={"slot": "memo", "drive_url": OTHER_URL}).json()
+    client.put("/me/submission/link", json={"slot": "memo", "drive_url": OTHER_URL})
+    body = client.put("/me/submission/memo", json={"text": "What we built."}).json()
 
+    assert body["memo"] == "What we built."
     assert body["status"] == "complete"
     assert body["submitted_at"] is None
 
@@ -192,10 +194,29 @@ def test_filling_every_slot_completes_the_submission(client, signed_in, google):
     assert handed["submitted_at"]
 
 
+def test_submitting_without_the_memo_is_refused(client, signed_in, google):
+    client.put("/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL})
+    body = client.get("/me/dashboard").json()["submission"]
+    assert body["memo_required"] is True
+    assert body["status"] == "draft"
+
+    response = client.post("/me/submission/submit")
+    assert response.status_code == 422
+    assert "memo" in response.json()["detail"]
+
+
+def test_the_memo_is_refused_after_the_deadline(client, signed_in, session, programme):
+    programme.submit_deadline_at = utcnow() - timedelta(minutes=1)
+    session.flush()
+    response = client.put("/me/submission/memo", json={"text": "late"})
+    assert response.status_code == 409
+
+
 def test_recheck_picks_up_a_fixed_sharing_setting(client, signed_in, google):
     google.stage_denied(GOOD_URL)
     client.put("/me/submission/link", json={"slot": "artifact", "drive_url": GOOD_URL})
     client.put("/me/submission/link", json={"slot": "memo", "drive_url": OTHER_URL})
+    client.put("/me/submission/memo", json={"text": "What we built."})
 
     google.drive_files.pop(GOOD_URL)
     body = client.post("/me/submission/recheck").json()

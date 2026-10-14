@@ -30,6 +30,10 @@ class Submission(Base):
     submitted_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     locked_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
+    # The typed write-up. NULL means it has never been touched, which is how a
+    # submission handed in before the memo existed stays valid; an empty string
+    # means the participant opened it and cleared it, and is required again.
+    memo_text: Mapped[str | None] = mapped_column(Text)
 
     links: Mapped[list[SubmissionLink]] = relationship(
         back_populates="submission", cascade="all, delete-orphan"

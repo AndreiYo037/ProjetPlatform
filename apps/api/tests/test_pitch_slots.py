@@ -62,6 +62,7 @@ def hand_in(session, participant):
     """A complete submission: that is what opens a timeslot."""
     team = ensure_team_for_participant(session, participant)
     submission = ensure_submission(session, team)
+    submission.memo_text = "What we built."
     for link in session.scalars(
         select(SubmissionLink).where(SubmissionLink.submission_id == submission.id)
     ):
@@ -168,6 +169,7 @@ def test_filling_slots_does_not_open_a_timeslot_until_submit(client, session, pr
     ):
         link.drive_url = "https://example.com/work"
         link.access_status = AccessStatus.OK
+    submission.memo_text = "What we built."
     _refresh_status(session, submission)
     session.flush()
 
