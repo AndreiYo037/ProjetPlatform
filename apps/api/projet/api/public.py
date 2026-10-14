@@ -33,7 +33,12 @@ from projet.models.base import utcnow
 from projet.models.enums import ApplicationStatus, OutboxSubjectType, ProgrammeStatus
 from projet.services.auth import Actor
 from projet.services.branding import logo_url
-from projet.services.people import google_email_warning, looks_like_email, resolve_person
+from projet.services.people import (
+    google_email_warning,
+    looks_like_email,
+    normalise_telegram_handle,
+    resolve_person,
+)
 from projet.services.schedule import programme_is_past
 from projet.services.writeup import join_names, writeup_prompt_from_programme
 from projet.storage import get_storage
@@ -510,6 +515,7 @@ async def apply(
     timezone: str | None = Form(default=None, max_length=60),
     writeup: str | None = Form(default=None),
     linkedin_url: str | None = Form(default=None, max_length=400),
+    telegram_handle: str | None = Form(default=None, max_length=100),
     access_code: str | None = Form(default=None, max_length=32),
     # Declared rather than assumed. Defaulted to false so a form that omits it
     # is refused, not silently taken as a yes.
@@ -634,6 +640,17 @@ async def apply(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "That does not look like a LinkedIn profile URL.",
         )
+    if not (telegram_handle or "").strip():
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "A Telegram handle is required.",
+        )
+    telegram = normalise_telegram_handle(telegram_handle)
+    if telegram is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "That does not look like a Telegram handle (5-32 letters, digits or underscores).",
+        )
 
     person, _created = resolve_person(
         db,
@@ -677,6 +694,7 @@ async def apply(
         )
 
     person.linkedin_url = linkedin
+    person.telegram_handle = telegram
 
     application = Application(
         programme_id=programme.id,
@@ -684,6 +702,7 @@ async def apply(
         cv_url=key,
         writeup=text or None,
         linkedin_url=linkedin,
+        telegram_handle=telegram,
         availability_confirmed=True,
         consent_share_company=consent_share_company,
         consent_recording=consent_recording,

@@ -6680,6 +6680,17 @@
             ],
             "title": "Linkedin Url"
           },
+          "telegram_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Handle"
+          },
           "availability_confirmed": {
             "type": "boolean",
             "title": "Availability Confirmed",
@@ -7129,6 +7140,18 @@
               }
             ],
             "title": "Linkedin Url"
+          },
+          "telegram_handle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Handle"
           },
           "access_code": {
             "anyOf": [
@@ -9169,6 +9192,17 @@
             ],
             "title": "Linkedin Url"
           },
+          "telegram_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Handle"
+          },
           "cv_url": {
             "anyOf": [
               {
@@ -9285,6 +9319,18 @@
               }
             ],
             "title": "Linkedin Url"
+          },
+          "telegram_handle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Handle"
           }
         },
         "type": "object",
@@ -12266,6 +12312,17 @@
               }
             ],
             "title": "Linkedin Url"
+          },
+          "telegram_handle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Telegram Handle"
           },
           "run_order": {
             "anyOf": [

@@ -83,6 +83,7 @@ class ApplicationDetail(ApplicationOut):
     writeup: str | None = None
     cv_url: str | None = None
     linkedin_url: str | None = None
+    telegram_handle: str | None = None
     availability_confirmed: bool = False
     # The same link the offer email carries. FR-401 keeps acceptance
     # tokenised and passwordless by email; this surfaces it here too so a
@@ -169,6 +170,7 @@ def get_application(
     detail = ApplicationDetail(**base.model_dump())
     detail.writeup = application.writeup
     detail.linkedin_url = application.linkedin_url
+    detail.telegram_handle = application.telegram_handle or application.person.telegram_handle
     detail.availability_confirmed = application.availability_confirmed
     detail.google_email = application.person.google_email
     detail.phone = application.person.phone

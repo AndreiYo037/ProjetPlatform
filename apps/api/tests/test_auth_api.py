@@ -440,6 +440,7 @@ def test_a_participant_can_edit_their_profile_after_signup(client):
             "year_course": "Year 2, Computing",
             "google_email": "ada@gmail.com",
             "linkedin_url": "https://www.linkedin.com/in/ada",
+            "telegram_handle": "@test_handle",
         },
     )
     assert response.status_code == 200, response.text

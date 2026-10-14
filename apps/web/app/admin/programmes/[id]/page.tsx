@@ -339,6 +339,11 @@ export default function ProgrammePage({ params }: { params: Promise<{ id: string
                 <span>{detail.contact_email}</span>
                 {detail.organisation && <span>· {detail.organisation}</span>}
                 {detail.year_course && <span>· {detail.year_course}</span>}
+                {detail.telegram_handle && (
+                  <a href={`https://t.me/${detail.telegram_handle}`} target="_blank" rel="noreferrer">
+                    · @{detail.telegram_handle}
+                  </a>
+                )}
                 {detail.linkedin_url && (
                   <a href={detail.linkedin_url} target="_blank" rel="noreferrer">
                     · LinkedIn

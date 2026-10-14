@@ -99,6 +99,7 @@ def application(**overrides) -> dict:
         "org_type": "school",
         "year_course": "Y2 Business Analytics",
         "linkedin_url": "https://www.linkedin.com/in/sam-student",
+        "telegram_handle": "@test_handle",
         "timezone": "Asia/Singapore",
         "writeup": " ".join(["analysis"] * 220),
         "availability_confirmed": "true",
@@ -242,3 +243,29 @@ def test_a_second_application_from_the_same_person_is_refused(client, listing):
     second = apply(client)
     assert second.status_code == 409
     assert "already applied" in second.json()["detail"].lower()
+
+
+def test_a_telegram_handle_is_required(client, listing):
+    response = apply(client, telegram_handle="")
+    assert response.status_code == 422
+    assert "Telegram" in response.json()["detail"]
+
+
+def test_something_that_is_not_a_telegram_handle_is_refused(client, listing):
+    response = apply(client, telegram_handle="no spaces allowed")
+    assert response.status_code == 422
+    assert "Telegram" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "pasted",
+    ["@sam_student", "sam_student", "https://t.me/sam_student", "t.me/sam_student/"],
+)
+def test_a_telegram_handle_is_stored_without_the_at(client, listing, session, admin, pasted):
+    assert apply(client, telegram_handle=pasted).status_code == 201
+
+    _, raw = start_session(session, actor_type=ActorType.PLATFORM, subject_id=admin.id)
+    client.cookies.set(SESSION_COOKIE, raw)
+    applications = client.get(f"/programmes/{listing['id']}/applications").json()
+    detail = client.get(f"/programmes/{listing['id']}/applications/{applications[0]['id']}").json()
+    assert detail["telegram_handle"] == "sam_student"

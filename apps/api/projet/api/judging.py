@@ -101,6 +101,7 @@ class SubmissionCard(BaseModel):
     year_course: str | None = None
     job_title: str | None = None
     linkedin_url: str | None = None
+    telegram_handle: str | None = None
     run_order: int | None
     status: str
     submitted_at: datetime | None
@@ -233,6 +234,7 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         year_course=person.year_course if person else None,
         job_title=person.job_title if person else None,
         linkedin_url=person.linkedin_url if person else None,
+        telegram_handle=person.telegram_handle if person else None,
         run_order=participant.run_order,
         status=submission.status.value if submission else "draft",
         submitted_at=submission.submitted_at if submission else None,

@@ -35,6 +35,7 @@ export default function ParticipantProfile() {
   const [yearCourse, setYearCourse] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [telegramHandle, setTelegramHandle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +51,7 @@ export default function ParticipantProfile() {
         setYearCourse(row.year_course ?? "");
         setJobTitle(row.job_title ?? "");
         setLinkedinUrl(row.linkedin_url ?? "");
+        setTelegramHandle(row.telegram_handle ? `@${row.telegram_handle}` : "");
       })
       .catch(() => setProfile(null));
   }, []);
@@ -65,6 +67,7 @@ export default function ParticipantProfile() {
     yearCourse: yearCourse.trim(),
     jobTitle: jobTitle.trim(),
     linkedinUrl: linkedinUrl.trim(),
+    telegramHandle: telegramHandle.trim(),
   };
   const baseline = profile
     ? {
@@ -76,6 +79,7 @@ export default function ParticipantProfile() {
         yearCourse: profile.year_course ?? "",
         jobTitle: profile.job_title ?? "",
         linkedinUrl: profile.linkedin_url ?? "",
+        telegramHandle: profile.telegram_handle ? `@${profile.telegram_handle}` : "",
       }
     : draft;
 
@@ -90,6 +94,7 @@ export default function ParticipantProfile() {
       year_course: next.orgType === "school" ? next.yearCourse : "",
       job_title: next.orgType === "school" ? "" : next.jobTitle,
       linkedin_url: next.linkedinUrl,
+      telegram_handle: next.telegramHandle,
     });
     setProfile(updated);
   });
@@ -182,6 +187,20 @@ export default function ParticipantProfile() {
           value={linkedinUrl}
           onChange={(e) => setLinkedinUrl(e.target.value)}
           placeholder="https://www.linkedin.com/in/yourname"
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="profile-telegram">Telegram handle</label>
+        <input
+          id="profile-telegram"
+          type="text"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          value={telegramHandle}
+          onChange={(e) => setTelegramHandle(e.target.value)}
+          placeholder="@yourhandle"
         />
       </div>
 

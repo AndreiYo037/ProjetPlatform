@@ -43,7 +43,7 @@ from projet.services.messaging import (
     unread_counts,
     visible_threads,
 )
-from projet.services.people import looks_like_email
+from projet.services.people import looks_like_email, normalise_telegram_handle
 from projet.services.profile import (
     attested_skills,
     endorsements_for,
@@ -94,6 +94,7 @@ class ProfileOut(BaseModel):
     year_course: str | None = None
     job_title: str | None = None
     linkedin_url: str | None = None
+    telegram_handle: str | None = None
     cv_url: str | None = None
 
 
@@ -106,6 +107,7 @@ class ProfileUpdate(BaseModel):
     year_course: str | None = Field(default=None, max_length=300)
     job_title: str | None = Field(default=None, max_length=200)
     linkedin_url: str | None = Field(default=None, max_length=400)
+    telegram_handle: str | None = Field(default=None, max_length=100)
 
 
 def _person(db: Session, actor: Actor) -> Person:
@@ -161,6 +163,7 @@ def _profile_out(person: Person) -> ProfileOut:
         year_course=person.year_course,
         job_title=person.job_title,
         linkedin_url=person.linkedin_url,
+        telegram_handle=person.telegram_handle,
         cv_url=_signed_cv_url(person.cv_url),
     )
 
@@ -667,6 +670,7 @@ def update_profile(
         person.year_course,
         person.job_title,
         person.linkedin_url,
+        person.telegram_handle,
         person.cv_url,
     )
     if payload.name is not None:
@@ -710,6 +714,18 @@ def update_profile(
                 "That does not look like a LinkedIn profile URL.",
             )
         person.linkedin_url = linkedin
+    if payload.telegram_handle is not None:
+        if not payload.telegram_handle.strip():
+            person.telegram_handle = None
+        else:
+            telegram = normalise_telegram_handle(payload.telegram_handle)
+            if telegram is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    "That does not look like a Telegram handle "
+                    "(5-32 letters, digits or underscores).",
+                )
+            person.telegram_handle = telegram
 
     # Type decides which of year/course and job title is kept.
     org_type = person.org_type
@@ -736,6 +752,7 @@ def update_profile(
         person.year_course,
         person.job_title,
         person.linkedin_url,
+        person.telegram_handle,
         person.cv_url,
     )
     if before != after:

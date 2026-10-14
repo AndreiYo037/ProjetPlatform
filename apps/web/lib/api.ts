@@ -178,6 +178,7 @@ export type PersonProfile = {
   year_course: string | null;
   job_title: string | null;
   linkedin_url: string | null;
+  telegram_handle: string | null;
   cv_url: string | null;
 };
 

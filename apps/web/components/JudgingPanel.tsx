@@ -356,6 +356,20 @@ function ParticipantJudgingCard({
                 <dd>{card.year_course || card.job_title}</dd>
               </>
             )}
+            {card.telegram_handle && (
+              <>
+                <dt>Telegram</dt>
+                <dd>
+                  <a
+                    href={`https://t.me/${card.telegram_handle}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    @{card.telegram_handle}
+                  </a>
+                </dd>
+              </>
+            )}
             {card.linkedin_url && externalHref(card.linkedin_url) && (
               <>
                 <dt>LinkedIn</dt>
@@ -371,6 +385,7 @@ function ParticipantJudgingCard({
             !card.google_email &&
             !card.phone &&
             !card.linkedin_url &&
+            !card.telegram_handle &&
             !card.organisation &&
             !card.year_course &&
             !card.job_title && (

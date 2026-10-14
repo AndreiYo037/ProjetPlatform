@@ -100,6 +100,7 @@ def rig(client, session, admin, role) -> dict:
             "org_type": "school",
             "year_course": "Y2 CS",
             "linkedin_url": "https://www.linkedin.com/in/sam-student",
+            "telegram_handle": "@test_handle",
             "timezone": "Asia/Singapore",
             "writeup": " ".join(["analysis"] * 220),
             "availability_confirmed": "true",

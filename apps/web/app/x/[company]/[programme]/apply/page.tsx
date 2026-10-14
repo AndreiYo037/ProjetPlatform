@@ -60,6 +60,7 @@ export default function ApplyPage({
   const [yearCourse, setYearCourse] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [linkedinUrl, setLinkedinUrl] = useState("");
+  const [telegramHandle, setTelegramHandle] = useState("");
   const [accessCode, setAccessCode] = useState("");
   const [timezone, setTimezone] = useState("Asia/Singapore");
   const [writeup, setWriteup] = useState("");
@@ -149,6 +150,7 @@ export default function ApplyPage({
         setYearCourse(mine.year_course || "");
         setJobTitle(mine.job_title || "");
         setLinkedinUrl(mine.linkedin_url || "");
+        setTelegramHandle(mine.telegram_handle ? `@${mine.telegram_handle}` : "");
       } catch (err) {
         // Signed out, or profile not ready — leave the form blank.
         if (err instanceof ApiError && err.status === 401) return;
@@ -183,6 +185,7 @@ export default function ApplyPage({
     form.set("year_course", isStudent ? yearCourse : "");
     form.set("job_title", isStudent ? "" : jobTitle);
     form.set("linkedin_url", linkedinUrl);
+    form.set("telegram_handle", telegramHandle);
     if (onsite) {
       form.delete("google_email");
       form.delete("writeup");
@@ -432,6 +435,23 @@ export default function ApplyPage({
             value={linkedinUrl}
             onChange={(e) => setLinkedinUrl(e.target.value)}
           />
+        </div>
+
+        <div className="field">
+          <label htmlFor="telegram_handle">Telegram handle</label>
+          <input
+            id="telegram_handle"
+            name="telegram_handle"
+            type="text"
+            required
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="@yourhandle"
+            value={telegramHandle}
+            onChange={(e) => setTelegramHandle(e.target.value)}
+          />
+          <div className="hint">The company and organisers use it to reach you.</div>
         </div>
 
         {!onsite && (

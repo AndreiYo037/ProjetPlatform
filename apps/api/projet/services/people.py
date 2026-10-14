@@ -8,12 +8,30 @@ their details" rather than creating a second record.
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from projet.models import Person, normalise_email
 
 NON_GOOGLE_DOMAINS = ("outlook.", "hotmail.", "yahoo.", "proton.", "protonmail.", "icloud.")
+
+
+_TELEGRAM_HANDLE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{4,31}$")
+
+
+def normalise_telegram_handle(value: str | None) -> str | None:
+    """A Telegram username without the @, or None if it isn't one.
+
+    Accepts what people actually paste: "@name", "name", or a t.me link.
+    Telegram usernames are 5-32 characters of letters, digits and
+    underscores, starting with a letter.
+    """
+    raw = (value or "").strip()
+    raw = re.sub(r"^(https?://)?(www\.)?(t|telegram)\.me/", "", raw, flags=re.IGNORECASE)
+    raw = raw.lstrip("@").strip().rstrip("/")
+    return raw if _TELEGRAM_HANDLE.match(raw) else None
 
 
 def looks_like_email(value: str | None) -> bool:

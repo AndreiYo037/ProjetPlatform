@@ -50,6 +50,8 @@ class Person(Base):
     # Update profile can refresh them without touching a past application.
     cv_url: Mapped[str | None] = mapped_column(Text)
     linkedin_url: Mapped[str | None] = mapped_column(Text)
+    # Without the leading @. Companies and organisers coordinate on Telegram.
+    telegram_handle: Mapped[str | None] = mapped_column(String(64))
     timezone: Mapped[str] = mapped_column(String(60), default="Asia/Singapore")
     # FR-1201 — the public profile lives at /p/{handle}. Scheme still open
     # (PRD section 12 question 1); the column existing now keeps it out of a migration.
@@ -89,6 +91,7 @@ class Application(Base):
     # The CV says what they have done; the profile says who is saying it. Asked
     # for here rather than on Person because it is a claim made to this company.
     linkedin_url: Mapped[str | None] = mapped_column(Text)
+    telegram_handle: Mapped[str | None] = mapped_column(String(64))
 
     # The commitment, declared before a seat is consumed. The company picks
     # the start and end dates, so someone who cannot make them should find
