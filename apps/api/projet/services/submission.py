@@ -277,6 +277,36 @@ def memo_missing(submission: Submission) -> bool:
     return not submission.memo_text.strip()
 
 
+PITCH_MODES = ("online", "onsite")
+
+
+def pitch_mode_required(session: Session, submission: Submission) -> bool:
+    """On-site challenges ask how the team will pitch; online ones do not.
+    A hand-in from before the question existed is not asked retroactively."""
+    programme = _programme_for(session, submission)
+    if programme is None or not programme.onsite:
+        return False
+    return not (submission.pitch_mode is None and submission.submitted_at is not None)
+
+
+def pitch_mode_missing(session: Session, submission: Submission) -> bool:
+    return pitch_mode_required(session, submission) and submission.pitch_mode is None
+
+
+def set_pitch_mode(session: Session, submission: Submission, mode: str) -> None:
+    if is_locked(session, submission):
+        raise SubmissionError("Submissions are locked.")
+    assert_submissions_open(session, submission)
+    programme = _programme_for(session, submission)
+    if programme is None or not programme.onsite:
+        raise SubmissionError("Only on-site challenges ask how you will pitch.")
+    if mode not in PITCH_MODES:
+        raise SubmissionError("Choose online or on-site.")
+    submission.pitch_mode = mode
+    session.flush()
+    _refresh_status(session, submission)
+
+
 def set_memo(session: Session, submission: Submission, text: str) -> None:
     if is_locked(session, submission):
         raise SubmissionError("Submissions are locked.")
@@ -308,6 +338,7 @@ def _refresh_status(session: Session, submission: Submission) -> None:
         and len(filled) == len(required)
         and all(link.access_status == AccessStatus.OK for link in required)
         and not memo_missing(submission)
+        and not pitch_mode_missing(session, submission)
     )
     if complete:
         submission.status = SubmissionStatus.COMPLETE
@@ -382,6 +413,10 @@ def submit_work(
     assert_submissions_open(session, submission)
     recheck(session, submission, google=google)
     if submission.status != SubmissionStatus.COMPLETE:
+        if pitch_mode_missing(session, submission):
+            raise SubmissionError(
+                "Choose whether you will pitch online or on-site before you submit."
+            )
         raise SubmissionError("Add your work link and write your memo before you submit.")
     submission.submitted_at = utcnow()
     _resize_pitch_grid(session, submission)

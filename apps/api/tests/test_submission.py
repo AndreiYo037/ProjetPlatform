@@ -18,6 +18,7 @@ from projet.services.submission import (
     recheck,
     set_link,
     set_memo,
+    set_pitch_mode,
     set_upload,
     submit_work,
 )
@@ -364,3 +365,56 @@ def test_the_memo_is_locked_with_the_submission(session, programme, submission):
     session.flush()
     with pytest.raises(SubmissionError, match="locked"):
         set_memo(session, sub, "Too late.")
+
+
+def _onsite(session, programme):
+    from projet.models.enums import DeliveryMode
+
+    programme.delivery_mode = DeliveryMode.IN_PERSON
+    session.flush()
+
+
+def test_an_online_challenge_never_asks_how_you_will_pitch(session, submission, google):
+    from projet.services.submission import pitch_mode_required
+
+    _, sub = submission
+    assert not pitch_mode_required(session, sub)
+    with pytest.raises(SubmissionError, match="on-site"):
+        set_pitch_mode(session, sub, "online")
+
+
+def test_an_onsite_submission_needs_a_pitch_mode_before_it_completes(
+    session, programme, submission, google
+):
+    _onsite(session, programme)
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    set_memo(session, sub, "What we built.")
+    assert sub.status == SubmissionStatus.DRAFT
+    with pytest.raises(SubmissionError, match="online or on-site"):
+        submit_work(session, sub, google=google)
+
+    set_pitch_mode(session, sub, "onsite")
+    assert sub.status == SubmissionStatus.COMPLETE
+    submit_work(session, sub, google=google)
+    assert sub.submitted_at is not None
+
+
+def test_a_pitch_mode_must_be_one_of_the_two(session, programme, submission):
+    _onsite(session, programme)
+    _, sub = submission
+    with pytest.raises(SubmissionError, match="online or on-site"):
+        set_pitch_mode(session, sub, "hybrid")
+
+
+def test_an_onsite_hand_in_from_before_the_question_stays_valid(
+    session, programme, submission, google
+):
+    _onsite(session, programme)
+    _, sub = submission
+    set_link(session, sub, SubmissionSlot.ARTIFACT, GOOD_URL, google=google)
+    sub.memo_text = "Done."
+    sub.submitted_at = utcnow()
+    recheck(session, sub, google=google)
+    assert sub.status == SubmissionStatus.COMPLETE
+    assert sub.submitted_at is not None

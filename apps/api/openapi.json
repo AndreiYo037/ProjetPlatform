@@ -5271,6 +5271,83 @@
         }
       }
     },
+    "/me/submission/pitch-mode": {
+      "put": {
+        "tags": [
+          "participant"
+        ],
+        "summary": "Put Pitch Mode",
+        "description": "On-site challenges only: whether the team pitches online or in person.",
+        "operationId": "put_pitch_mode_me_submission_pitch_mode_put",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PitchModeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me/submission/upload": {
       "put": {
         "tags": [
@@ -8909,6 +8986,20 @@
         ],
         "title": "PasswordResetRequest"
       },
+      "PitchModeRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "pattern": "^(online|onsite)$",
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "title": "PitchModeRequest"
+      },
       "PitchScheduleOut": {
         "properties": {
           "starts_at": {
@@ -12462,6 +12553,17 @@
             "title": "Memo",
             "default": ""
           },
+          "pitch_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Mode"
+          },
           "scored": {
             "type": "boolean",
             "title": "Scored"
@@ -12570,6 +12672,21 @@
           "memo_required": {
             "type": "boolean",
             "title": "Memo Required"
+          },
+          "pitch_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pitch Mode"
+          },
+          "pitch_mode_required": {
+            "type": "boolean",
+            "title": "Pitch Mode Required"
           }
         },
         "type": "object",
@@ -12579,7 +12696,9 @@
           "submitted_at",
           "slots",
           "memo",
-          "memo_required"
+          "memo_required",
+          "pitch_mode",
+          "pitch_mode_required"
         ],
         "title": "SubmissionOut"
       },

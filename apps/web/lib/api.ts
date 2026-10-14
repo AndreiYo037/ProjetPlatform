@@ -599,6 +599,8 @@ export const putSubmissionLink = (slot: string, driveUrl: string, programmeId?: 
   });
 export const putSubmissionMemo = (text: string, programmeId?: string) =>
   api.put<SubmissionOut>(withProgramme("/me/submission/memo", programmeId), { text });
+export const putSubmissionPitchMode = (mode: "online" | "onsite", programmeId?: string) =>
+  api.put<SubmissionOut>(withProgramme("/me/submission/pitch-mode", programmeId), { mode });
 export const deleteSubmissionSlot = (slot: string, programmeId?: string) =>
   api.del<SubmissionOut>(withProgramme(`/me/submission/link/${slot}`, programmeId));
 export const recheckSubmission = (programmeId?: string) =>

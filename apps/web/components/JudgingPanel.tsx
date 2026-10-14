@@ -439,6 +439,13 @@ function ParticipantJudgingCard({
         )}
       </div>
 
+      {card.pitch_mode && (
+        <p className="small" style={{ marginTop: "0.85rem", marginBottom: 0 }}>
+          <span className="muted">Pitching:</span>{" "}
+          {card.pitch_mode === "online" ? "Online" : "On-site"}
+        </p>
+      )}
+
       {card.memo && (
         <div style={{ marginTop: "0.85rem" }}>
           <div className="small muted" style={{ marginBottom: "0.35rem" }}>

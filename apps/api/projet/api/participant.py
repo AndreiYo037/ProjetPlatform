@@ -67,9 +67,11 @@ from projet.services.submission import (
     SubmissionError,
     clear_link,
     is_locked,
+    pitch_mode_required,
     recheck,
     set_link,
     set_memo,
+    set_pitch_mode,
     set_upload,
     submission_for_participant,
     submit_work,
@@ -808,6 +810,8 @@ class SubmissionOut(BaseModel):
     slots: list[SlotOut]
     memo: str
     memo_required: bool
+    pitch_mode: str | None
+    pitch_mode_required: bool
 
 
 class ThreadSummary(BaseModel):
@@ -1005,6 +1009,8 @@ def _submission_out(db: Session, participant: Participant) -> SubmissionOut | No
         status=submission.status.value,
         locked=is_locked(db, submission),
         submitted_at=submission.submitted_at,
+        pitch_mode=submission.pitch_mode,
+        pitch_mode_required=pitch_mode_required(db, submission),
         memo=submission.memo_text or "",
         # Hand-ins from before the memo existed are not asked for one.
         memo_required=not (submission.memo_text is None and submission.submitted_at is not None),
@@ -1238,6 +1244,30 @@ def put_memo(
         raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
     try:
         set_memo(db, submission, payload.text)
+    except SubmissionError as error:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
+    db.commit()
+    return _require_submission_out(db, participant)
+
+
+class PitchModeRequest(BaseModel):
+    mode: str = Field(pattern="^(online|onsite)$")
+
+
+@router.put("/submission/pitch-mode", response_model=SubmissionOut)
+def put_pitch_mode(
+    payload: PitchModeRequest,
+    programme_id: uuid.UUID | None = Query(default=None),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_participant),
+) -> SubmissionOut:
+    """On-site challenges only: whether the team pitches online or in person."""
+    participant = _participant(db, actor, programme_id)
+    submission = submission_for_participant(db, participant)
+    if submission is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Your submission is still being set up.")
+    try:
+        set_pitch_mode(db, submission, payload.mode)
     except SubmissionError as error:
         raise HTTPException(status.HTTP_409_CONFLICT, str(error)) from error
     db.commit()

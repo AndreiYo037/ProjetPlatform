@@ -6,6 +6,7 @@ import {
   deleteSubmissionSlot,
   putSubmissionLink,
   putSubmissionMemo,
+  putSubmissionPitchMode,
   submitSubmission,
   uploadSubmissionFile,
   type SubmissionOut,
@@ -233,12 +234,21 @@ export default function SubmissionPanel({
         onSaved={onChange}
         onError={setError}
       />
+      {submission.pitch_mode_required && (
+        <PitchModeInput
+          value={submission.pitch_mode ?? null}
+          locked={Boolean(submission.locked)}
+          programmeId={programmeId}
+          onSaved={onChange}
+          onError={setError}
+        />
+      )}
       {!submission.locked && (
         <div className="panel" style={{ marginTop: "1rem" }}>
           {!complete && (
             <p className="small muted" style={{ marginTop: 0 }}>
               {onsite
-                ? "Add your work link and write your memo, then submit."
+                ? "Add your work link, write your memo and choose how you will pitch, then submit."
                 : "Add your work link and write your memo, then submit. That is what opens a pitch timeslot."}
             </p>
           )}
@@ -414,6 +424,61 @@ function MemoInput({
           {MEMO_MAX.toLocaleString()}
         </div>
       )}
+    </div>
+  );
+}
+
+function PitchModeInput({
+  value,
+  locked,
+  programmeId,
+  onSaved,
+  onError,
+}: {
+  value: string | null;
+  locked: boolean;
+  programmeId?: string;
+  onSaved: () => void;
+  onError: (message: string | null) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+
+  async function choose(mode: "online" | "onsite") {
+    setSaving(true);
+    onError(null);
+    try {
+      await putSubmissionPitchMode(mode, programmeId);
+      onSaved();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Could not save your choice.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ fontWeight: 600 }}>How will you pitch? (required)</div>
+      <div className="small muted" style={{ margin: "0.25rem 0 0.6rem" }}>
+        Tell us whether your team will pitch online or on-site at the venue.
+      </div>
+      {(
+        [
+          ["onsite", "On-site at the venue"],
+          ["online", "Online"],
+        ] as const
+      ).map(([mode, label]) => (
+        <label key={mode} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <input
+            type="radio"
+            name="pitch-mode"
+            checked={value === mode}
+            disabled={locked || saving}
+            onChange={() => choose(mode)}
+          />
+          {label}
+        </label>
+      ))}
     </div>
   );
 }

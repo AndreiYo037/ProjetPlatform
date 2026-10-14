@@ -109,6 +109,7 @@ class SubmissionCard(BaseModel):
     complete: bool
     links: list[SubmittedLink]
     memo: str = ""
+    pitch_mode: str | None = None
     # Your own card, not the cohort's. A judge comparing against someone else's
     # in-progress total is the failure mode calibration is supposed to prevent.
     scored: bool
@@ -249,6 +250,7 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         ),
         links=links,
         memo=(submission.memo_text or "") if submission else "",
+        pitch_mode=submission.pitch_mode if submission else None,
         scored=score is not None,
         your_total=score.total if score else None,
         max_total=needed * 5,
