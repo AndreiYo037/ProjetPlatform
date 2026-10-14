@@ -1,0 +1,18 @@
+name: Open Christmas Together now
+
+# Manual. Moves the challenge's start and application-open dates to today.
+on:
+  workflow_dispatch:
+
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/open_christmas_together_now.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
