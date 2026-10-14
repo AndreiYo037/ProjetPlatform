@@ -158,7 +158,9 @@ export default async function ListingPage({
         <dt>Time</dt>
         <dd>
           {onsite
-            ? "On site with the company. Enter the room access code below to apply; submissions open through the end time."
+            ? listing.requires_apply_code
+              ? "On site with the company. Enter the room access code below to apply; submissions open through the end time."
+              : "On site with the company. Submissions open through the end time."
             : "Submissions open from the start time through the deadline"}
         </dd>
         <dt>You get</dt>
@@ -207,7 +209,7 @@ export default async function ListingPage({
                 : "We will email you when there is a decision. You cannot apply again to this challenge."}
             </p>
           </div>
-        ) : open && onsite ? (
+        ) : open && onsite && listing.requires_apply_code ? (
           <OnsiteApplyGate
             company={company}
             programme={programme}
@@ -229,8 +231,9 @@ export default async function ListingPage({
             </strong>
             {listing.state !== "complete" && (
               <p className="small muted" style={{ margin: "0.4rem 0 0" }}>
-                Join opens at the start time. You’ll need the access code from the
-                organisers in the room.
+                {listing.requires_apply_code
+                  ? "Join opens at the start time. You’ll need the access code from the organisers in the room."
+                  : "Join opens at the start time."}
               </p>
             )}
           </div>

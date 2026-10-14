@@ -106,7 +106,11 @@ export default function ApplyPage({
   // On-site: code is collected on the listing page, then carried here.
   useEffect(() => {
     if (!listing) return;
-    if (listing.delivery_mode !== "in_person" || listing.already_applied) {
+    if (
+      listing.delivery_mode !== "in_person" ||
+      listing.already_applied ||
+      !listing.requires_apply_code
+    ) {
       setCodeReady(true);
       return;
     }
@@ -184,14 +188,18 @@ export default function ApplyPage({
       form.delete("writeup");
       form.delete("timezone");
       form.delete("cv");
-      const code = accessCode.trim() || readApplyCode(company, programme);
-      if (!code) {
-        setError("Enter the access code on the challenge page first.");
-        setBusy(false);
-        router.replace(listingPath);
-        return;
+      if (listing?.requires_apply_code) {
+        const code = accessCode.trim() || readApplyCode(company, programme);
+        if (!code) {
+          setError("Enter the access code on the challenge page first.");
+          setBusy(false);
+          router.replace(listingPath);
+          return;
+        }
+        form.set("access_code", code);
+      } else {
+        form.delete("access_code");
       }
-      form.set("access_code", code);
     } else {
       form.set("google_email", googleEmail);
       form.set("writeup", writeup);
@@ -283,7 +291,9 @@ export default function ApplyPage({
         {profile
           ? "Filled from your profile — change anything that should be different for this challenge."
           : onsite
-            ? "Your access code is set. Finish with your details and WhatsApp number."
+            ? listing?.requires_apply_code
+              ? "Your access code is set. Finish with your details and WhatsApp number."
+              : "Add your details and WhatsApp number to join."
             : "Required fields first — including a CV and a short writeup. Phone is optional."}
       </p>
 

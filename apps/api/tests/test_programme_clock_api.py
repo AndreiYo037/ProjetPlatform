@@ -660,3 +660,97 @@ def test_moving_the_start_past_kickoff_is_refused(client, company_id, role_id):
     )
     assert updated.status_code == 422
     assert "after the challenge starts" in updated.json()["detail"]
+
+
+def _onsite_apply(client, slug: str, email: str, code: str | None = None):
+    data = {
+        "name": "Walk Up",
+        "contact_email": email,
+        "phone": "+6591230000",
+        "organisation": "NUS",
+        "org_type": "school",
+        "year_course": "Y2 CS",
+        "linkedin_url": "https://www.linkedin.com/in/walk-up",
+        "availability_confirmed": "true",
+        "consent_share_company": "true",
+        "consent_recording": "true",
+    }
+    if code is not None:
+        data["access_code"] = code
+    return client.post(f"/public/x/acme/{slug}/apply", data=data)
+
+
+def test_an_onsite_challenge_can_skip_the_access_code(client, company_id, role_id, session):
+    import uuid as uuid_mod
+
+    from projet.models import Programme
+    from projet.models.base import utcnow
+
+    start = next_kickoff()
+    created = create(
+        client,
+        company_id,
+        role_id,
+        slug="onsite-open",
+        delivery_mode="in_person",
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
+        kickoff_at=None,
+        pitch_starts_at=None,
+        pitch_duration_minutes=None,
+        require_apply_code=False,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["apply_access_code"] is None
+    programme_id = created.json()["id"]
+
+    published = client.post(f"/programmes/{programme_id}/publish")
+    assert published.status_code == 200, published.text
+    assert published.json()["apply_access_code"] is None, "publish must not mint a code"
+
+    programme = session.get(Programme, uuid_mod.UUID(programme_id))
+    assert programme is not None
+    programme.start_at = utcnow() - timedelta(minutes=1)
+    session.flush()
+    session_cookies = dict(client.cookies)
+    client.cookies.clear()
+
+    listing = client.get("/public/x/acme/onsite-open").json()
+    assert listing["requires_apply_code"] is False
+    assert _onsite_apply(client, "onsite-open", "open@school.edu.sg").status_code == 201
+
+    # Turning the gate back on mints a code and starts enforcing it.
+    for name, value in session_cookies.items():
+        client.cookies.set(name, value)
+    gated = client.patch(f"/programmes/{programme_id}", json={"require_apply_code": True})
+    assert gated.status_code == 200, gated.text
+    code = gated.json()["apply_access_code"]
+    assert code and len(code) == 6
+    client.cookies.clear()
+    assert _onsite_apply(client, "onsite-open", "late@school.edu.sg").status_code == 403
+    assert _onsite_apply(client, "onsite-open", "late@school.edu.sg", code).status_code == 201
+
+    # And off again drops it.
+    for name, value in session_cookies.items():
+        client.cookies.set(name, value)
+    opened = client.patch(f"/programmes/{programme_id}", json={"require_apply_code": False})
+    assert opened.status_code == 200, opened.text
+    assert opened.json()["apply_access_code"] is None
+
+
+def test_an_onsite_challenge_still_requires_a_code_by_default(client, company_id, role_id):
+    start = next_kickoff()
+    created = create(
+        client,
+        company_id,
+        role_id,
+        slug="onsite-default",
+        delivery_mode="in_person",
+        start_at=start.isoformat(),
+        submit_deadline_at=next_end(start).isoformat(),
+        kickoff_at=None,
+        pitch_starts_at=None,
+        pitch_duration_minutes=None,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["apply_access_code"]

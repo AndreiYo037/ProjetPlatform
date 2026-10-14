@@ -115,6 +115,9 @@ class ProgrammeCreate(BaseModel):
     problem_statement: str | None = None
     deliverable_spec: str | None = None
     winners_count: int = 1
+    # On-site only: gate applications behind a room access code. Off means
+    # anyone can apply once applications open.
+    require_apply_code: bool = True
 
 
 class ProgrammeUpdate(BaseModel):
@@ -132,6 +135,9 @@ class ProgrammeUpdate(BaseModel):
     kickoff_at: datetime | None = None
     # On-site: set a code, or send "" to mint a new one. Ignored online.
     apply_access_code: str | None = None
+    # On-site: False drops the code so anyone can apply; True mints one if
+    # there isn't one yet. Ignored online.
+    require_apply_code: bool | None = None
     winners_count: int | None = None
     role_ids: list[uuid.UUID] | None = None
 
@@ -345,7 +351,9 @@ def create_programme(
         start_at=start_at,
         submit_deadline_at=end_at,
         kickoff_at=kickoff_at,
-        apply_access_code=new_apply_access_code() if onsite else None,
+        apply_access_code=(
+            new_apply_access_code() if onsite and payload.require_apply_code else None
+        ),
         problem_statement=payload.problem_statement,
         deliverable_spec=payload.deliverable_spec,
         winners_count=payload.winners_count,
@@ -414,11 +422,18 @@ def update_programme(
     actor: Actor = Depends(require_company_manager),
 ) -> ProgrammeDetail:
     changes = payload.model_dump(exclude_unset=True)
+    require_code = changes.pop("require_apply_code", None)
     if programme.onsite:
         changes.pop("kickoff_at", None)
     else:
         changes.pop("apply_access_code", None)
         programme.apply_access_code = None
+        require_code = None
+    if require_code is False:
+        changes.pop("apply_access_code", None)
+        programme.apply_access_code = None
+    elif require_code is True and not programme.apply_access_code:
+        programme.apply_access_code = new_apply_access_code()
     if "apply_access_code" in changes:
         raw = changes.pop("apply_access_code")
         normalised = normalize_apply_access_code(raw)
@@ -592,8 +607,6 @@ def publish_programme(
     setup = _setup_problems(programme)
     if setup:
         raise HTTPException(status.HTTP_409_CONFLICT, " ".join(setup))
-    if programme.onsite and not programme.apply_access_code:
-        programme.apply_access_code = new_apply_access_code()
     try:
         publish(db, programme)
     except RubricError as error:

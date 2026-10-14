@@ -9629,6 +9629,11 @@
             "type": "integer",
             "title": "Winners Count",
             "default": 1
+          },
+          "require_apply_code": {
+            "type": "boolean",
+            "title": "Require Apply Code",
+            "default": true
           }
         },
         "type": "object",
@@ -10228,6 +10233,17 @@
               }
             ],
             "title": "Apply Access Code"
+          },
+          "require_apply_code": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Require Apply Code"
           },
           "winners_count": {
             "anyOf": [

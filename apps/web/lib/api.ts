@@ -274,6 +274,8 @@ export type CreateProgrammeInput = {
   problem_statement?: string | null;
   deliverable_spec?: string | null;
   winners_count?: number;
+  /** On-site only: gate applications behind an access code. Defaults to true. */
+  require_apply_code?: boolean;
 };
 export type UpdateProgrammeInput = Partial<CreateProgrammeInput> & {
   brief_url?: string | null;

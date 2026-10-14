@@ -39,6 +39,7 @@ export default function NewChallengePage() {
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState<"online" | "in_person">("online");
+  const [requireApplyCode, setRequireApplyCode] = useState(true);
   const [capacity, setCapacity] = useState("");
   const [appsCloseAt, setAppsCloseAt] = useState("");
   const [startAt, setStartAt] = useState("");
@@ -93,6 +94,7 @@ export default function NewChallengePage() {
         title: title.trim(),
         slug: slug.trim(),
         delivery_mode: deliveryMode,
+        require_apply_code: onsite ? requireApplyCode : undefined,
         capacity: capacity ? Number(capacity) : null,
         applications_close_at: fromDateInput(appsCloseAt),
         start_at: fromDateTimeLocal(startAt),
@@ -146,6 +148,8 @@ export default function NewChallengePage() {
           capacity={capacity}
           deliveryMode={deliveryMode}
           onDeliveryModeChange={setDeliveryMode}
+          requireApplyCode={requireApplyCode}
+          onRequireApplyCodeChange={setRequireApplyCode}
           appsCloseAt={appsCloseAt}
           startAt={startAt}
           kickoffAt={kickoffAt}
@@ -341,6 +345,8 @@ function DetailsForm({
   capacity,
   deliveryMode,
   onDeliveryModeChange,
+  requireApplyCode,
+  onRequireApplyCodeChange,
   appsCloseAt,
   startAt,
   kickoffAt,
@@ -364,6 +370,8 @@ function DetailsForm({
   capacity: string;
   deliveryMode: "online" | "in_person";
   onDeliveryModeChange: (value: "online" | "in_person") => void;
+  requireApplyCode: boolean;
+  onRequireApplyCodeChange: (value: boolean) => void;
   appsCloseAt: string;
   startAt: string;
   kickoffAt: string;
@@ -445,6 +453,23 @@ function DetailsForm({
           On-site
         </label>
       </fieldset>
+      {deliveryMode === "in_person" && (
+        <div className="field">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={requireApplyCode}
+              onChange={(e) => onRequireApplyCodeChange(e.target.checked)}
+            />
+            Require an access code to apply
+          </label>
+          <div className="hint">
+            {requireApplyCode
+              ? "Participants enter a code you share in the room. You can turn this off later."
+              : "Anyone can apply once applications open. You can turn a code on later."}
+          </div>
+        </div>
+      )}
       <div className="field">
         <label htmlFor="ch-apps-close">Applications close</label>
         <input

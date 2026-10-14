@@ -486,6 +486,8 @@ def check_access_code(
     )
     if company is None or programme is None or not programme.onsite:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+    if not programme.apply_access_code:
+        return AccessCodeResult(valid=True)
     return AccessCodeResult(valid=_apply_code_matches(programme, payload.code))
 
 
@@ -540,7 +542,8 @@ async def apply(
         raise HTTPException(status.HTTP_409_CONFLICT, "Applications are closed.")
 
     onsite = programme.onsite
-    if onsite and not _apply_code_matches(programme, access_code):
+    # No code stored means the company turned the gate off for this challenge.
+    if onsite and programme.apply_access_code and not _apply_code_matches(programme, access_code):
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             "That access code is not valid for this challenge.",

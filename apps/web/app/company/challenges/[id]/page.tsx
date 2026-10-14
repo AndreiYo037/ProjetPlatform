@@ -412,6 +412,46 @@ function ScheduleSection({
     }
   }
 
+  async function setRequireCode(on: boolean) {
+    setRotatingCode(true);
+    setCodeError(null);
+    try {
+      await updateProgramme(programme.id, { require_apply_code: on });
+      onSaved();
+    } catch (err) {
+      setCodeError(err instanceof Error ? err.message : "Could not change the access code.");
+    } finally {
+      setRotatingCode(false);
+    }
+  }
+
+  const hasCode = Boolean(programme.apply_access_code);
+  const codeControls = (
+    <>
+      <div className="row" style={{ marginTop: "0.5rem", gap: "0.5rem" }}>
+        {hasCode && (
+          <button
+            type="button"
+            className="secondary"
+            disabled={rotatingCode}
+            onClick={regenerateAccessCode}
+          >
+            {rotatingCode ? "Saving…" : "New code"}
+          </button>
+        )}
+        <button
+          type="button"
+          className="secondary"
+          disabled={rotatingCode}
+          onClick={() => setRequireCode(!hasCode)}
+        >
+          {hasCode ? "Turn off access code" : "Require an access code"}
+        </button>
+      </div>
+      {codeError && <p className="small muted">{codeError}</p>}
+    </>
+  );
+
   if (!isDraft) {
     return (
       <div className="panel">
@@ -426,22 +466,18 @@ function ScheduleSection({
             <>
               <dt>Apply code</dt>
               <dd>
-                <strong style={{ letterSpacing: "0.08em" }}>
-                  {programme.apply_access_code ?? "—"}
-                </strong>
-                <div className="row" style={{ marginTop: "0.5rem", gap: "0.5rem" }}>
-                  <button
-                    type="button"
-                    className="secondary"
-                    disabled={rotatingCode}
-                    onClick={regenerateAccessCode}
-                  >
-                    {rotatingCode ? "Minting…" : "New code"}
-                  </button>
-                </div>
-                {codeError && <p className="small muted">{codeError}</p>}
+                {hasCode ? (
+                  <strong style={{ letterSpacing: "0.08em" }}>
+                    {programme.apply_access_code}
+                  </strong>
+                ) : (
+                  <span>Not required</span>
+                )}
+                {codeControls}
                 <p className="small muted" style={{ marginBottom: 0 }}>
-                  Share this in the room. Participants need it to apply.
+                  {hasCode
+                    ? "Share this in the room. Participants need it to apply."
+                    : "Anyone can apply once applications open."}
                 </p>
               </dd>
             </>
@@ -474,20 +510,15 @@ function ScheduleSection({
       </p>
       {onsite && (
         <div className="notice" style={{ marginBottom: "1rem" }}>
-          <strong>Apply code · {programme.apply_access_code ?? "—"}</strong>
+          <strong>
+            {hasCode ? `Apply code · ${programme.apply_access_code}` : "No access code"}
+          </strong>
           <p className="small muted" style={{ marginBottom: "0.5rem" }}>
-            Participants must enter this to apply once the challenge starts. Share it in
-            the room only.
+            {hasCode
+              ? "Participants must enter this to apply once the challenge starts. Share it in the room only."
+              : "Anyone can apply once applications open. Turn a code on to gate it to people in the room."}
           </p>
-          <button
-            type="button"
-            className="secondary"
-            disabled={rotatingCode}
-            onClick={regenerateAccessCode}
-          >
-            {rotatingCode ? "Minting…" : "New code"}
-          </button>
-          {codeError && <p className="small muted">{codeError}</p>}
+          {codeControls}
         </div>
       )}
       <div className="field">
