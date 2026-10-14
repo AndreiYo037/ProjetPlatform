@@ -7,8 +7,8 @@ Engineering, no seat cap. Kickoff and the pitch schedule are left unset on
 purpose: no times were given, and setting a pitch schedule creates a Calendar
 event. Both must be set before publishing.
 
-Idempotent on slug: a 409 reports the existing draft instead of creating a
-second one.
+Idempotent on slug: a re-run updates the existing draft's brief and
+deliverables instead of creating a second one.
 """
 
 from __future__ import annotations
@@ -47,21 +47,10 @@ Timeline (Asia/Singapore):
 - Applications: 15 Oct to 24 Oct 2026, 23:59
 - Build (Stage 1): 25 Oct to 8 Nov 2026
 - Submission deadline: 8 Nov 2026, before pitches start
-- Pitch day: 8 Nov 2026 (5 min live demo + 5 min Q&A)
+- Pitch day: 8 Nov 2026
 - After the programme: the winner hardens the build 9 to 13 Nov, barista dry run the week of 16 Nov, and the build runs live 26 to 29 Nov with the team on call.
 
 Eligibility: open to anyone, solo or in teams of any size. The winning team must be available for the dry run week of 16 Nov and on call 26 to 29 Nov.
-
-When you apply, tell us:
-1. Team members and their background (school or work)
-2. A link to something you've shipped that real people used (repo, live link or demo)
-3. Which stack you would use, and how you would keep the counter working when the wifi drops (max 150 words)
-4. Whether your team can do the dry run week of 16 Nov and be on call 26 to 29 Nov (Yes / No)
-
-Rewards:
-- Winning team: their software running live at Singapore's largest indoor Christmas festival, credit on the ready board and in the Beans&Beats recap reel, plus footage for a case study
-- Top performers: signed testimonials from Beans&Beats
-- Everyone who submits: Projet completion credential and a real project for their portfolio
 
 Contact: Aden Low, Co-founder & Managing Partner, Beans&Beats (general@beansnbeats.com)"""
 
@@ -119,7 +108,17 @@ def main() -> int:
             existing = next(
                 (r for r in client.get("/programmes").json() if r.get("slug") == SLUG), None
             )
-            print(f"already exists: id={existing and existing['id']} status={existing and existing['status']}")
+            if existing is None:
+                print("!! slug taken but programme not found")
+                return 1
+            upd = client.patch(
+                f"/programmes/{existing['id']}",
+                json={"problem_statement": PROBLEM_STATEMENT, "deliverable_spec": DELIVERABLE_SPEC},
+            )
+            if upd.status_code != 200:
+                print(f"!! text update failed: {upd.status_code} {upd.text[:300]}")
+                return 1
+            print(f"already exists, text updated: id={existing['id']} status={existing['status']}")
             return 0
         if resp.status_code != 201:
             print(f"!! create failed: {resp.status_code} {resp.text[:400]}")
