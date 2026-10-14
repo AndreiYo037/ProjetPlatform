@@ -52,9 +52,7 @@ Timeline (Asia/Singapore):
 - Pitch day: 8 Nov 2026
 - After the programme: the winner hardens the build 9 to 13 Nov, barista dry run the week of 16 Nov, and the build runs live 26 to 29 Nov with the team on call.
 
-Eligibility: open to anyone, solo or in teams of any size. The winning team must be available for the dry run week of 16 Nov and on call 26 to 29 Nov.
-
-Contact: Aden Low, Co-founder & Managing Partner, Beans&Beats (general@beansnbeats.com)"""
+Eligibility: open to anyone, solo or in teams of any size. The winning team must be available for the dry run week of 16 Nov and on call 26 to 29 Nov."""
 
 DELIVERABLE_SPEC = """\
 All four are required:
