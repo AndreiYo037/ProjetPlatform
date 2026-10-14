@@ -1,8 +1,14 @@
 name: Create Christmas Together draft
 
-# Manual trigger. Creates the challenge as a DRAFT; never publishes.
+# Manual trigger. Creates the challenge on-site with no access code; publishes
+# only when the publish input is "true".
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish after creating (true/false)"
+        required: false
+        default: "false"
 
 jobs:
   create:
@@ -17,3 +23,4 @@ jobs:
       - run: python .github/scripts/create_christmas_together_draft.py
         env:
           SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          PUBLISH: ${{ inputs.publish == 'true' && '1' || '0' }}
