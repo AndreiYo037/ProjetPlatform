@@ -226,7 +226,7 @@ function ProgrammePageInner() {
           )}
 
           <h2>What you produce</h2>
-          <p>{data.programme.deliverable}</p>
+          <p style={{ whiteSpace: "pre-wrap" }}>{data.programme.deliverable}</p>
 
           {data.data_pack.length > 0 && (
             <>

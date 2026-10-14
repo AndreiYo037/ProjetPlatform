@@ -121,7 +121,7 @@ export default async function ListingPage({
       )}
 
       <h2>What you produce</h2>
-      <p>{listing.deliverable}</p>
+      <p style={{ whiteSpace: "pre-wrap" }}>{listing.deliverable}</p>
       {SHOW_SUBMISSION_MEMO && (
         <p className="small muted">
           Plus a half-page memo: what the problem is, how you approached it, what you
