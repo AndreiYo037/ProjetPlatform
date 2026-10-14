@@ -49,5 +49,10 @@ def logo_url(company_id: uuid.UUID, stored: str | None) -> str | None:
     if not stored:
         return None
     if is_stored_logo(stored):
-        return f"/companies/{company_id}/logo"
+        # The route is stable (no signature, so cached pages never break), which
+        # means a replaced logo keeps its address. The per-upload id in the key is
+        # unique, so carrying it in the query makes every new upload a new URL
+        # and nothing in front of the API can keep serving the old image.
+        version = stored.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+        return f"/companies/{company_id}/logo?v={version}"
     return stored

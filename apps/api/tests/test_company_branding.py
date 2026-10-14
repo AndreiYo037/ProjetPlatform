@@ -77,7 +77,7 @@ def upload(client, company_id, *, name="logo.png", data=PNG, content_type="image
 def test_a_logo_is_uploaded_and_served_without_a_signature(client, company_id):
     uploaded = upload(client, company_id)
     assert uploaded.status_code == 201, uploaded.text
-    assert uploaded.json()["logo_url"] == f"/companies/{company_id}/logo"
+    assert uploaded.json()["logo_url"].startswith(f"/companies/{company_id}/logo?v=")
 
     # No cookie, no signature: this is the page a stranger loads.
     client.cookies.clear()
@@ -169,9 +169,22 @@ def test_the_logo_reaches_the_public_listing_and_the_directory(
     client.cookies.clear()
     listing = client.get("/public/x/acme/churn")
     assert listing.status_code == 200, listing.text
-    assert listing.json()["company_logo_url"] == f"/companies/{company_id}/logo"
+    assert listing.json()["company_logo_url"].startswith(f"/companies/{company_id}/logo?v=")
 
     directory = client.get("/public/challenges")
     rows = directory.json()
     assert rows
-    assert rows[0]["company_logo_url"] == f"/companies/{company_id}/logo"
+    assert rows[0]["company_logo_url"].startswith(f"/companies/{company_id}/logo?v=")
+
+
+def test_a_replaced_logo_gets_a_new_address(client, company_id):
+    """The route is stable, so the version in the query is what stops a browser
+    or CDN from showing the previous image after a re-upload."""
+    first = upload(client, company_id).json()["logo_url"]
+    second = upload(client, company_id, name="new.png").json()["logo_url"]
+    assert first != second
+    assert first.split("?")[0] == second.split("?")[0] == f"/companies/{company_id}/logo"
+
+    # The versioned address still serves the logo (the query is ignored).
+    client.cookies.clear()
+    assert client.get(second).status_code == 200
