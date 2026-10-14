@@ -886,16 +886,13 @@ class Dashboard(BaseModel):
 
 
 def _participations_for(db: Session, person_id: uuid.UUID) -> list[tuple[Participant, Programme]]:
-    return list(
-        db.execute(
-            select(Participant, Programme)
-            .join(Programme, Participant.programme_id == Programme.id)
-            .where(Participant.person_id == person_id)
-            .order_by(Programme.start_at.desc().nullslast(), Participant.created_at.desc())
-        )
-        .tuples()
-        .all()
-    )
+    rows = db.execute(
+        select(Participant, Programme)
+        .join(Programme, Participant.programme_id == Programme.id)
+        .where(Participant.person_id == person_id)
+        .order_by(Programme.start_at.desc().nullslast(), Participant.created_at.desc())
+    ).all()
+    return [(row[0], row[1]) for row in rows]
 
 
 def _programme_choice(db: Session, programme: Programme) -> ProgrammeChoice:
