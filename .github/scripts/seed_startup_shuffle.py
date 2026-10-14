@@ -94,9 +94,9 @@ COMPANIES: list[CompanySeed] = [
     {
         "email": "hello@thirdspacesmarketing.com",
         "name": "Beans&Beats",
-        "website_url": "https://thirdspacesmarketing.com",
-        "logo_domain": "thirdspacesmarketing.com",
-        "logo_page": "https://thirdspacesmarketing.com",
+        "website_url": "https://www.beansnbeats.com",
+        "logo_domain": "beansnbeats.com",
+        "logo_page": "https://www.beansnbeats.com",
     },
     {
         "email": "eugenewang1227@gmail.com",
@@ -283,7 +283,13 @@ def main() -> int:
 
     logo_ok, logo_missing, failed = 0, 0, 0
 
-    for entry in COMPANIES:
+    only = (os.environ.get("ONLY_EMAIL") or "").strip().lower()
+    companies = [c for c in COMPANIES if not only or c["email"] == only]
+    if not companies:
+        print(f"No company with email {only!r}.", file=sys.stderr)
+        return 1
+
+    for entry in companies:
         print(f"\n{entry['name']} ({entry['email']})")
         with httpx.Client(base_url=API_BASE, headers={"User-Agent": _UA}, timeout=30) as client:
             actor = _sign_in_or_up(client, entry["email"])
@@ -299,7 +305,7 @@ def main() -> int:
             logo_missing += int(not ok)
 
     print(
-        f"\n{len(COMPANIES) - failed}/{len(COMPANIES)} companies processed — "
+        f"\n{len(companies) - failed}/{len(companies)} companies processed — "
         f"{logo_ok} logos set, {logo_missing} need a manual upload, {failed} failed outright."
     )
     return 1 if failed else 0

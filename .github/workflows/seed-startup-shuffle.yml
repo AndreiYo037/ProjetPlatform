@@ -3,7 +3,12 @@ name: Seed Startup Shuffle accounts
 # Manual only, on purpose: this creates real company accounts on the live
 # platform. It must never run on a push or a schedule.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      only_email:
+        description: "Only this company's account email (blank = all)"
+        required: false
+        default: ""
 
 jobs:
   seed:
@@ -22,3 +27,4 @@ jobs:
           # the password in this file or in a workflow_dispatch input --
           # inputs show up in plain text in the run log.
           SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          ONLY_EMAIL: ${{ inputs.only_email }}
