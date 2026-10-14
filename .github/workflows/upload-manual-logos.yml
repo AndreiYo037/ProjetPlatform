@@ -3,7 +3,12 @@ name: Upload manual Startup Shuffle logos
 # Manual only: uploads whatever is committed under .github/scripts/logos/ to
 # the matching company account on the live platform.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      only_key:
+        description: "Only this logo file stem, e.g. beans-beats (blank = all)"
+        required: false
+        default: ""
 
 jobs:
   upload:
@@ -18,3 +23,4 @@ jobs:
       - run: python .github/scripts/upload_manual_logos.py
         env:
           SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          ONLY_KEY: ${{ inputs.only_key }}

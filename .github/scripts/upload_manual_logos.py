@@ -33,6 +33,7 @@ ACCOUNT_BY_KEY = {
     "b71-scaps": "faithlum@u.nus.edu",
     "flow-coffee": "zqingyuan@flowcoffee.sg",
     "royo-material": "royomaterial@royomaterial.com",
+    "beans-beats": "hello@thirdspacesmarketing.com",
 }
 
 CONTENT_TYPE_BY_SUFFIX = {
@@ -79,7 +80,12 @@ def main() -> int:
         print(f"No logos directory at {LOGOS_DIR}")
         return 0
 
-    files = sorted(p for p in LOGOS_DIR.iterdir() if p.is_file() and p.name != ".gitkeep")
+    only = (os.environ.get("ONLY_KEY") or "").strip().lower()
+    files = sorted(
+        p
+        for p in LOGOS_DIR.iterdir()
+        if p.is_file() and p.name != ".gitkeep" and (not only or p.stem.lower() == only)
+    )
     if not files:
         print("No logo files to upload.")
         return 0
