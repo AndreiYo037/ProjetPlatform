@@ -22,7 +22,7 @@ PASSWORD = os.environ.get("COMPANY_PASSWORD")
 ACCESS_CODE = os.environ.get("ACCESS_CODE")
 
 START_AT = "2026-10-11T00:00:00+08:00"
-END_AT = "2026-10-17T06:00:00+08:00"
+END_AT = "2026-10-17T03:00:00+08:00"
 
 
 class Challenge(TypedDict):
