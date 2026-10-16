@@ -27,6 +27,7 @@ def main() -> int:
         by_email.setdefault(item["email"], []).append(item)
 
     rows: list[tuple[str, int, int]] = []
+    people: set[str] = set()
     modes = {"online": 0, "onsite": 0, "not chosen": 0}
     for email, items in by_email.items():
         with httpx.Client(base_url=API_BASE, timeout=30) as client:
@@ -44,6 +45,9 @@ def main() -> int:
                     print(f"!! {item['slug']} not found")
                     return 1
                 cards = client.get(f"/programmes/{row['id']}/submissions").json()
+                for c in cards:
+                    key = (c.get("contact_email") or c.get("google_email") or c["name"]).lower()
+                    people.add(key)
                 done = [c for c in cards if c.get("submitted_at")]
                 submitted = len(done)
                 for c in done:
@@ -53,6 +57,7 @@ def main() -> int:
     total = sum(r[1] for r in rows)
     for title, seated, submitted in rows:
         print(f"{seated:>3} participants, {submitted:>3} submitted  |  {title[:70]}")
+    print(f"\ndistinct people across all tracks: {len(people)}")
     print(f"\nsubmitted by pitch mode: {modes}")
     print(f"\ntracks: {len(rows)}  participants: {total}  average per track: {total / len(rows):.1f}")
     return 0
