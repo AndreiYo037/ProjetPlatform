@@ -1,0 +1,26 @@
+name: Set Hack n Hire deadline
+
+# Manual trigger. Sets the submission deadline on all six Hack n Hire tracks.
+on:
+  workflow_dispatch:
+    inputs:
+      company_password:
+        description: "Password for the company accounts"
+        required: true
+
+jobs:
+  set:
+    name: Set deadline
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask password
+        run: echo "::add-mask::${{ inputs.company_password }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python set_hacknhire_deadline.py
+        working-directory: .github/scripts
+        env:
+          COMPANY_PASSWORD: ${{ inputs.company_password }}
