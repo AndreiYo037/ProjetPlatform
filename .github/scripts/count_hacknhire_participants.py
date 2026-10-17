@@ -54,6 +54,7 @@ def main() -> int:
                     modes[c.get("pitch_mode") or "not chosen"] += 1
                 print(f"SUBMITTED | {item['title'][:40]} | " + "; ".join(sorted(c["name"] for c in done)))
                 print(f"ALL | {item['title'][:40]} | " + "; ".join(sorted(c["name"] for c in cards)))
+                print(f"MODE | {item['title'][:30]} | " + "; ".join(f"{c['name']}={c.get('pitch_mode')}" for c in sorted(done, key=lambda c: c['name'])))
                 online = sum(1 for c in done if c.get("pitch_mode") == "online")
                 onsite = sum(1 for c in done if c.get("pitch_mode") == "onsite")
                 rows.append((item["title"], len(cards), submitted, online, onsite))
