@@ -155,8 +155,11 @@ export default function ScoringCardPage({
         );
       })()}
 
-      <h2>Score</h2>
+      <h2>
+        Score <span className="tag open">Required</span>
+      </h2>
       <p className="small muted">
+        Rate every box. Everything below the score is optional and can be left blank.
         Saves as you go{savedAt && ` · last saved ${savedAt}`}. The total appears once
         every box is rated.
       </p>
@@ -199,7 +202,9 @@ export default function ScoringCardPage({
         </div>
       ))}
 
-      <h2>What you saw</h2>
+      <h2>
+        What you saw <span className="tag">Optional</span>
+      </h2>
       <p className="small muted">
         Tag what they actually demonstrated. This lands on their profile when
         you close and issue — not when you tag — so a tag is still a claim you
@@ -224,7 +229,9 @@ export default function ScoringCardPage({
         skillsSaving={saving}
       />
 
-      <h2>Would you refer them</h2>
+      <h2>
+        Would you refer them <span className="tag">Optional</span>
+      </h2>
       <p className="small muted">
         Never shown to the participant. It is the answer that makes this worth
         running.
@@ -339,7 +346,9 @@ function TestimonialBox({
 
   return (
     <>
-      <h2>Testimonial (optional)</h2>
+      <h2>
+        Testimonial <span className="tag">Optional</span>
+      </h2>
       <p className="small muted">
         Only if you mean it. One you chose to write is worth more than one everyone
         was made to, and this is the part they will actually carry with them.
