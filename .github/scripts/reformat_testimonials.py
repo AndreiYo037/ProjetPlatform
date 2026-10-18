@@ -24,6 +24,9 @@ from create_hacknhire_challenges import API_BASE, CHALLENGES
 PASSWORD = os.environ.get("COMPANY_PASSWORD")
 APPLY = os.environ.get("APPLY") == "1"
 ONLY = (os.environ.get("ONLY") or "").strip().lower()
+# Team members to add to the Re: line, and whether to redo letters already signed.
+EXTRA = [n.strip() for n in (os.environ.get("EXTRA_NAMES") or "").split(",") if n.strip()]
+INCLUDE_SIGNED = os.environ.get("INCLUDE_SIGNED") == "1"
 MATCH = (os.environ.get("COMPANY_MATCH") or "bluenexus").lower()
 # Left empty, the sign-off falls back to the signed-in account's own details.
 SIGNER = os.environ.get("SIGNER_NAME") or ""
@@ -102,9 +105,12 @@ def main() -> int:
                     if resp.status_code != 200 or not resp.json():
                         continue
                     t = resp.json()
-                    if t.get("own_file") or not t.get("published_at") or t.get("signed"):
+                    if t.get("own_file") or not t.get("published_at"):
+                        continue
+                    if t.get("signed") and not INCLUDE_SIGNED:
                         continue
                     names, body, dropped = split_letter(t["body"], card["name"])
+                    names += [n for n in EXTRA if n not in names]
                     print("=" * 70)
                     print(f"{card['name']}  |  {programme['title'][:50]}")
                     ctx = client.get(f"{base}/context").json()
