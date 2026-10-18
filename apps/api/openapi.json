@@ -3489,6 +3489,76 @@
         }
       }
     },
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/context": {
+      "get": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Testimonial Context",
+        "description": "The names and defaults the letter opens with: the participant, the\nchallenge, the company, and the signed-in author's own name and title.",
+        "operationId": "testimonial_context_programmes__programme_id__participants__participant_id__testimonial_context_get",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LetterContext"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programmes/{programme_id}/participants/{participant_id}/testimonial/sign": {
       "post": {
         "tags": [
@@ -8914,6 +8984,52 @@
         ],
         "title": "JudgingSlot"
       },
+      "LetterContext": {
+        "properties": {
+          "participant_name": {
+            "type": "string",
+            "title": "Participant Name"
+          },
+          "programme_title": {
+            "type": "string",
+            "title": "Programme Title"
+          },
+          "company_name": {
+            "type": "string",
+            "title": "Company Name"
+          },
+          "company_logo_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Logo Url"
+          },
+          "author_name": {
+            "type": "string",
+            "title": "Author Name"
+          },
+          "author_title": {
+            "type": "string",
+            "title": "Author Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_name",
+          "programme_title",
+          "company_name",
+          "company_logo_url",
+          "author_name",
+          "author_title"
+        ],
+        "title": "LetterContext",
+        "description": "What the letter form shows before anything is saved."
+      },
       "LinkRequest": {
         "properties": {
           "slot": {
@@ -13068,6 +13184,34 @@
             "format": "date-time",
             "title": "Created At"
           },
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recipients",
+            "default": []
+          },
+          "signoff_name": {
+            "type": "string",
+            "title": "Signoff Name",
+            "default": ""
+          },
+          "signoff_title": {
+            "type": "string",
+            "title": "Signoff Title",
+            "default": ""
+          },
+          "signoff_company": {
+            "type": "string",
+            "title": "Signoff Company",
+            "default": ""
+          },
+          "company_details": {
+            "type": "string",
+            "title": "Company Details",
+            "default": ""
+          },
           "signed": {
             "type": "boolean",
             "title": "Signed",
@@ -13127,6 +13271,69 @@
             "maxLength": 4000,
             "title": "Body",
             "default": ""
+          },
+          "recipients": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipients"
+          },
+          "signoff_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signoff Name"
+          },
+          "signoff_title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signoff Title"
+          },
+          "signoff_company": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signoff Company"
+          },
+          "company_details": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 800
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Details"
           },
           "publish": {
             "type": "boolean",

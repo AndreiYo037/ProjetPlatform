@@ -8,11 +8,13 @@ import {
   assetUrl,
   externalHref,
   getScoringCard,
+  getLetterContext,
   getTestimonial,
   signTestimonial,
   updateScoringCard,
   uploadTestimonialFile,
   writeTestimonial,
+  type LetterContext,
   type ScoringCard,
   type TestimonialOut,
 } from "@/lib/api";
@@ -285,6 +287,75 @@ export default function ScoringCardPage({
  * not ours to do - but the wording stays editable. Publishing turns the text
  * into a PDF they can download.
  */
+type LetterDraft = {
+  recipients: string[];
+  body: string;
+  name: string;
+  title: string;
+  company: string;
+  details: string;
+};
+
+const EMPTY_LETTER: LetterDraft = {
+  recipients: [],
+  body: "",
+  name: "",
+  title: "",
+  company: "",
+  details: "",
+};
+
+function letterFrom(context: LetterContext, found: TestimonialOut | null): LetterDraft {
+  if (found) {
+    return {
+      recipients: found.recipients.length ? found.recipients : [context.participant_name],
+      body: found.body,
+      name: found.signoff_name,
+      title: found.signoff_title,
+      company: found.signoff_company,
+      details: found.company_details,
+    };
+  }
+  return {
+    recipients: [context.participant_name],
+    body: "",
+    name: context.author_name,
+    title: context.author_title,
+    company: context.company_name,
+    details: "",
+  };
+}
+
+function letterPayload(draft: LetterDraft) {
+  return {
+    body: draft.body.trim(),
+    publish: false,
+    recipients: draft.recipients.map((name) => name.trim()).filter(Boolean),
+    signoff_name: draft.name,
+    signoff_title: draft.title,
+    signoff_company: draft.company,
+    company_details: draft.details,
+  };
+}
+
+const LETTER_CAPTION: React.CSSProperties = {
+  fontSize: "0.72rem",
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "var(--muted)",
+  margin: "0 0 0.3rem",
+};
+
+/**
+ * The testimonial, laid out as the letter it becomes. Every part of the letter
+ * is a box in the order it prints: the names it is about, the wording, the
+ * signature, who it is from, and the company's own details. Nothing is hidden
+ * behind a "generate" step; what is on screen is what is typeset and signed.
+ *
+ * Optional, and kept away from the score on purpose. A testimonial is a public
+ * claim the company puts its name to; a score is a private working note. It
+ * goes on their profile only when the company closes and issues.
+ */
 function TestimonialBox({
   programmeId,
   participantId,
@@ -294,38 +365,53 @@ function TestimonialBox({
   participantId: string;
   skillsSaving: boolean;
 }) {
+  const [context, setContext] = useState<LetterContext | null>(null);
   const [existing, setExisting] = useState<TestimonialOut | null>(null);
-  const [body, setBody] = useState("");
-  const [baseline, setBaseline] = useState("");
+  const [draft, setDraft] = useState<LetterDraft | null>(null);
+  const [baseline, setBaseline] = useState<LetterDraft | null>(null);
+  const [signature, setSignature] = useState<SignatureValue>({ typed: false, drawn: null });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
   useEffect(() => {
-    getTestimonial(programmeId, participantId)
-      .then((found) => {
+    Promise.all([
+      getLetterContext(programmeId, participantId),
+      getTestimonial(programmeId, participantId).catch(() => null),
+    ])
+      .then(([loaded, found]) => {
+        const next = letterFrom(loaded, found);
+        setContext(loaded);
         setExisting(found);
-        const next = found?.body ?? "";
-        setBody(next);
+        setDraft(next);
         setBaseline(next);
       })
-      .catch(() => setExisting(null));
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "Could not open the testimonial."),
+      );
   }, [programmeId, participantId]);
 
   const { status: draftStatus, error: draftError } = useAutosave(
-    body,
-    baseline,
+    draft ?? EMPTY_LETTER,
+    baseline ?? EMPTY_LETTER,
     async (next) => {
-      if (!next.trim() && !baseline.trim()) return;
-      const saved = await writeTestimonial(programmeId, participantId, {
-        body: next.trim(),
-        publish: false,
-      });
+      // The letter is not saved until there is wording to keep.
+      if (!next.body.trim() && !existing) return;
+      const saved = await writeTestimonial(programmeId, participantId, letterPayload(next));
       setExisting(saved);
-      setBaseline(saved.body);
+      setBaseline(next);
     },
     900,
   );
+
+  function change(patch: Partial<LetterDraft>) {
+    setDraft((current) => (current ? { ...current, ...patch } : current));
+  }
+
+  function setRecipient(index: number, value: string) {
+    if (!draft) return;
+    change({ recipients: draft.recipients.map((name, i) => (i === index ? value : name)) });
+  }
 
   async function attach(file: File) {
     setBusy(true);
@@ -334,7 +420,7 @@ function TestimonialBox({
     try {
       const saved = await uploadTestimonialFile(programmeId, participantId, file);
       setExisting(saved);
-      setFlash("Your PDF is attached. It replaces a generated letter.");
+      setFlash("Your PDF is attached. It replaces the typeset letter.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not attach that PDF.");
     } finally {
@@ -342,18 +428,16 @@ function TestimonialBox({
     }
   }
 
-  async function sign(signature: { drawn: string | null; typed: boolean }) {
+  async function sign() {
+    if (!draft) return;
     setBusy(true);
     setError(null);
     setFlash(null);
     try {
-      // Make sure the server holds the wording on screen before signing it.
-      if (body.trim() !== baseline.trim()) {
-        const current = await writeTestimonial(programmeId, participantId, {
-          body: body.trim(),
-          publish: false,
-        });
-        setBaseline(current.body);
+      // The server signs what it holds, so make sure it holds what is on screen.
+      if (JSON.stringify(draft) !== JSON.stringify(baseline)) {
+        await writeTestimonial(programmeId, participantId, letterPayload(draft));
+        setBaseline(draft);
       }
       const saved = await signTestimonial(programmeId, participantId, {
         ...(signature.drawn ? { signature: signature.drawn } : {}),
@@ -361,8 +445,8 @@ function TestimonialBox({
         confirm: true,
       });
       setExisting(saved);
-      setBaseline(saved.body);
-      setFlash("Signed and published. The letter now carries your signature.");
+      setSignature({ typed: false, drawn: null });
+      setFlash("Signed. The letter carries your signature and goes on their profile when you close and issue.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign that letter.");
     } finally {
@@ -370,10 +454,26 @@ function TestimonialBox({
     }
   }
 
-  const published = existing?.published_at != null;
+  if (!draft || !context) {
+    return (
+      <>
+        <h2>
+          Testimonial <span className="tag">Optional</span>
+        </h2>
+        {error ? <div className="notice bad">{error}</div> : <p className="muted small">Loading…</p>}
+      </>
+    );
+  }
+
   const signed = Boolean(existing?.signed);
-  const hasPdf = Boolean(existing?.pdf_url);
   const locked = busy || skillsSaving;
+  const today = new Date().toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Singapore",
+  });
+  const canSign = !locked && draft.body.trim().length > 0 && (signature.typed || signature.drawn !== null);
 
   return (
     <>
@@ -381,51 +481,174 @@ function TestimonialBox({
         Testimonial <span className="tag">Optional</span>
       </h2>
       <p className="small muted">
-        Only if you mean it. One you chose to write is worth more than one everyone
-        was made to, and this is the part they will actually carry with them.
-        {signed
-          ? " Signed. Changing the wording clears the signature and you sign again."
-          : published
-            ? " You can still edit the wording."
-            : " A draft stays private and saves as you type. Sign it when the wording is finished, or attach your own PDF if you reformatted it. It goes on their profile only when you Close and issue."}
+        Only if you mean it. This is the letter they will carry with them, laid out as it
+        prints. Fill in each part, then sign. It goes on their profile only when you close
+        and issue.
       </p>
-      <div className="field">
-        <textarea
-          id="testimonial"
-          rows={12}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="I am pleased to recommend…"
-        />
-      </div>
-      {hasPdf && existing?.pdf_url && (
-        <p>
-          <a href={assetUrl(existing.pdf_url)} target="_blank" rel="noreferrer">
-            {existing.own_file ? "View your PDF" : "View PDF"}
-          </a>
-        </p>
+
+      {existing?.own_file ? (
+        <div className="notice">
+          You attached your own PDF, so it is used as it is and is not signed here.{" "}
+          {existing.pdf_url && (
+            <a href={assetUrl(existing.pdf_url)} target="_blank" rel="noreferrer">
+              View your PDF
+            </a>
+          )}
+        </div>
+      ) : (
+        <div className="card" style={{ maxWidth: "48rem" }}>
+          <div
+            className="row"
+            style={{ justifyContent: "space-between", alignItems: "center", gap: "1rem" }}
+          >
+            {context.company_logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={assetUrl(context.company_logo_url)}
+                alt={context.company_name}
+                style={{ maxHeight: "3.2rem", maxWidth: "10rem", objectFit: "contain" }}
+              />
+            ) : (
+              <span />
+            )}
+            <strong>{context.company_name}</strong>
+          </div>
+          <hr style={{ margin: "0.75rem 0 1rem" }} />
+
+          <p className="small muted" style={{ margin: 0 }}>
+            {today} · To whom it may concern
+          </p>
+
+          <p style={LETTER_CAPTION}>Re: the people this is about</p>
+          {draft.recipients.map((name, index) => (
+            <div key={index} className="row" style={{ gap: "0.5rem", marginBottom: "0.4rem" }}>
+              <input
+                type="text"
+                aria-label={`Name ${index + 1}`}
+                value={name}
+                placeholder="Full name"
+                onChange={(e) => setRecipient(index, e.target.value)}
+                style={{ flex: "1 1 14rem" }}
+              />
+              {draft.recipients.length > 1 && (
+                <button
+                  type="button"
+                  className="secondary small"
+                  onClick={() =>
+                    change({ recipients: draft.recipients.filter((_, i) => i !== index) })
+                  }
+                >
+                  Remove
+                </button>
+              )}
+            </div>
+          ))}
+          <div style={{ marginBottom: "0.4rem" }}>
+            <button
+              type="button"
+              className="secondary small"
+              onClick={() => change({ recipients: [...draft.recipients, ""] })}
+            >
+              + Add another name
+            </button>
+          </div>
+          <p className="small" style={{ margin: "0 0 1rem" }}>
+            <strong>{context.programme_title}</strong>
+          </p>
+
+          <p style={LETTER_CAPTION}>Your testimonial</p>
+          <textarea
+            id="testimonial"
+            rows={12}
+            value={draft.body}
+            onChange={(e) => change({ body: e.target.value })}
+            placeholder="I am pleased to recommend…"
+            style={{ width: "100%" }}
+          />
+
+          <p style={{ margin: "1rem 0 0.4rem" }}>Sincerely,</p>
+
+          {signed ? (
+            <div className="notice good">
+              Signed by {existing?.signed_name}
+              {existing?.signed_at ? ` on ${formatSlot(existing.signed_at)}` : ""}
+              {existing?.signature_typed ? " with a typed name" : ""}.{" "}
+              {existing?.pdf_url && (
+                <a href={assetUrl(existing.pdf_url)} target="_blank" rel="noreferrer">
+                  View the letter
+                </a>
+              )}
+              <div className="small muted">
+                Change any part of the letter and the signature is cleared, so you sign again.
+              </div>
+            </div>
+          ) : (
+            <>
+              {existing?.needs_signature && (
+                <div className="notice warn">
+                  <strong>Published without a signature.</strong> This letter went out before
+                  signing existed. Sign it to reissue it as a signed letter.
+                </div>
+              )}
+              <p style={LETTER_CAPTION}>Your signature</p>
+              <SignaturePad
+                typedName={draft.name}
+                value={signature}
+                onChange={setSignature}
+              />
+            </>
+          )}
+
+          <p style={{ ...LETTER_CAPTION, marginTop: "1rem" }}>From</p>
+          <div className="field">
+            <label htmlFor="letter-name">Name</label>
+            <input
+              id="letter-name"
+              type="text"
+              value={draft.name}
+              onChange={(e) => change({ name: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="letter-title">Title</label>
+            <input
+              id="letter-title"
+              type="text"
+              value={draft.title}
+              placeholder="e.g. Head of Data"
+              onChange={(e) => change({ title: e.target.value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="letter-company">Company</label>
+            <input
+              id="letter-company"
+              type="text"
+              value={draft.company}
+              onChange={(e) => change({ company: e.target.value })}
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="letter-details">Company details</label>
+            <textarea
+              id="letter-details"
+              rows={4}
+              value={draft.details}
+              placeholder={"Address, website, email.\nPrinted under your name."}
+              onChange={(e) => change({ details: e.target.value })}
+              style={{ width: "100%" }}
+            />
+          </div>
+
+          <hr style={{ margin: "0.75rem 0" }} />
+          <p className="small muted" style={{ margin: 0 }}>
+            Issued through Projet
+          </p>
+        </div>
       )}
-      <div className="field">
-        <label htmlFor="testimonial-file">Attach your own PDF</label>
-        <input
-          id="testimonial-file"
-          type="file"
-          accept="application/pdf,.pdf"
-          disabled={locked}
-          onChange={(event) => {
-            const picked = event.target.files?.[0];
-            event.target.value = "";
-            if (picked) void attach(picked);
-          }}
-        />
-        <p className="small muted">
-          Use this if you reformatted the letter. Attaching replaces the typeset letter, and
-          your own file is not signed here.
-        </p>
-      </div>
-      {(error || draftError) && (
-        <div className="notice bad">{error ?? draftError}</div>
-      )}
+
+      {(error || draftError) && <div className="notice bad">{error ?? draftError}</div>}
       {flash && <div className="notice good">{flash}</div>}
       <p className="small muted">
         {autosaveLabel(draftStatus)
@@ -435,36 +658,48 @@ function TestimonialBox({
           ? " · your PDF attached"
           : signed
             ? " · signed"
-            : published
+            : existing?.published_at
               ? " · published, not signed"
               : ""}
         .
       </p>
-      {existing?.signed && existing.signed_at && (
-        <div className="notice good">
-          Signed by {existing.signed_name} on {formatSlot(existing.signed_at)}
-          {existing.signature_typed ? " with a typed name" : ""}.
+
+      {!existing?.own_file && !signed && (
+        <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
+          <button disabled={!canSign} onClick={sign}>
+            {busy
+              ? "Signing…"
+              : existing?.needs_signature
+                ? "Sign and reissue"
+                : "Sign and publish"}
+          </button>
         </div>
       )}
-      {existing?.needs_signature && (
-        <div className="notice warn">
-          <strong>Published without a signature.</strong> This letter went out before signing
-          existed. Sign it below to reissue it as a signed letter.
+
+      <details style={{ marginTop: "1rem" }}>
+        <summary className="small muted">Use your own PDF instead</summary>
+        <div className="field" style={{ marginTop: "0.5rem" }}>
+          <label htmlFor="testimonial-file">Attach your own PDF</label>
+          <input
+            id="testimonial-file"
+            type="file"
+            accept="application/pdf,.pdf"
+            disabled={locked}
+            onChange={(event) => {
+              const picked = event.target.files?.[0];
+              event.target.value = "";
+              if (picked) void attach(picked);
+            }}
+          />
+          <p className="small muted">
+            Use this if you reformatted the letter. Attaching replaces the typeset letter, and
+            your own file is not signed here.
+          </p>
         </div>
-      )}
-      {!existing?.own_file && !signed && existing && body.trim() && (
-        <SigningPanel
-          name={existing.author_name ?? "the author"}
-          reissue={Boolean(existing.needs_signature)}
-          disabled={locked}
-          busy={busy}
-          onSign={sign}
-        />
-      )}
+      </details>
     </>
   );
 }
-
 
 /**
  * A judge's own overall score, used instead of the rubric. It sits above the
@@ -537,38 +772,32 @@ function OwnScoreInput({
   );
 }
 
+type SignatureValue = { typed: boolean; drawn: string | null };
+
 /**
- * Sign and publish. Draw a signature (finger or mouse), or sign with the typed
- * name. Pressing the button is the act of signing; nothing is sent until a
- * signature exists.
+ * Draw a signature with a finger or mouse, or sign with the typed name. The
+ * drawing is handed up as a PNG each time the pen lifts; the Sign button lives
+ * with the rest of the letter, so a name is never signed before it is filled in.
  */
-function SigningPanel({
-  name,
-  reissue,
-  disabled,
-  busy,
-  onSign,
+function SignaturePad({
+  typedName,
+  value,
+  onChange,
 }: {
-  name: string;
-  reissue: boolean;
-  disabled: boolean;
-  busy: boolean;
-  onSign: (signature: { drawn: string | null; typed: boolean }) => Promise<void> | void;
+  typedName: string;
+  value: SignatureValue;
+  onChange: (next: SignatureValue) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawing = useRef(false);
   const last = useRef<{ x: number; y: number } | null>(null);
-  const [hasInk, setHasInk] = useState(false);
-  const [typed, setTyped] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ratio = window.devicePixelRatio || 1;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(height * ratio);
+    canvas.width = Math.round(canvas.clientWidth * ratio);
+    canvas.height = Math.round(canvas.clientHeight * ratio);
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.scale(ratio, ratio);
@@ -576,7 +805,7 @@ function SigningPanel({
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.strokeStyle = "#0b1a5c";
-  }, [typed]);
+  }, [value.typed]);
 
   function point(event: React.PointerEvent<HTMLCanvasElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -594,7 +823,6 @@ function SigningPanel({
       ctx.arc(p.x, p.y, 0.8, 0, Math.PI * 2);
       ctx.stroke();
     }
-    setHasInk(true);
   }
 
   function move(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -610,8 +838,11 @@ function SigningPanel({
   }
 
   function end() {
+    if (!drawing.current) return;
     drawing.current = false;
     last.current = null;
+    const data = canvasRef.current?.toDataURL("image/png") ?? null;
+    onChange({ typed: false, drawn: data });
   }
 
   function clear() {
@@ -622,30 +853,12 @@ function SigningPanel({
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.restore();
-    setHasInk(false);
-  }
-
-  const ready = typed || hasInk;
-
-  function submit() {
-    if (!ready) return;
-    if (typed) {
-      void onSign({ drawn: null, typed: true });
-      return;
-    }
-    const data = canvasRef.current?.toDataURL("image/png") ?? null;
-    void onSign({ drawn: data, typed: false });
+    onChange({ typed: false, drawn: null });
   }
 
   return (
-    <div className="rubric" style={{ border: "2px solid var(--accent)", marginTop: "1rem" }}>
-      <strong>{reissue ? "Sign and reissue this letter" : "Sign and publish"}</strong>
-      <p className="small muted" style={{ margin: "0.25rem 0 0.75rem" }}>
-        Your signature goes on the letter with the date, and is tied to this exact wording.
-        Change a word afterwards and you will need to sign again.
-      </p>
-
-      {typed ? (
+    <div>
+      {value.typed ? (
         <div
           style={{
             border: "1px dashed var(--line)",
@@ -656,9 +869,10 @@ function SigningPanel({
             fontFamily: "Georgia, 'Times New Roman', serif",
             fontStyle: "italic",
             fontSize: "1.8rem",
+            maxWidth: "34rem",
           }}
         >
-          {name}
+          {typedName || "Your name"}
         </div>
       ) : (
         <div>
@@ -681,37 +895,33 @@ function SigningPanel({
               cursor: "crosshair",
             }}
           />
-          {!hasInk && (
+          {value.drawn === null && (
             <p className="small muted" style={{ margin: "0.35rem 0 0" }}>
               Sign here with your finger or mouse.
             </p>
           )}
         </div>
       )}
-
       <div className="row" style={{ gap: "0.5rem", margin: "0.6rem 0", flexWrap: "wrap" }}>
-        {!typed && (
-          <button type="button" className="secondary small" onClick={clear} disabled={!hasInk}>
+        {!value.typed && (
+          <button
+            type="button"
+            className="secondary small"
+            onClick={clear}
+            disabled={value.drawn === null}
+          >
             Clear
           </button>
         )}
         <button
           type="button"
           className="secondary small"
-          onClick={() => {
-            setTyped((value) => !value);
-            setHasInk(false);
-          }}
+          onClick={() => onChange({ typed: !value.typed, drawn: null })}
         >
-          {typed ? "Draw my signature instead" : "Sign with my typed name instead"}
-        </button>
-      </div>
-
-      <div className="row" style={{ marginTop: "0.75rem" }}>
-        <button disabled={disabled || !ready} onClick={submit}>
-          {busy ? "Signing…" : reissue ? "Sign and reissue" : "Sign and publish"}
+          {value.typed ? "Draw my signature instead" : "Sign with my typed name instead"}
         </button>
       </div>
     </div>
   );
 }
+

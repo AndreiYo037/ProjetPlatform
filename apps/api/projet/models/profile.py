@@ -9,7 +9,7 @@ from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from projet.db import Base
-from projet.models.base import TimestampTZ, enum_column, utcnow, uuid_pk
+from projet.models.base import JSONList, TimestampTZ, enum_column, utcnow, uuid_pk
 from projet.models.enums import CredentialType
 
 
@@ -59,6 +59,15 @@ class Testimonial(Base):
     pdf_storage_key: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
     published_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
+
+    # The letter's own parts, each a box on the judging page. recipients are the
+    # names on the Re: line (a team has several); the sign-off is who the letter
+    # is from; company_details is the address, website and email beneath it.
+    recipients: Mapped[list[str] | None] = mapped_column(JSONList)
+    signoff_name: Mapped[str | None] = mapped_column(String(200))
+    signoff_title: Mapped[str | None] = mapped_column(String(200))
+    signoff_company: Mapped[str | None] = mapped_column(String(200))
+    company_details: Mapped[str | None] = mapped_column(Text)
 
     # The e-signature. A letter is signed against the exact wording: body_hash
     # is the SHA-256 of the text at the moment of signing, so any later edit

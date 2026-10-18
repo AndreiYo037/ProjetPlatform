@@ -59,6 +59,14 @@ def _p(text: str) -> str:
     return escape(_safe(text))
 
 
+def join_names(names: list[str]) -> str:
+    """Ada, Ben and Cy: a team's names read as a sentence."""
+    clean = [name.strip() for name in names if name and name.strip()]
+    if len(clean) <= 1:
+        return clean[0] if clean else ""
+    return f"{', '.join(clean[:-1])} and {clean[-1]}"
+
+
 def has_closing(body: str) -> bool:
     """Did the writer already type their own sign-off ("Yours sincerely, ...")?
 
@@ -131,6 +139,9 @@ def render_testimonial_pdf(
     company_name: str = "",
     programme_title: str = "",
     recipient_name: str = "",
+    recipients: list[str] | None = None,
+    company_details: str = "",
+    letterhead_name: str = "",
     logo_png: bytes | None = None,
     signature_png: bytes | None = None,
     signature_typed: bool = False,
@@ -159,13 +170,16 @@ def render_testimonial_pdf(
         "typed", parent=base, fontName="Times-Italic", fontSize=24, leading=28
     )
 
-    story: list[Flowable] = [_Letterhead(company_name, logo_png, width), Spacer(1, 9 * mm)]
+    story: list[Flowable] = [
+        _Letterhead(letterhead_name or company_name, logo_png, width),
+        Spacer(1, 9 * mm),
+    ]
     story.append(Paragraph(_p(format_date(letter_date or signed_at or datetime.now(UTC))), base))
     story.append(Spacer(1, 6 * mm))
     story.append(Paragraph("To whom it may concern", base))
     story.append(Spacer(1, 5 * mm))
 
-    subject = recipient_name or "Participant"
+    subject = join_names(recipients or [recipient_name or "Participant"])
     re_line = f"Re: {_p(subject)}"
     if programme_title:
         re_line += f"<br/>{_p(programme_title)}"
@@ -209,6 +223,10 @@ def render_testimonial_pdf(
             sign.append(Paragraph(_p(author_title), base))
         if company_name:
             sign.append(Paragraph(_p(company_name), base))
+        if company_details.strip():
+            sign.append(Spacer(1, 3 * mm))
+            lines = "<br/>".join(_p(line.rstrip()) for line in company_details.strip().splitlines())
+            sign.append(Paragraph(lines, small))
     record: list[Flowable] = []
     if signed_at and author_name:
         record = [

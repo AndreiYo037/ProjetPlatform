@@ -577,3 +577,75 @@ def test_a_participant_cannot_sign_a_testimonial(client, session, programme, sat
         json={"typed": True, "confirm": True},
     )
     assert refused.status_code in (403, 404)
+
+
+def test_the_letter_opens_with_the_participant_and_the_authors_own_details(
+    client, session, programme, manager, sat
+):
+    sign_in_company(client, session, manager)
+    base = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+
+    context = client.get(f"{base}/context").json()
+    assert context["participant_name"] == "Sam Student"
+    assert context["author_name"] == "Mo Manager"
+    assert context["author_title"] == "Head of Data"
+    assert context["company_name"] == "Acme Pte Ltd"
+
+    saved = client.put(base, json={"body": "Sam read the data properly."}).json()
+    assert saved["recipients"] == ["Sam Student"], "the participant is the first name"
+    assert saved["signoff_name"] == "Mo Manager"
+    assert saved["signoff_title"] == "Head of Data"
+    assert saved["signoff_company"] == "Acme Pte Ltd"
+    assert saved["company_details"] == ""
+
+
+def test_a_team_letter_names_everyone_and_keeps_the_companys_own_boxes(
+    client, session, programme, manager, sat
+):
+    sign_in_company(client, session, manager)
+    base = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+
+    saved = client.put(
+        base,
+        json={
+            "body": "A strong team.",
+            "recipients": ["Sam Student", " Ada Analyst ", "", "Bo Builder"],
+            "signoff_name": "Jeffrey Chen",
+            "signoff_title": "Director",
+            "signoff_company": "BlueNexus Technologies Pte. Ltd.",
+            "company_details": "51 Goldhill Plaza, #07-07\nhttps://bluenexus.tech",
+        },
+    ).json()
+    assert saved["recipients"] == ["Sam Student", "Ada Analyst", "Bo Builder"]
+    assert saved["signoff_name"] == "Jeffrey Chen"
+    assert saved["signoff_company"] == "BlueNexus Technologies Pte. Ltd."
+    assert saved["company_details"].startswith("51 Goldhill Plaza")
+
+    # A later save that sends only the body leaves the other boxes alone.
+    again = client.put(base, json={"body": "A strong team, well done."}).json()
+    assert again["recipients"] == ["Sam Student", "Ada Analyst", "Bo Builder"]
+    assert again["signoff_name"] == "Jeffrey Chen"
+
+
+def test_changing_any_part_of_the_letter_voids_the_signature(
+    client, session, programme, manager, sat
+):
+    sign_in_company(client, session, manager)
+    base = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+    client.put(base, json={"body": "Good work."})
+    signed = client.post(f"{base}/sign", json={"typed": True, "confirm": True}).json()
+    assert signed["signed"] is True
+    assert signed["signed_name"] == "Mo Manager"
+
+    same = client.put(base, json={"body": "Good work.", "recipients": ["Sam Student"]}).json()
+    assert same["signed"] is True, "the default names are not a change"
+
+    for change in (
+        {"recipients": ["Sam Student", "Ada Analyst"]},
+        {"signoff_title": "Chief Data Officer"},
+        {"company_details": "www.acme.test"},
+    ):
+        client.put(base, json={"body": "Good work."})
+        client.post(f"{base}/sign", json={"typed": True, "confirm": True})
+        voided = client.put(base, json={"body": "Good work.", **change}).json()
+        assert voided["signed"] is False, f"{change} should void the signature"

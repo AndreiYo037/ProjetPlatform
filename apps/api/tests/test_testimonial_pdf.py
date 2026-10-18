@@ -83,3 +83,20 @@ def test_a_signature_goes_between_the_writers_closing_and_their_name():
     assert head.endswith("Yours sincerely,")
     assert tail.startswith("Jeffrey Chen")
     assert split_at_closing("Just praise, no sign-off.") is None
+
+
+def test_a_teams_names_read_as_a_sentence():
+    from projet.services.testimonial_pdf import join_names
+
+    assert join_names(["Ada"]) == "Ada"
+    assert join_names(["Ada", "Ben"]) == "Ada and Ben"
+    assert join_names(["Ada", " Ben ", "", "Cy"]) == "Ada, Ben and Cy"
+    assert join_names([]) == ""
+
+
+def test_a_team_letter_with_company_details_renders():
+    pdf = _render(
+        recipients=["Sam Student", "Ada Analyst", "Bo Builder"],
+        company_details="51 Goldhill Plaza, #07-07\nhttps://bluenexus.tech\ninfo@bluenexus.tech",
+    )
+    assert pdf.startswith(b"%PDF-")

@@ -481,6 +481,7 @@ export type PublicProfile = Schemas["PublicProfile"];
 export type ProjectEntry = Schemas["ProjectEntryOut"];
 export type ProjectSkillOption = Schemas["SkillOptionOut"];
 export type TestimonialOut = Schemas["TestimonialOut"];
+export type LetterContext = Schemas["LetterContext"];
 export type TestimonialDraftOut = Schemas["TestimonialDraftOut"];
 export type CloseoutOut = Schemas["CloseoutOut"];
 
@@ -562,11 +563,25 @@ export const getTestimonial = (programmeId: string, participantId: string) =>
 export const writeTestimonial = (
   programmeId: string,
   participantId: string,
-  body: { body: string; publish?: boolean },
+  body: {
+    body: string;
+    publish?: boolean;
+    recipients?: string[];
+    signoff_name?: string;
+    signoff_title?: string;
+    signoff_company?: string;
+    company_details?: string;
+  },
 ) =>
   api.put<TestimonialOut>(
     `/programmes/${programmeId}/participants/${participantId}/testimonial`,
     body,
+  );
+/** What the letter form opens with: the participant, the challenge, the company
+ *  and the signed-in author's own name and title. */
+export const getLetterContext = (programmeId: string, participantId: string) =>
+  api.get<LetterContext>(
+    `/programmes/${programmeId}/participants/${participantId}/testimonial/context`,
   );
 /** Sign and publish. A drawn signature (PNG data URL), or typed: true to sign
  *  with the name. The server binds it to the exact wording, then typesets. */

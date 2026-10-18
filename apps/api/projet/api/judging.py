@@ -508,6 +508,13 @@ class TestimonialOut(BaseModel):
     created_at: datetime
     # E-signature. A letter published before signing existed has no signature
     # and is flagged so the company can sign it and reissue.
+    # The letter's parts as they will print, defaults filled in: the names on
+    # the Re: line, who it is from, and the company's own details.
+    recipients: list[str] = []
+    signoff_name: str = ""
+    signoff_title: str = ""
+    signoff_company: str = ""
+    company_details: str = ""
     signed: bool = False
     signed_at: datetime | None = None
     signed_name: str | None = None
@@ -517,6 +524,12 @@ class TestimonialOut(BaseModel):
 
 class TestimonialWrite(BaseModel):
     body: str = Field(default="", max_length=4000)
+    # The other boxes of the letter. None leaves a part as it was.
+    recipients: list[str] | None = Field(default=None, max_length=8)
+    signoff_name: str | None = Field(default=None, max_length=200)
+    signoff_title: str | None = Field(default=None, max_length=200)
+    signoff_company: str | None = Field(default=None, max_length=200)
+    company_details: str | None = Field(default=None, max_length=800)
     # A draft is a real state: a rep should be able to write badly at 9pm and
     # fix it in the morning before anyone can quote it.
     publish: bool = False
@@ -528,9 +541,64 @@ def _pdf_url(key: str | None) -> str | None:
     return f"/files/{key}?sig={sign_key(key)}"
 
 
+class LetterParts(BaseModel):
+    recipients: list[str]
+    signoff_name: str
+    signoff_title: str
+    signoff_company: str
+    company_details: str
+
+
+def _letter_parts(db: Session, row: Testimonial) -> LetterParts:
+    """The parts as they print: what the company typed, else the sensible default
+    (the participant's name, the author's own name and title, the company)."""
+    author = db.get(CompanyUser, row.author_company_user_id)
+    participant = db.get(Participant, row.participant_id)
+    person = db.get(Person, participant.person_id) if participant else None
+    company = db.get(Company, author.company_id) if author else None
+    names = [name for name in (row.recipients or []) if name and name.strip()]
+    if not names and person is not None:
+        names = [person.name]
+    return LetterParts(
+        recipients=names,
+        signoff_name=row.signoff_name or (author.name if author else ""),
+        signoff_title=row.signoff_title
+        if row.signoff_title is not None
+        else (author.title or "" if author else ""),
+        signoff_company=row.signoff_company or (company.name if company else ""),
+        company_details=row.company_details or "",
+    )
+
+
+def _letter_hash(db: Session, row: Testimonial) -> str:
+    """Everything a signature covers, as it prints: the body and every other part
+    of the letter. Hashing the printed values, not the stored fields, means
+    typing the default name back in is not a change."""
+    import json
+
+    parts = _letter_parts(db, row)
+    payload = json.dumps(
+        {
+            "body": row.body.strip(),
+            "recipients": parts.recipients,
+            "signoff": [parts.signoff_name, parts.signoff_title, parts.signoff_company],
+            "details": parts.company_details.strip(),
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def _testimonial_out(db: Session, row: Testimonial) -> TestimonialOut:
     author = db.get(CompanyUser, row.author_company_user_id)
+    parts = _letter_parts(db, row)
     return TestimonialOut(
+        recipients=parts.recipients,
+        signoff_name=parts.signoff_name,
+        signoff_title=parts.signoff_title,
+        signoff_company=parts.signoff_company,
+        company_details=parts.company_details,
         id=row.id,
         participant_id=row.participant_id,
         body=row.body,
@@ -612,11 +680,12 @@ def write_testimonial(
         db.add(row)
     else:
         row.body = payload.body.strip()
-        # A signature belongs to the exact wording it was given against. Edit
-        # the words and it no longer applies, so it is cleared and the letter
-        # needs signing again.
-        if row.signed_at is not None and _body_hash(row.body) != row.body_hash:
-            _clear_signature(row)
+    _apply_letter_parts(row, payload)
+    # A signature belongs to the exact letter it was given against: the words,
+    # the names, the sign-off and the details. Change any of them and it no
+    # longer applies, so it is cleared and the letter needs signing again.
+    if row.signed_at is not None and _letter_hash(db, row) != row.body_hash:
+        _clear_signature(row)
     # Publishing is one-way from the participant's side: they may already have
     # put it on a CV, so unpublishing would retract something in use. Editing
     # the wording stays open; we regenerate the downloadable PDF from it.
@@ -646,16 +715,17 @@ def write_testimonial(
 def _store_generated_pdf(
     db: Session, *, row: Testimonial, participant: Participant, programme: Programme
 ) -> None:
-    author = db.get(CompanyUser, row.author_company_user_id)
     company = db.get(Company, programme.company_id)
-    person = db.get(Person, participant.person_id)
+    parts = _letter_parts(db, row)
     pdf = render_testimonial_pdf(
         body=row.body,
-        author_name=(row.signed_name or (author.name if author else "")) or "",
-        author_title=row.signed_title or (author.title if author else None),
-        company_name=company.name if company else "",
+        author_name=parts.signoff_name,
+        author_title=parts.signoff_title or None,
+        company_name=parts.signoff_company or (company.name if company else ""),
         programme_title=programme.title,
-        recipient_name=person.name if person else "",
+        recipients=parts.recipients,
+        company_details=parts.company_details,
+        letterhead_name=company.name if company else parts.signoff_company,
         logo_png=_company_logo_bytes(company),
         signature_png=_stored_bytes(row.signature_key),
         signature_typed=bool(row.signature_typed),
@@ -666,8 +736,18 @@ def _store_generated_pdf(
     row.pdf_storage_key = key
 
 
-def _body_hash(body: str) -> str:
-    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+def _apply_letter_parts(row: Testimonial, payload: TestimonialWrite) -> None:
+    """Copy the letter's other boxes across. A part that was not sent is left."""
+    if payload.recipients is not None:
+        row.recipients = [name.strip()[:120] for name in payload.recipients if name.strip()]
+    if payload.signoff_name is not None:
+        row.signoff_name = payload.signoff_name.strip() or None
+    if payload.signoff_title is not None:
+        row.signoff_title = payload.signoff_title.strip()
+    if payload.signoff_company is not None:
+        row.signoff_company = payload.signoff_company.strip() or None
+    if payload.company_details is not None:
+        row.company_details = payload.company_details.strip() or None
 
 
 def _clear_signature(row: Testimonial) -> None:
@@ -701,6 +781,50 @@ def _company_logo_bytes(company: Company | None) -> bytes | None:
 _OWN_PDF_MAX_BYTES = 8 * 1024 * 1024
 _SIGNATURE_MAX_CHARS = 400_000
 _SIGNATURE_MAX_PIXELS = (2400, 1200)
+
+
+class LetterContext(BaseModel):
+    """What the letter form shows before anything is saved."""
+
+    participant_name: str
+    programme_title: str
+    company_name: str
+    company_logo_url: str | None
+    author_name: str
+    author_title: str
+
+
+@router.get(
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/context",
+    response_model=LetterContext,
+)
+def testimonial_context(
+    participant_id: uuid.UUID,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> LetterContext:
+    """The names and defaults the letter opens with: the participant, the
+    challenge, the company, and the signed-in author's own name and title."""
+    if actor.is_platform:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A testimonial is the company's word. Sign in as the company user.",
+        )
+    from projet.services.branding import logo_url
+
+    participant = _participant_or_404(db, programme, actor, participant_id)
+    person = db.get(Person, participant.person_id)
+    author = db.get(CompanyUser, actor.id)
+    company = db.get(Company, programme.company_id)
+    return LetterContext(
+        participant_name=person.name if person else "",
+        programme_title=programme.title,
+        company_name=company.name if company else "",
+        company_logo_url=logo_url(company.id, company.logo_url) if company else None,
+        author_name=author.name if author else "",
+        author_title=(author.title or "") if author else "",
+    )
 
 
 class SignRequest(BaseModel):
@@ -798,11 +922,12 @@ def sign_testimonial(
     drawn = (
         _decode_signature(payload.signature) if payload.signature and not payload.typed else None
     )
-    row.signed_name = author.name
-    row.signed_title = author.title
+    parts = _letter_parts(db, row)
+    row.signed_name = parts.signoff_name
+    row.signed_title = parts.signoff_title or None
     row.signed_at = utcnow()
     row.body = row.body.strip()
-    row.body_hash = _body_hash(row.body)
+    row.body_hash = _letter_hash(db, row)
     row.signed_ip = _client_ip(request)
     ua = request.headers.get("user-agent")
     row.signed_user_agent = ua[:500] if ua else None
