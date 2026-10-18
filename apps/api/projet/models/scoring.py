@@ -29,6 +29,8 @@ class Score(Base):
     scorer_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("company_user.id"))
     scorer_type: Mapped[ScorerType] = mapped_column(enum_column(ScorerType), default=ScorerType.REP)
     total: Mapped[int | None] = mapped_column(Integer)
+    # The judge's own overall score, 0-100, used instead of the rubric total.
+    manual_total: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow, onupdate=utcnow)
 

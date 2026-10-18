@@ -9,7 +9,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from projet.api.deps import (
@@ -33,8 +33,6 @@ from projet.models import (
     Programme,
     Role,
     RubricCriterion,
-    Score,
-    Team,
 )
 from projet.models.base import utcnow
 from projet.models.enums import DeliveryMode, ProgrammeStatus, Provenance, VerificationStatus
@@ -142,9 +140,6 @@ class ProgrammeUpdate(BaseModel):
     require_apply_code: bool | None = None
     winners_count: int | None = None
     role_ids: list[uuid.UUID] | None = None
-    # "rubric" (default) or "manual": judges type their own overall score.
-    score_mode: str | None = Field(default=None, pattern="^(rubric|manual)$")
-    manual_score_max: int | None = Field(default=None, ge=1, le=1000)
 
 
 class CriterionUpdate(BaseModel):
@@ -449,22 +444,6 @@ def update_programme(
                 "Access code must be at least 4 characters.",
             )
     role_ids = changes.pop("role_ids", None)
-    new_mode = changes.get("score_mode")
-    new_max = changes.get("manual_score_max")
-    if (new_mode is not None and new_mode != programme.score_mode) or (
-        new_max is not None and new_max != programme.manual_score_max
-    ):
-        scored = db.scalar(
-            select(func.count())
-            .select_from(Score)
-            .join(Team, Team.id == Score.team_id)
-            .where(Team.programme_id == programme.id)
-        )
-        if scored:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                "Judging has started, so how it is scored can no longer change.",
-            )
     for field, value in changes.items():
         setattr(programme, field, value)
 

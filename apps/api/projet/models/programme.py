@@ -76,12 +76,6 @@ class Programme(Base):
 
     team_size_max: Mapped[int] = mapped_column(Integer, default=1)
 
-    # How judges score: "rubric" rates every criterion 1-5 and sums them;
-    # "manual" lets a judge type one overall score out of manual_score_max
-    # (the company's own rubric, kept outside the platform).
-    score_mode: Mapped[str] = mapped_column(String(10), default="rubric", server_default="rubric")
-    manual_score_max: Mapped[int] = mapped_column(Integer, default=100, server_default="100")
-
     applications_open_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     applications_close_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
     start_at: Mapped[datetime | None] = mapped_column(TimestampTZ)

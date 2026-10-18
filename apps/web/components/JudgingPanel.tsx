@@ -33,7 +33,11 @@ function referralKey(card: SubmissionCard): (typeof REFERRAL_ORDER)[number] {
 function byScore(cards: SubmissionCard[]): SubmissionCard[] {
   return [...cards].sort((a, b) => {
     if (a.your_total !== null && b.your_total !== null) {
-      if (b.your_total !== a.your_total) return b.your_total - a.your_total;
+      // A rubric total and an own score sit on different scales, so rank by
+      // the share of the maximum each one reached.
+      const shareA = a.your_total / (a.max_total || 1);
+      const shareB = b.your_total / (b.max_total || 1);
+      if (shareB !== shareA) return shareB - shareA;
     } else if (a.your_total !== null) return -1;
     else if (b.your_total !== null) return 1;
     return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });

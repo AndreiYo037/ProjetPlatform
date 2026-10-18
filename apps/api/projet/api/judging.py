@@ -44,7 +44,9 @@ from projet.models.enums import AccessStatus, ReferralIntent
 from projet.services.auth import Actor
 from projet.services.closeout import CloseoutError, close_programme
 from projet.services.scoring import (
+    MANUAL_MAX,
     ScoringError,
+    clear_manual_total,
     criteria_for,
     ensure_score,
     record_criterion,
@@ -117,6 +119,7 @@ class SubmissionCard(BaseModel):
     your_total: int | None
     max_total: int
     would_refer: str | None = None
+    own_score: bool = False
     pitch_at: datetime | None = None
     meet_link: str | None = None
 
@@ -149,10 +152,12 @@ class ScoringCard(BaseModel):
     name: str
     submission: SubmissionCard
     criteria: list[ScoringAnchor]
-    score_mode: str = "rubric"
     total: int | None
     max_total: int
     complete: bool
+    # The judge's own overall score (0-100) when given, instead of the rubric.
+    manual_total: int | None = None
+    manual_max: int = MANUAL_MAX
     would_refer: str | None
     skill_ids: list[uuid.UUID]
     skill_options: list[SkillOption]
@@ -221,7 +226,6 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         else None
     )
     programme = db.get(Programme, participant.programme_id)
-    manual = bool(programme is not None and programme.score_mode == "manual")
     needed = len(criteria_for(db, participant.programme_id))
     meet = None
     if programme is None or not programme.onsite:
@@ -255,8 +259,17 @@ def _card(db: Session, participant: Participant, scorer_id: uuid.UUID | None) ->
         memo=(submission.memo_text or "") if submission else "",
         pitch_mode=submission.pitch_mode if submission else None,
         scored=score is not None,
-        your_total=score.total if score else None,
-        max_total=programme.manual_score_max if manual and programme else needed * 5,
+        # A judge's own overall score, when given, stands in for the rubric
+        # total, out of 100. Ranking compares the two as a share of the max.
+        your_total=(
+            score.manual_total
+            if score is not None and score.manual_total is not None
+            else (score.total if score else None)
+        ),
+        max_total=(
+            MANUAL_MAX if score is not None and score.manual_total is not None else needed * 5
+        ),
+        own_score=bool(score is not None and score.manual_total is not None),
         would_refer=referral,
         pitch_at=slot.starts_at if slot else None,
         meet_link=meet,
@@ -335,9 +348,6 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
         )
         for criterion in criteria_for(db, programme.id)
     ]
-    manual = programme.score_mode == "manual"
-    if manual:
-        criteria = []
 
     referral = None
     skill_ids: list[uuid.UUID] = []
@@ -373,14 +383,21 @@ def _scoring_card(db: Session, programme: Programme, participant: Participant, a
         name=person.name if person else "",
         submission=_card(db, participant, scorer_id),
         criteria=criteria,
-        score_mode=programme.score_mode,
-        total=score.total if score else None,
-        max_total=programme.manual_score_max if manual else len(criteria) * 5,
-        complete=(
-            bool(score and score.total is not None)
-            if manual
-            else all(criterion.value is not None for criterion in criteria) and bool(criteria)
+        total=(
+            score.manual_total
+            if score is not None and score.manual_total is not None
+            else (score.total if score else None)
         ),
+        max_total=(
+            MANUAL_MAX
+            if score is not None and score.manual_total is not None
+            else len(criteria) * 5
+        ),
+        complete=(
+            bool(score is not None and score.manual_total is not None)
+            or (all(criterion.value is not None for criterion in criteria) and bool(criteria))
+        ),
+        manual_total=score.manual_total if score else None,
         would_refer=referral,
         skill_ids=skill_ids,
         skill_options=options,
@@ -405,8 +422,9 @@ class ScoringUpdate(BaseModel):
     """Partial by design: a judge fills this in a value at a time, live."""
 
     ratings: dict[uuid.UUID, int] = Field(default_factory=dict)
-    # Only for challenges set to the company's own overall score.
+    # The judge's own overall score instead of the rubric; clear to go back.
     manual_total: int | None = None
+    clear_manual_total: bool = False
     would_refer: str | None = None
     skill_ids: list[uuid.UUID] | None = None
 
@@ -436,20 +454,11 @@ def update_scoring_card(
 
     score = ensure_score(db, team, actor.id)
     by_id = {criterion.id: criterion for criterion in criteria_for(db, programme.id)}
-    manual = programme.score_mode == "manual"
-    if payload.ratings and manual:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "This challenge uses its own overall score, not the rubric.",
-        )
-    if payload.manual_total is not None and not manual:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            "This challenge scores on the rubric. Switch it to its own score first.",
-        )
     try:
+        if payload.clear_manual_total:
+            clear_manual_total(db, score)
         if payload.manual_total is not None:
-            record_manual_total(db, score, payload.manual_total, programme.manual_score_max)
+            record_manual_total(db, score, payload.manual_total)
         for criterion_id, value in payload.ratings.items():
             criterion = by_id.get(criterion_id)
             if criterion is None:

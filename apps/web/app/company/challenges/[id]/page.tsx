@@ -482,10 +482,6 @@ function ScheduleSection({
               </dd>
             </>
           )}
-          <dt>Scoring</dt>
-          <dd>
-            <ScoringModeControls programme={programme} onSaved={onSaved} />
-          </dd>
           <dt>Apps close</dt>
           <dd>{formatDay(programme.applications_close_at, "23:59")}</dd>
           <dt>Starts</dt>
@@ -525,10 +521,6 @@ function ScheduleSection({
           {codeControls}
         </div>
       )}
-      <div className="field">
-        <label>How judges score</label>
-        <ScoringModeControls programme={programme} onSaved={onSaved} />
-      </div>
       <div className="field">
         <label htmlFor="edit-title">Title</label>
         <input
@@ -614,103 +606,6 @@ function ScheduleSection({
  * always editable. Not tucked inside the scheduling panel, and not locked once
  * published — a company can and should keep sharpening the brief (FR-067).
  */
-/**
- * Rubric (every criterion rated 1-5) or the company's own overall score. The
- * server refuses a change once any judge has scored, so a half-scored cohort
- * never mixes the two.
- */
-function ScoringModeControls({
-  programme,
-  onSaved,
-}: {
-  programme: ProgrammeDetail;
-  onSaved: () => void;
-}) {
-  const [mode, setMode] = useState<"rubric" | "manual">(
-    programme.score_mode === "manual" ? "manual" : "rubric",
-  );
-  const [max, setMax] = useState(String(programme.manual_score_max ?? 100));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-
-  const maxNumber = Number(max);
-  const maxValid = Number.isInteger(maxNumber) && maxNumber >= 1 && maxNumber <= 1000;
-  const changed =
-    mode !== (programme.score_mode === "manual" ? "manual" : "rubric") ||
-    (mode === "manual" && maxNumber !== programme.manual_score_max);
-
-  async function save() {
-    setSaving(true);
-    setError(null);
-    setSaved(false);
-    try {
-      await updateProgramme(programme.id, {
-        score_mode: mode,
-        ...(mode === "manual" ? { manual_score_max: maxNumber } : {}),
-      });
-      setSaved(true);
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not change how judges score.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div>
-      <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-        <input
-          type="radio"
-          name={`score-mode-${programme.id}`}
-          checked={mode === "rubric"}
-          onChange={() => setMode("rubric")}
-        />
-        Platform rubric (rate each criterion 1 to 5)
-      </label>
-      <label style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-        <input
-          type="radio"
-          name={`score-mode-${programme.id}`}
-          checked={mode === "manual"}
-          onChange={() => setMode("manual")}
-        />
-        Our own score (judges type one overall score)
-      </label>
-      {mode === "manual" && (
-        <div className="field" style={{ marginTop: "0.5rem" }}>
-          <label htmlFor={`score-max-${programme.id}`}>Highest possible score</label>
-          <input
-            id={`score-max-${programme.id}`}
-            type="number"
-            min={1}
-            max={1000}
-            value={max}
-            onChange={(e) => setMax(e.target.value)}
-            style={{ maxWidth: "8rem" }}
-          />
-        </div>
-      )}
-      <div className="row" style={{ marginTop: "0.5rem", gap: "0.5rem" }}>
-        <button
-          type="button"
-          className="secondary"
-          disabled={saving || !changed || (mode === "manual" && !maxValid)}
-          onClick={save}
-        >
-          {saving ? "Saving…" : "Save scoring"}
-        </button>
-        {saved && !changed && <span className="small muted">Saved.</span>}
-      </div>
-      <p className="small muted" style={{ marginBottom: 0 }}>
-        Can't be changed once judging has started.
-      </p>
-      {error && <div className="notice bad">{error}</div>}
-    </div>
-  );
-}
-
 function BriefSection({
   programme,
   onSaved,

@@ -113,8 +113,6 @@ class ProgrammeOut(BaseModel):
     delivery_mode: str
     capacity: int | None = None
     team_size_max: int
-    score_mode: str = "rubric"
-    manual_score_max: int = 100
     applications_open_at: datetime | None = None
     applications_close_at: datetime | None = None
     start_at: datetime | None = None

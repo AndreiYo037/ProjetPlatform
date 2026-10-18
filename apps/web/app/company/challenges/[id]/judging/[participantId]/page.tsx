@@ -159,22 +159,21 @@ export default function ScoringCardPage({
         Score <span className="tag open">Required</span>
       </h2>
       <p className="small muted">
-        {card.score_mode === "manual"
-          ? "Type your overall score. Everything below the score is optional and can be left blank."
-          : "Rate every box. Everything below the score is optional and can be left blank."}{" "}
-        Saves as you go{savedAt && ` · last saved ${savedAt}`}.
-        {card.score_mode !== "manual" && " The total appears once every box is rated."}
+        Rate every box, or give your own overall score instead. Everything below the
+        score is optional and can be left blank. Saves as you go
+        {savedAt && ` · last saved ${savedAt}`}. The rubric total appears once every box
+        is rated.
       </p>
       {error && <div className="notice bad">{error}</div>}
 
-      {card.score_mode === "manual" && (
-        <ManualScoreInput
-          key={participantId}
-          saved={card.total}
-          max={card.max_total}
-          onSave={(value) => save({ manual_total: value })}
-        />
-      )}
+      <OwnScoreInput
+        key={participantId}
+        saved={card.manual_total ?? null}
+        max={card.manual_max}
+        onSave={(value) =>
+          value === null ? save({ clear_manual_total: true }) : save({ manual_total: value })
+        }
+      />
 
       {card.criteria.map((criterion) => (
         <div className="rubric" key={criterion.criterion_id}>
@@ -424,28 +423,31 @@ function TestimonialBox({
 
 
 /**
- * The company's own score: one number, out of the maximum it set for the
- * challenge. Saves when the judge pauses, like the rubric buttons.
+ * A judge's own overall score, used instead of the rubric. It sits above the
+ * rubric so it is in view without scrolling past every criterion. Saves when
+ * the judge pauses; clearing the box goes back to the rubric total.
  */
-function ManualScoreInput({
+function OwnScoreInput({
   saved,
   max,
   onSave,
 }: {
   saved: number | null;
   max: number;
-  onSave: (value: number) => Promise<void> | void;
+  onSave: (value: number | null) => Promise<void> | void;
 }) {
-  const [text, setText] = useState(saved === null ? "" : String(saved));
-  const [baseline, setBaseline] = useState(saved === null ? "" : String(saved));
-  const value = Number(text);
-  const valid = text.trim() !== "" && Number.isInteger(value) && value >= 0 && value <= max;
+  const initial = saved === null ? "" : String(saved);
+  const [text, setText] = useState(initial);
+  const [baseline, setBaseline] = useState(initial);
+  const trimmed = text.trim();
+  const value = Number(trimmed);
+  const valid = trimmed === "" || (Number.isInteger(value) && value >= 0 && value <= max);
 
   useAutosave(
-    valid ? text.trim() : baseline,
+    valid ? trimmed : baseline,
     baseline,
     async (next) => {
-      await onSave(Number(next));
+      await onSave(next === "" ? null : Number(next));
       setBaseline(next);
     },
     800,
@@ -453,12 +455,16 @@ function ManualScoreInput({
 
   return (
     <div className="rubric">
-      <label htmlFor="manual-score">
-        <strong>Your score</strong> (0 to {max})
+      <label htmlFor="own-score">
+        <strong>Your own score</strong> <span className="tag">Optional</span>
       </label>
-      <div className="row" style={{ gap: "0.5rem", marginTop: "0.5rem", alignItems: "center" }}>
+      <p className="small muted" style={{ margin: "0.25rem 0 0.5rem" }}>
+        Not using the rubric? Type your own overall score out of {max}. It stands in for
+        the rubric total on this candidate. Clear the box to go back to the rubric.
+      </p>
+      <div className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
         <input
-          id="manual-score"
+          id="own-score"
           type="number"
           inputMode="numeric"
           min={0}
@@ -470,7 +476,7 @@ function ManualScoreInput({
         />
         <span className="small muted">out of {max}</span>
       </div>
-      {text.trim() !== "" && !valid && (
+      {!valid && (
         <p className="small" style={{ color: "var(--danger)", marginBottom: 0 }}>
           Enter a whole number from 0 to {max}.
         </p>

@@ -13,7 +13,7 @@ from __future__ import annotations
 import secrets
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from projet.models import (
@@ -84,7 +84,7 @@ def was_scored(db: Session, participant: Participant) -> bool:
             .join(Team, Team.id == Score.team_id)
             .join(TeamMember, TeamMember.team_id == Team.id)
             .where(TeamMember.participant_id == participant.id)
-            .where(Score.total.isnot(None))
+            .where(or_(Score.total.isnot(None), Score.manual_total.isnot(None)))
             .limit(1)
         )
     )
