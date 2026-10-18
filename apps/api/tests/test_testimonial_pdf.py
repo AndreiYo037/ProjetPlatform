@@ -71,3 +71,15 @@ def test_the_date_is_written_out_in_full():
 def test_the_letter_is_dated_in_singapore_not_utc():
     # 16:43 UTC on the 18th is 00:43 on the 19th in Singapore.
     assert format_date(datetime(2026, 10, 18, 16, 43, tzinfo=UTC)) == "19 October 2026"
+
+
+def test_a_signature_goes_between_the_writers_closing_and_their_name():
+    from projet.services.testimonial_pdf import split_at_closing
+
+    head, tail = split_at_closing("Thank you.\n\nYours sincerely,\nJeffrey Chen\nBlueNexus") or (
+        "",
+        "",
+    )
+    assert head.endswith("Yours sincerely,")
+    assert tail.startswith("Jeffrey Chen")
+    assert split_at_closing("Just praise, no sign-off.") is None

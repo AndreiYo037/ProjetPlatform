@@ -67,6 +67,19 @@ def has_closing(body: str) -> bool:
     return any(_CLOSING.match(line) for line in lines[-12:])
 
 
+def split_at_closing(body: str) -> tuple[str, str] | None:
+    """Split the body just after the writer's own closing line, so the signature
+    can sit between "Yours sincerely," and their typed name.
+
+    Returns (up to and including the closing, everything after it), or None if
+    there is no closing line near the end."""
+    lines = body.strip().splitlines()
+    for index in range(len(lines) - 1, max(len(lines) - 13, -1), -1):
+        if _CLOSING.match(lines[index]):
+            return "\n".join(lines[: index + 1]), "\n".join(lines[index + 1 :]).strip("\n")
+    return None
+
+
 def format_date(moment: datetime) -> str:
     """The day in Singapore, where the programme runs, not the server's UTC."""
     from projet.services.schedule import in_programme_tz
@@ -159,14 +172,19 @@ def render_testimonial_pdf(
     story.append(Paragraph(re_line, re_style))
     story.append(Spacer(1, 5 * mm))
 
-    for paragraph in re.split(r"\n\s*\n", body.strip()):
-        text = "<br/>".join(_p(line.rstrip()) for line in paragraph.splitlines())
-        if text.strip():
-            story.append(Paragraph(text, base))
-            story.append(Spacer(1, 3.2 * mm))
+    split = split_at_closing(body)
+    own_closing = split is not None
+    head, tail = split if split else (body, "")
 
-    own_closing = has_closing(body)
-    sign: list[Flowable] = [Spacer(1, 3 * mm)]
+    def add_paragraphs(text: str) -> None:
+        for paragraph in re.split(r"\n\s*\n", text.strip()):
+            joined = "<br/>".join(_p(line.rstrip()) for line in paragraph.splitlines())
+            if joined.strip():
+                story.append(Paragraph(joined, base))
+                story.append(Spacer(1, 3.2 * mm))
+
+    add_paragraphs(head)
+    sign: list[Flowable] = [Spacer(1, 1 * mm)]
     if not own_closing:
         sign.append(Paragraph("Sincerely,", base))
         sign.append(Spacer(1, 2 * mm))
@@ -191,15 +209,25 @@ def render_testimonial_pdf(
             sign.append(Paragraph(_p(author_title), base))
         if company_name:
             sign.append(Paragraph(_p(company_name), base))
+    record: list[Flowable] = []
     if signed_at and author_name:
-        sign.append(Spacer(1, 4 * mm))
-        sign.append(
+        record = [
+            Spacer(1, 4 * mm),
             Paragraph(
                 f"Signed electronically by {_p(author_name)} on {_p(format_date(signed_at))}.",
                 small,
-            )
-        )
-    story.append(KeepTogether(sign))
+            ),
+        ]
+    if own_closing:
+        # Signature right under their own "Yours sincerely,", their typed name
+        # and details after it, and the signing record at the very end.
+        story.append(KeepTogether(sign))
+        if tail.strip():
+            story.append(Spacer(1, 2 * mm))
+            add_paragraphs(tail)
+        story.extend(record)
+    else:
+        story.append(KeepTogether(sign + record))
 
     def footer(canvas, _doc) -> None:  # type: ignore[no-untyped-def]
         canvas.saveState()
