@@ -357,6 +357,67 @@ function ParticipantJudgingCard({
         </div>
       </div>
 
+      <div style={{ marginTop: "0.85rem" }}>
+        <div className="small muted" style={{ marginBottom: "0.35rem" }}>
+          Submissions
+        </div>
+        {links.length === 0 ? (
+          <p className="small muted" style={{ margin: 0 }}>
+            Nothing submitted.
+          </p>
+        ) : (
+          <div className="panel" style={{ margin: 0 }}>
+            {links.map((link) => (
+              <div
+                className="row"
+                key={link.slot}
+                style={{ justifyContent: "space-between", gap: "0.75rem" }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <strong style={{ textTransform: "capitalize" }}>{link.slot}</strong>
+                  <div className="small muted" style={{ overflowWrap: "anywhere" }}>
+                    {link.filename ?? link.url ?? "Nothing submitted"}
+                  </div>
+                </div>
+                <div className="row" style={{ gap: "0.5rem", flexShrink: 0, alignItems: "center" }}>
+                  {link.access_status !== "ok" && (
+                    <span className="tag">{link.access_status}</span>
+                  )}
+                  {link.snapshot_url && (
+                    <a href={assetUrl(link.snapshot_url)} target="_blank" rel="noreferrer">
+                      File
+                    </a>
+                  )}
+                  {link.url && (
+                    <a href={externalHref(link.url)} target="_blank" rel="noreferrer">
+                      Link
+                    </a>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {card.pitch_mode && (
+        <p className="small" style={{ marginTop: "0.85rem", marginBottom: 0 }}>
+          <span className="muted">Pitching:</span>{" "}
+          {card.pitch_mode === "online" ? "Online" : "On-site"}
+        </p>
+      )}
+
+      {card.memo && (
+        <div style={{ marginTop: "0.85rem" }}>
+          <div className="small muted" style={{ marginBottom: "0.35rem" }}>
+            Memo
+          </div>
+          <div className="panel" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+            {card.memo}
+          </div>
+        </div>
+      )}
+
       {showContact && (
         <div className="panel" style={{ marginTop: "0.85rem" }}>
           <dl className="facts" style={{ margin: 0 }}>
@@ -427,67 +488,6 @@ function ParticipantJudgingCard({
                 No contact details on file.
               </p>
             )}
-        </div>
-      )}
-
-      <div style={{ marginTop: "0.85rem" }}>
-        <div className="small muted" style={{ marginBottom: "0.35rem" }}>
-          Submissions
-        </div>
-        {links.length === 0 ? (
-          <p className="small muted" style={{ margin: 0 }}>
-            Nothing submitted.
-          </p>
-        ) : (
-          <div className="panel" style={{ margin: 0 }}>
-            {links.map((link) => (
-              <div
-                className="row"
-                key={link.slot}
-                style={{ justifyContent: "space-between", gap: "0.75rem" }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <strong style={{ textTransform: "capitalize" }}>{link.slot}</strong>
-                  <div className="small muted" style={{ overflowWrap: "anywhere" }}>
-                    {link.filename ?? link.url ?? "Nothing submitted"}
-                  </div>
-                </div>
-                <div className="row" style={{ gap: "0.5rem", flexShrink: 0, alignItems: "center" }}>
-                  {link.access_status !== "ok" && (
-                    <span className="tag">{link.access_status}</span>
-                  )}
-                  {link.snapshot_url && (
-                    <a href={assetUrl(link.snapshot_url)} target="_blank" rel="noreferrer">
-                      File
-                    </a>
-                  )}
-                  {link.url && (
-                    <a href={externalHref(link.url)} target="_blank" rel="noreferrer">
-                      Link
-                    </a>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {card.pitch_mode && (
-        <p className="small" style={{ marginTop: "0.85rem", marginBottom: 0 }}>
-          <span className="muted">Pitching:</span>{" "}
-          {card.pitch_mode === "online" ? "Online" : "On-site"}
-        </p>
-      )}
-
-      {card.memo && (
-        <div style={{ marginTop: "0.85rem" }}>
-          <div className="small muted" style={{ marginBottom: "0.35rem" }}>
-            Memo
-          </div>
-          <div className="panel" style={{ margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-            {card.memo}
-          </div>
         </div>
       )}
 
