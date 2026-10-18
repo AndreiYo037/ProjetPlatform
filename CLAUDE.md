@@ -24,6 +24,14 @@
 
 5. **When the user asks "where is X," answer directly.** State what exists and what doesn't. Do not explain architecture before answering the question.
 
+6. **Do exactly what was decided; add nothing.** Do not put elements in a draft that the user did not ask for (for example a verification line on a certificate), and do not ask the user about something you added yourself.
+
+7. **Follow the format asked for.** "Just the text" means only the text: no images, files, tables or extra explanation. Keep answers short and in the order the user asked.
+
+8. **Do not re-ask what was already answered, and do not repeat a mistake after being corrected.** Apply a correction everywhere it applies, not just where it was pointed out.
+
+9. **Do not conflate counts.** When asked about numbers, say exactly what is being counted (platform track, people, teams, scored or submitted) before giving the figure.
+
 ## Secrets
 
 - `.env` files are gitignored — never commit them
