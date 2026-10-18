@@ -1,0 +1,26 @@
+name: List testimonials
+
+# Read-only report, manual trigger.
+on:
+  workflow_dispatch:
+    inputs:
+      company_password:
+        description: "Password for the company accounts"
+        required: true
+
+jobs:
+  list:
+    name: List testimonials
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask password
+        run: echo "::add-mask::${{ inputs.company_password }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python list_testimonials.py
+        working-directory: .github/scripts
+        env:
+          COMPANY_PASSWORD: ${{ inputs.company_password }}
