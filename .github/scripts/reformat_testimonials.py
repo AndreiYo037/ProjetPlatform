@@ -39,8 +39,14 @@ def split_letter(body: str, participant: str) -> tuple[list[str], str, str]:
     """Names from the salutation, the body without it, and what was cut off the end."""
     lines = body.strip().splitlines()
     names: list[str] = [participant]
-    if lines and re.match(r"^\s*dear\b", lines[0], re.IGNORECASE):
-        salutation = re.sub(r"^\s*dear\s+", "", lines[0], flags=re.IGNORECASE).strip(" ,:")
+    # The old letters carry their own heading (company, "Letter of appreciation",
+    # date, "Presented to") above the salutation; the letterhead replaces it.
+    dear = next(
+        (i for i, line in enumerate(lines[:10]) if re.match(r"^\s*dear\b", line, re.IGNORECASE)),
+        None,
+    )
+    if dear is not None:
+        salutation = re.sub(r"^\s*dear\s+", "", lines[dear], flags=re.IGNORECASE).strip(" ,:")
         for raw in re.split(r"\s*(?:&|,|\band\b)\s*", salutation):
             name = raw.strip()
             if not name:
@@ -49,7 +55,7 @@ def split_letter(body: str, participant: str) -> tuple[list[str], str, str]:
             if difflib.SequenceMatcher(None, name.lower(), participant.lower()).ratio() >= 0.7:
                 continue
             names.append(name)
-        lines = lines[1:]
+        lines = lines[dear + 1 :]
     cut = len(lines)
     for index, line in enumerate(lines):
         if CLOSING.match(line.strip()):
@@ -58,6 +64,16 @@ def split_letter(body: str, participant: str) -> tuple[list[str], str, str]:
     kept = "\n".join(lines[:cut]).strip()
     dropped = "\n".join(lines[cut:]).strip()
     return names, kept, dropped
+
+
+def details_from(dropped: str) -> str:
+    """The address block under the sign-off: what follows the last company-name line."""
+    lines = [line.strip() for line in dropped.splitlines()]
+    starts = [i for i, line in enumerate(lines) if line.lower() == COMPANY.lower()]
+    if not starts:
+        return DETAILS
+    block = [line for line in lines[starts[-1] + 1 :] if line]
+    return "\n".join(block) or DETAILS
 
 
 def main() -> int:
@@ -89,13 +105,14 @@ def main() -> int:
                     names, body, dropped = split_letter(t["body"], card["name"])
                     print("=" * 70)
                     print(f"{card['name']}  |  {programme['title'][:50]}")
+                    details = details_from(dropped)
                     print("-- BEFORE --")
                     print(t["body"])
                     print("-- AFTER --")
                     print(f"Re: {', '.join(names)}")
                     print(body)
                     print(f"[from: {SIGNER}, {TITLE or '(no title)'}, {COMPANY}]")
-                    print(f"[details: {DETAILS}]")
+                    print(f"[details: {details}]")
                     print(f"[cut from the end: {dropped or 'nothing'}]")
                     if not APPLY:
                         continue
@@ -108,7 +125,7 @@ def main() -> int:
                             "signoff_name": SIGNER,
                             "signoff_title": TITLE,
                             "signoff_company": COMPANY,
-                            "company_details": DETAILS,
+                            "company_details": details,
                         },
                     )
                     sign = client.post(f"{base}/sign", json={"typed": True, "confirm": True})
