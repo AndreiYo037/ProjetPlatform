@@ -247,7 +247,6 @@ export default function ScoringCardPage({
       <TestimonialBox
         programmeId={id}
         participantId={participantId}
-        personName={card.name}
         skillsSaving={saving}
       />
 
@@ -289,12 +288,10 @@ export default function ScoringCardPage({
 function TestimonialBox({
   programmeId,
   participantId,
-  personName,
   skillsSaving,
 }: {
   programmeId: string;
   participantId: string;
-  personName: string;
   skillsSaving: boolean;
 }) {
   const [existing, setExisting] = useState<TestimonialOut | null>(null);
@@ -458,8 +455,6 @@ function TestimonialBox({
       {!existing?.own_file && !signed && existing && body.trim() && (
         <SigningPanel
           name={existing.author_name ?? "the author"}
-          title={existing.author_title}
-          personName={personName}
           reissue={Boolean(existing.needs_signature)}
           disabled={locked}
           busy={busy}
@@ -544,21 +539,17 @@ function OwnScoreInput({
 
 /**
  * Sign and publish. Draw a signature (finger or mouse), or sign with the typed
- * name, and confirm in words that this is your testimonial. Nothing is sent
- * until the box is ticked and a signature exists.
+ * name. Pressing the button is the act of signing; nothing is sent until a
+ * signature exists.
  */
 function SigningPanel({
   name,
-  title,
-  personName,
   reissue,
   disabled,
   busy,
   onSign,
 }: {
   name: string;
-  title: string | null | undefined;
-  personName: string;
   reissue: boolean;
   disabled: boolean;
   busy: boolean;
@@ -569,7 +560,6 @@ function SigningPanel({
   const last = useRef<{ x: number; y: number } | null>(null);
   const [hasInk, setHasInk] = useState(false);
   const [typed, setTyped] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -635,7 +625,7 @@ function SigningPanel({
     setHasInk(false);
   }
 
-  const ready = confirmed && (typed || hasInk);
+  const ready = typed || hasInk;
 
   function submit() {
     if (!ready) return;
@@ -716,20 +706,6 @@ function SigningPanel({
           {typed ? "Draw my signature instead" : "Sign with my typed name instead"}
         </button>
       </div>
-
-      <label style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(event) => setConfirmed(event.target.checked)}
-          style={{ marginTop: "0.25rem" }}
-        />
-        <span className="small">
-          I am {name}
-          {title ? `, ${title}` : ""}, and this is my testimonial for {personName}. I am signing
-          it electronically.
-        </span>
-      </label>
 
       <div className="row" style={{ marginTop: "0.75rem" }}>
         <button disabled={disabled || !ready} onClick={submit}>
