@@ -9909,6 +9909,16 @@
             "type": "integer",
             "title": "Team Size Max"
           },
+          "score_mode": {
+            "type": "string",
+            "title": "Score Mode",
+            "default": "rubric"
+          },
+          "manual_score_max": {
+            "type": "integer",
+            "title": "Manual Score Max",
+            "default": 100
+          },
           "applications_open_at": {
             "anyOf": [
               {
@@ -10165,6 +10175,16 @@
           "team_size_max": {
             "type": "integer",
             "title": "Team Size Max"
+          },
+          "score_mode": {
+            "type": "string",
+            "title": "Score Mode",
+            "default": "rubric"
+          },
+          "manual_score_max": {
+            "type": "integer",
+            "title": "Manual Score Max",
+            "default": 100
           },
           "applications_open_at": {
             "anyOf": [
@@ -10498,6 +10518,31 @@
               }
             ],
             "title": "Role Ids"
+          },
+          "score_mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(rubric|manual)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Mode"
+          },
+          "manual_score_max": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Score Max"
           }
         },
         "type": "object",
@@ -12092,6 +12137,11 @@
             "type": "array",
             "title": "Criteria"
           },
+          "score_mode": {
+            "type": "string",
+            "title": "Score Mode",
+            "default": "rubric"
+          },
           "total": {
             "anyOf": [
               {
@@ -12165,6 +12215,17 @@
             },
             "type": "object",
             "title": "Ratings"
+          },
+          "manual_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Total"
           },
           "would_refer": {
             "anyOf": [

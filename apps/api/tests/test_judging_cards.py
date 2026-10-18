@@ -356,3 +356,76 @@ def test_a_participant_cannot_read_a_scoring_card(client, session, programme, co
     assert client.get(
         f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
     ).status_code in (403, 404)
+
+
+def _manual(session, programme, maximum=100):
+    programme.score_mode = "manual"
+    programme.manual_score_max = maximum
+    session.flush()
+
+
+def test_a_manual_challenge_takes_one_overall_score(client, session, programme, manager, cohort):
+    _manual(session, programme)
+    sign_in(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
+
+    blank = client.get(url).json()
+    assert blank["score_mode"] == "manual"
+    assert blank["criteria"] == []
+    assert blank["max_total"] == 100
+    assert blank["total"] is None
+
+    saved = client.patch(url, json={"manual_total": 82})
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["total"] == 82
+    assert saved.json()["complete"] is True
+
+    # Saving the referral afterwards must not wipe a typed score.
+    after = client.patch(url, json={"would_refer": "yes"})
+    assert after.json()["total"] == 82
+
+    listed = next(
+        c
+        for c in client.get(f"/programmes/{programme.id}/submissions").json()
+        if c["name"] == "Sam Student"
+    )
+    assert listed["your_total"] == 82
+    assert listed["max_total"] == 100
+
+
+def test_a_manual_score_outside_the_range_is_refused(client, session, programme, manager, cohort):
+    _manual(session, programme, maximum=50)
+    sign_in(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
+
+    assert client.patch(url, json={"manual_total": 51}).status_code == 422
+    assert client.patch(url, json={"manual_total": -1}).status_code == 422
+    assert client.patch(url, json={"manual_total": 0}).json()["total"] == 0
+    assert client.patch(url, json={"manual_total": 50}).json()["total"] == 50
+
+
+def test_ratings_and_manual_scores_do_not_mix(client, session, programme, manager, cohort):
+    sign_in(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{cohort['sam'].id}/score"
+    criterion = client.get(url).json()["criteria"][0]["criterion_id"]
+
+    assert client.patch(url, json={"manual_total": 10}).status_code == 422
+
+    _manual(session, programme)
+    assert client.patch(url, json={"ratings": {criterion: 3}}).status_code == 422
+
+
+def test_how_a_challenge_is_scored_cannot_change_once_judging_starts(
+    client, session, programme, manager, cohort
+):
+    sign_in(client, session, manager)
+    base = f"/programmes/{programme.id}"
+    ok = client.patch(base, json={"score_mode": "manual", "manual_score_max": 10})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["score_mode"] == "manual"
+    assert ok.json()["manual_score_max"] == 10
+
+    client.patch(f"{base}/participants/{cohort['sam'].id}/score", json={"manual_total": 7})
+    locked = client.patch(base, json={"score_mode": "rubric"})
+    assert locked.status_code == 409
+    assert client.patch(base, json={"title": "Renamed"}).status_code == 200

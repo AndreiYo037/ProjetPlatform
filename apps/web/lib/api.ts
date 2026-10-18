@@ -282,6 +282,9 @@ export type UpdateProgrammeInput = Partial<CreateProgrammeInput> & {
   brief_url?: string | null;
   /** On-site: set a code, or "" to mint a new one. */
   apply_access_code?: string | null;
+  /** "rubric" (default) or "manual": judges type their own overall score. */
+  score_mode?: "rubric" | "manual";
+  manual_score_max?: number;
 };
 export const createProgramme = (data: CreateProgrammeInput) =>
   api.post<ProgrammeDetail>("/programmes", data);
@@ -464,6 +467,8 @@ export const updateScoringCard = (
   participantId: string,
   body: {
     ratings?: Record<string, number>;
+    /** Challenges scored with the company's own overall score. */
+    manual_total?: number;
     would_refer?: string | null;
     skill_ids?: string[];
   },

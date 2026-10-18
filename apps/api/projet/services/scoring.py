@@ -96,6 +96,15 @@ def record_criterion(db: Session, score: Score, criterion: RubricCriterion, valu
     db.flush()
 
 
+def record_manual_total(db: Session, score: Score, value: int, maximum: int) -> None:
+    """The company's own overall score. Refused outside 0..max, like a rating."""
+    if not 0 <= value <= maximum:
+        raise ScoringError(f"A score is 0 to {maximum}.")
+    score.total = value
+    score.updated_at = utcnow()
+    db.flush()
+
+
 def refresh_total(db: Session, score: Score) -> None:
     """Null until the card is whole.
 
@@ -108,6 +117,10 @@ def refresh_total(db: Session, score: Score) -> None:
     if team is not None:
         programme = db.get(Programme, team.programme_id)
         if programme is not None:
+            if programme.score_mode == "manual":
+                # The total is typed in, not computed from ratings.
+                score.updated_at = utcnow()
+                return
             needed = len(criteria_for(db, programme.id))
     values = list(
         db.scalars(select(CriterionScore.value).where(CriterionScore.score_id == score.id))
