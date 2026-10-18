@@ -52,6 +52,7 @@ def main() -> int:
                 submitted = len(done)
                 for c in done:
                     modes[c.get("pitch_mode") or "not chosen"] += 1
+                print(f"STATUS | {row['status']:>9} | {item['title'][:44]}")
                 print(f"SUBMITTED | {item['title'][:40]} | " + "; ".join(sorted(c["name"] for c in done)))
                 print(f"ALL | {item['title'][:40]} | " + "; ".join(sorted(c["name"] for c in cards)))
                 print(f"MODE | {item['title'][:30]} | " + "; ".join(f"{c['name']}={c.get('pitch_mode')}" for c in sorted(done, key=lambda c: c['name'])))
