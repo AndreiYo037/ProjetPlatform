@@ -159,10 +159,10 @@ export default function ScoringCardPage({
         Score <span className="tag open">Required</span>
       </h2>
       <p className="small muted">
-        Rate every box, or give your own overall score instead. Everything below the
-        score is optional and can be left blank. Saves as you go
-        {savedAt && ` · last saved ${savedAt}`}. The rubric total appears once every box
-        is rated.
+        Rate every rubric box below. Or use the override at the top to give your own
+        overall score instead. Everything after the score is optional and can be left
+        blank. Saves as you go{savedAt && ` · last saved ${savedAt}`}. The rubric total
+        appears once every box is rated.
       </p>
       {error && <div className="notice bad">{error}</div>}
 
@@ -175,6 +175,15 @@ export default function ScoringCardPage({
         }
       />
 
+      <h3 style={{ margin: "1.25rem 0 0.25rem" }}>Rubric</h3>
+      {card.manual_total !== null && (
+        <div className="notice warn">
+          <strong>Overridden.</strong> Your own score of {card.manual_total}/{card.manual_max} is
+          what counts for this candidate. These rubric ratings are kept but not used. Clear the
+          override above to use them.
+        </div>
+      )}
+      <div style={card.manual_total !== null ? { opacity: 0.45 } : undefined}>
       {card.criteria.map((criterion) => (
         <div className="rubric" key={criterion.criterion_id}>
           <div className="row" style={{ justifyContent: "space-between" }}>
@@ -211,6 +220,7 @@ export default function ScoringCardPage({
           </div>
         </div>
       ))}
+      </div>
 
       <h2>
         What you saw <span className="tag">Optional</span>
@@ -454,13 +464,21 @@ function OwnScoreInput({
   );
 
   return (
-    <div className="rubric">
+    <div
+      className="rubric"
+      style={{
+        border: "2px solid var(--accent)",
+        background: saved !== null ? "var(--accent-soft)" : undefined,
+      }}
+    >
       <label htmlFor="own-score">
-        <strong>Your own score</strong> <span className="tag">Optional</span>
+        <strong>Override the rubric with your own score</strong>{" "}
+        <span className="tag projet">Override</span>
       </label>
       <p className="small muted" style={{ margin: "0.25rem 0 0.5rem" }}>
-        Not using the rubric? Type your own overall score out of {max}. It stands in for
-        the rubric total on this candidate. Clear the box to go back to the rubric.
+        Optional. Type an overall score out of {max} and it replaces the rubric total for
+        this candidate. The rubric ratings below are then ignored. Clear the box to go back
+        to the rubric.
       </p>
       <div className="row" style={{ gap: "0.5rem", alignItems: "center" }}>
         <input
