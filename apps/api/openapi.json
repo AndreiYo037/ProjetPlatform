@@ -3639,6 +3639,76 @@
         }
       }
     },
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/notify": {
+      "post": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Notify Testimonial Updated",
+        "description": "Tell the participant their signed testimonial was reissued.\n\nThe closing email goes out once. A letter that is reformatted and signed\nagain after the challenge closed would otherwise change on their profile\nin silence. One email per signature: asking twice for the same signing\nqueues nothing new.",
+        "operationId": "notify_testimonial_updated_programmes__programme_id__participants__participant_id__testimonial_notify_post",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotifyOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programmes/{programme_id}/participants/{participant_id}/testimonial/file": {
       "post": {
         "tags": [
@@ -9101,6 +9171,19 @@
           "text"
         ],
         "title": "MemoRequest"
+      },
+      "NotifyOut": {
+        "properties": {
+          "queued": {
+            "type": "boolean",
+            "title": "Queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queued"
+        ],
+        "title": "NotifyOut"
       },
       "NotifyRequest": {
         "properties": {

@@ -42,6 +42,7 @@ def notify_candidate_profile_updated(
     participant_id: uuid.UUID | None,
     what: str,
     key_suffix: str,
+    subject: str = "Your Projet profile was updated",
 ) -> None:
     """The company put something on their profile — tell them."""
     if not person.contact_email:
@@ -57,7 +58,7 @@ def notify_candidate_profile_updated(
         key_suffix=key_suffix,
         payload={
             "to": person.contact_email,
-            "subject": "Your Projet profile was updated",
+            "subject": subject,
             "html_body": (
                 f"<p>Hi {person.name or 'there'},</p>"
                 f"<p>{what}</p>"

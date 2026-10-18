@@ -43,7 +43,8 @@ from projet.models import (
     Testimonial,
 )
 from projet.models.base import utcnow
-from projet.models.enums import AccessStatus, ReferralIntent
+from projet.models.enums import AccessStatus, ProgrammeStatus, ReferralIntent
+from projet.outbox.profile_effects import notify_candidate_profile_updated
 from projet.services.auth import Actor
 from projet.services.closeout import CloseoutError, close_programme
 from projet.services.scoring import (
@@ -944,6 +945,66 @@ def sign_testimonial(
         row.published_at = utcnow()
     db.commit()
     return _testimonial_out(db, row)
+
+
+class NotifyOut(BaseModel):
+    queued: bool
+
+
+@router.post(
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/notify",
+    response_model=NotifyOut,
+)
+def notify_testimonial_updated(
+    participant_id: uuid.UUID,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> NotifyOut:
+    """Tell the participant their signed testimonial was reissued.
+
+    The closing email goes out once. A letter that is reformatted and signed
+    again after the challenge closed would otherwise change on their profile
+    in silence. One email per signature: asking twice for the same signing
+    queues nothing new.
+    """
+    if actor.is_platform:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A testimonial is the company's word. Sign in as the company user.",
+        )
+    participant = _participant_or_404(db, programme, actor, participant_id)
+    if programme.status != ProgrammeStatus.COMPLETE:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Their profile only shows the letter after you close and issue.",
+        )
+    row = db.scalar(
+        select(Testimonial)
+        .where(Testimonial.participant_id == participant.id)
+        .where(Testimonial.author_company_user_id == actor.id)
+    )
+    if row is None or row.signed_at is None or not row.published_at or not row.pdf_storage_key:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Sign the letter first.")
+    person = db.get(Person, participant.person_id)
+    if person is None or not person.contact_email:
+        return NotifyOut(queued=False)
+    company = db.get(Company, programme.company_id)
+    company_name = company.name if company else "the company"
+    notify_candidate_profile_updated(
+        db,
+        person=person,
+        participant_id=participant.id,
+        what=(
+            f"Your testimonial from {company_name} for {programme.title} has been "
+            "reformatted and is now signed. You can view and download the updated "
+            "letter on your Projet profile."
+        ),
+        key_suffix=f"testimonial-reissue:{row.id}:{row.signed_at.isoformat()}",
+        subject=f"Your testimonial from {company_name} has been updated",
+    )
+    db.commit()
+    return NotifyOut(queued=True)
 
 
 def _is_own_file(key: str | None) -> bool:

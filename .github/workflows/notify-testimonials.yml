@@ -1,0 +1,39 @@
+name: Notify testimonials
+
+# Manual trigger. Dry run unless apply is "yes".
+on:
+  workflow_dispatch:
+    inputs:
+      company_password:
+        description: "Password for the company accounts"
+        required: true
+      company:
+        description: "Which company's account (part of its email), e.g. beez"
+        required: true
+      names:
+        description: "Participants to email, separated by semicolons"
+        required: true
+      apply:
+        description: "yes to send; anything else is a dry run"
+        required: false
+        default: "no"
+
+jobs:
+  notify:
+    name: Notify testimonials
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask password
+        run: echo "::add-mask::${{ inputs.company_password }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python notify_testimonials.py
+        working-directory: .github/scripts
+        env:
+          COMPANY_PASSWORD: ${{ inputs.company_password }}
+          COMPANY_MATCH: ${{ inputs.company }}
+          NAMES: ${{ inputs.names }}
+          APPLY: ${{ inputs.apply == 'yes' && '1' || '0' }}

@@ -649,3 +649,65 @@ def test_changing_any_part_of_the_letter_voids_the_signature(
         client.post(f"{base}/sign", json={"typed": True, "confirm": True})
         voided = client.put(base, json={"body": "Good work.", **change}).json()
         assert voided["signed"] is False, f"{change} should void the signature"
+
+
+def _close_with_a_signed_letter(client, programme, sat, skill):
+    score_fully(client, programme, sat["sam"], skill)
+    score_fully(client, programme, sat["ada"])
+    url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+    client.put(url, json={"body": "Sam read the data properly."})
+    assert client.post(f"{url}/sign", json={"typed": True, "confirm": True}).status_code == 200
+    assert client.post(f"/programmes/{programme.id}/close").status_code == 200
+    return url
+
+
+def test_a_reissued_letter_emails_the_participant_once_per_signing(
+    client, session, programme, manager, sat, skill, google
+):
+    sign_in_company(client, session, manager)
+    url = _close_with_a_signed_letter(client, programme, sat, skill)
+    run_once(session, google)
+
+    first = client.post(f"{url}/notify")
+    assert first.status_code == 200, first.text
+    assert first.json() == {"queued": True}
+    # The same signing asked for again queues nothing new.
+    assert client.post(f"{url}/notify").json() == {"queued": True}
+    run_once(session, google)
+
+    notes = [
+        call
+        for call in google.calls_of("send_email")
+        if "testimonial" in call.payload["subject"].lower()
+    ]
+    assert len(notes) == 1
+    assert notes[0].payload["to"] == sat["sam"].person.contact_email
+    assert "reformatted and is now signed" in notes[0].payload["html_body"]
+
+    # Signing again is a new letter to hear about.
+    assert client.put(url, json={"body": "Sam read the data very properly."}).status_code == 200
+    assert client.post(f"{url}/sign", json={"typed": True, "confirm": True}).status_code == 200
+    client.post(f"{url}/notify")
+    run_once(session, google)
+    again = [
+        call
+        for call in google.calls_of("send_email")
+        if "testimonial" in call.payload["subject"].lower()
+    ]
+    assert len(again) == 2
+
+
+def test_notify_needs_a_closed_challenge_and_a_signed_letter(
+    client, session, programme, manager, sat, skill
+):
+    sign_in_company(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+    client.put(url, json={"body": "Sam read the data properly."})
+    assert client.post(f"{url}/notify").status_code == 409  # not closed
+    client.post(f"{url}/sign", json={"typed": True, "confirm": True})
+    assert client.post(f"{url}/notify").status_code == 409  # still not closed
+    score_fully(client, programme, sat["sam"], skill)
+    score_fully(client, programme, sat["ada"])
+    client.post(f"/programmes/{programme.id}/close")
+    ada = f"/programmes/{programme.id}/participants/{sat['ada'].id}/testimonial"
+    assert client.post(f"{ada}/notify").status_code == 409  # no letter for Ada
