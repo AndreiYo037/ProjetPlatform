@@ -1,0 +1,31 @@
+name: Check letter logo
+
+# Read-only.
+on:
+  workflow_dispatch:
+    inputs:
+      company_password:
+        description: "Password for the company accounts"
+        required: true
+      company:
+        description: "Which company's account (part of its email), e.g. bluenexus or beez"
+        required: false
+        default: "bluenexus"
+
+jobs:
+  reformat:
+    name: Check letter logo
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask password
+        run: echo "::add-mask::${{ inputs.company_password }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python check_letter_logo.py
+        working-directory: .github/scripts
+        env:
+          COMPANY_PASSWORD: ${{ inputs.company_password }}
+          COMPANY_MATCH: ${{ inputs.company }}
