@@ -77,6 +77,7 @@ export default function JudgingPanel({
   const [closed, setClosed] = useState<string | null>(null);
   const [issuedNow, setIssuedNow] = useState(false);
   const [view, setView] = useState<View>("score");
+  const [showAll, setShowAll] = useState(false);
 
   const alreadyIssued = issued || issuedNow;
 
@@ -92,8 +93,19 @@ export default function JudgingPanel({
     load();
   }, [load]);
 
-  const ranked = useMemo(() => (cards ? byScore(cards) : []), [cards]);
-  const referralGroups = useMemo(() => (cards ? byReferral(cards) : []), [cards]);
+  // Accounts that never handed anything in have nothing to judge. A card the
+  // judge has already scored stays, whatever its state.
+  const visible = useMemo(
+    () =>
+      cards
+        ? cards.filter(
+            (card) => showAll || card.submitted_at !== null || card.your_total !== null,
+          )
+        : [],
+    [cards, showAll],
+  );
+  const ranked = useMemo(() => byScore(visible), [visible]);
+  const referralGroups = useMemo(() => byReferral(visible), [visible]);
 
   async function close() {
     if (alreadyIssued) return;
@@ -136,6 +148,7 @@ export default function JudgingPanel({
 
   const scored = cards.filter((card) => card.your_total !== null).length;
   const unscored = cards.length - scored;
+  const hiddenCount = cards.length - visible.length;
   const room = showMeet
     ? (meetLink ?? cards.find((card) => card.meet_link)?.meet_link ?? null)
     : null;
@@ -153,7 +166,7 @@ export default function JudgingPanel({
       <p className="small muted">
         {alreadyIssued
           ? "Issued. Submissions, scores, and referral answers stay here."
-          : `${scored} of ${cards.length} scored. Score a candidate; it saves as you go.`}
+          : `${scored} of ${visible.length} scored. Score a candidate; it saves as you go.`}
       </p>
       {room && !alreadyIssued && (
         <p className="small" style={{ margin: "0 0 1rem" }}>
@@ -185,6 +198,27 @@ export default function JudgingPanel({
 
       {error && <div className="notice bad">{error}</div>}
       {closed && <div className="notice good">{closed}</div>}
+
+      {(hiddenCount > 0 || showAll) && (
+        <p className="small muted" style={{ margin: "0 0 1rem" }}>
+          {showAll
+            ? "Showing everyone, including people who handed nothing in."
+            : `${hiddenCount} ${hiddenCount === 1 ? "person" : "people"} with no submission ${
+                hiddenCount === 1 ? "is" : "are"
+              } hidden.`}{" "}
+          <button
+            type="button"
+            className="secondary small"
+            onClick={() => setShowAll((value) => !value)}
+          >
+            {showAll ? "Hide them" : "Show them"}
+          </button>
+        </p>
+      )}
+
+      {visible.length === 0 && (
+        <p className="muted small">Nothing has been submitted yet.</p>
+      )}
 
       {view === "score"
         ? ranked.map((card, index) => (
