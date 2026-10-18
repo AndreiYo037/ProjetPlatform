@@ -24,10 +24,12 @@ from create_hacknhire_challenges import API_BASE, CHALLENGES
 PASSWORD = os.environ.get("COMPANY_PASSWORD")
 APPLY = os.environ.get("APPLY") == "1"
 ONLY = (os.environ.get("ONLY") or "").strip().lower()
-SIGNER = os.environ.get("SIGNER_NAME") or "Jeffrey Chen"
+MATCH = (os.environ.get("COMPANY_MATCH") or "bluenexus").lower()
+# Left empty, the sign-off falls back to the signed-in account's own details.
+SIGNER = os.environ.get("SIGNER_NAME") or ""
 TITLE = os.environ.get("SIGNER_TITLE") or ""
-COMPANY = os.environ.get("SIGNER_COMPANY") or "BlueNexus Technologies Pte. Ltd."
-DETAILS = os.environ.get("COMPANY_DETAILS") or "51 Goldhill Plaza, #07-07, Singapore 308900"
+COMPANY = os.environ.get("SIGNER_COMPANY") or ""
+DETAILS = os.environ.get("COMPANY_DETAILS") or ""
 
 CLOSING = re.compile(
     r"^(sincerely|yours sincerely|yours faithfully|best regards|kind regards|warm regards|regards)\b",
@@ -66,10 +68,10 @@ def split_letter(body: str, participant: str) -> tuple[list[str], str, str]:
     return names, kept, dropped
 
 
-def details_from(dropped: str) -> str:
+def details_from(dropped: str, company: str) -> str:
     """The address block under the sign-off: what follows the last company-name line."""
     lines = [line.strip() for line in dropped.splitlines()]
-    starts = [i for i, line in enumerate(lines) if line.lower() == COMPANY.lower()]
+    starts = [i for i, line in enumerate(lines) if company and line.lower() == company.lower()]
     if not starts:
         return DETAILS
     block = [line for line in lines[starts[-1] + 1 :] if line]
@@ -80,7 +82,7 @@ def main() -> int:
     if not PASSWORD:
         print("COMPANY_PASSWORD is not set.", file=sys.stderr)
         return 2
-    emails = {item["email"] for item in CHALLENGES if "bluenexus" in item["email"]}
+    emails = {item["email"] for item in CHALLENGES if MATCH in item["email"].lower()}
     for email in sorted(emails):
         with httpx.Client(base_url=API_BASE, timeout=60) as client:
             login = client.post(
@@ -105,13 +107,17 @@ def main() -> int:
                     names, body, dropped = split_letter(t["body"], card["name"])
                     print("=" * 70)
                     print(f"{card['name']}  |  {programme['title'][:50]}")
-                    details = details_from(dropped)
+                    ctx = client.get(f"{base}/context").json()
+                    signer = SIGNER or ctx["author_name"]
+                    title = TITLE or ctx["author_title"]
+                    company = COMPANY or ctx["company_name"]
+                    details = details_from(dropped, company)
                     print("-- BEFORE --")
                     print(t["body"])
                     print("-- AFTER --")
                     print(f"Re: {', '.join(names)}")
                     print(body)
-                    print(f"[from: {SIGNER}, {TITLE or '(no title)'}, {COMPANY}]")
+                    print(f"[from: {signer}, {title or '(no title)'}, {company}]")
                     print(f"[details: {details}]")
                     print(f"[cut from the end: {dropped or 'nothing'}]")
                     if not APPLY:
@@ -122,9 +128,9 @@ def main() -> int:
                             "body": body,
                             "publish": False,
                             "recipients": names,
-                            "signoff_name": SIGNER,
-                            "signoff_title": TITLE,
-                            "signoff_company": COMPANY,
+                            "signoff_name": signer,
+                            "signoff_title": title,
+                            "signoff_company": company,
                             "company_details": details,
                         },
                     )
