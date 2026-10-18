@@ -385,6 +385,9 @@ function TestimonialBox({
         setExisting(found);
         setDraft(next);
         setBaseline(next);
+        // A letter published before signing existed is re-signed with the
+        // typed name by default, so reissuing it is one click.
+        if (found?.needs_signature) setSignature({ typed: true, drawn: null });
       })
       .catch((err) =>
         setError(err instanceof Error ? err.message : "Could not open the testimonial."),
@@ -473,7 +476,7 @@ function TestimonialBox({
     year: "numeric",
     timeZone: "Asia/Singapore",
   });
-  const canSign = !locked && draft.body.trim().length > 0 && (signature.typed || signature.drawn !== null);
+  const canSign = !locked && draft.body.trim().length > 0 && (signature.typed ? draft.name.trim().length > 0 : signature.drawn !== null);
 
   return (
     <>
