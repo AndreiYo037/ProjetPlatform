@@ -15,10 +15,13 @@ gates the post-programme candidate pool and exports (FR-1101, FR-1103).
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import io
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -503,6 +506,13 @@ class TestimonialOut(BaseModel):
     own_file: bool = False
     published_at: datetime | None
     created_at: datetime
+    # E-signature. A letter published before signing existed has no signature
+    # and is flagged so the company can sign it and reissue.
+    signed: bool = False
+    signed_at: datetime | None = None
+    signed_name: str | None = None
+    signature_typed: bool = False
+    needs_signature: bool = False
 
 
 class TestimonialWrite(BaseModel):
@@ -530,6 +540,16 @@ def _testimonial_out(db: Session, row: Testimonial) -> TestimonialOut:
         own_file=_is_own_file(row.pdf_storage_key),
         published_at=row.published_at,
         created_at=row.created_at,
+        signed=row.signed_at is not None,
+        signed_at=row.signed_at,
+        signed_name=row.signed_name,
+        signature_typed=bool(row.signature_typed),
+        needs_signature=bool(
+            row.published_at is not None
+            and row.signed_at is None
+            and row.pdf_storage_key
+            and not _is_own_file(row.pdf_storage_key)
+        ),
     )
 
 
@@ -592,6 +612,11 @@ def write_testimonial(
         db.add(row)
     else:
         row.body = payload.body.strip()
+        # A signature belongs to the exact wording it was given against. Edit
+        # the words and it no longer applies, so it is cleared and the letter
+        # needs signing again.
+        if row.signed_at is not None and _body_hash(row.body) != row.body_hash:
+            _clear_signature(row)
     # Publishing is one-way from the participant's side: they may already have
     # put it on a CV, so unpublishing would retract something in use. Editing
     # the wording stays open; we regenerate the downloadable PDF from it.
@@ -603,6 +628,11 @@ def write_testimonial(
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_ENTITY,
                 "Write the testimonial before publishing.",
+            )
+        if payload.publish and row.published_at is None and row.signed_at is None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                "Sign the letter to publish it.",
             )
         _store_generated_pdf(db, row=row, participant=participant, programme=programme)
     if payload.publish and row.published_at is None:
@@ -618,19 +648,177 @@ def _store_generated_pdf(
 ) -> None:
     author = db.get(CompanyUser, row.author_company_user_id)
     company = db.get(Company, programme.company_id)
+    person = db.get(Person, participant.person_id)
     pdf = render_testimonial_pdf(
         body=row.body,
-        author_name=author.name if author else "",
-        author_title=author.title if author else None,
+        author_name=(row.signed_name or (author.name if author else "")) or "",
+        author_title=row.signed_title or (author.title if author else None),
         company_name=company.name if company else "",
         programme_title=programme.title,
+        recipient_name=person.name if person else "",
+        logo_png=_company_logo_bytes(company),
+        signature_png=_stored_bytes(row.signature_key),
+        signature_typed=bool(row.signature_typed),
+        signed_at=row.signed_at,
     )
     key = f"testimonials/{participant.id}/{row.id}.pdf"
     get_storage().put(key, pdf, "application/pdf")
     row.pdf_storage_key = key
 
 
+def _body_hash(body: str) -> str:
+    return hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+def _clear_signature(row: Testimonial) -> None:
+    row.signed_at = None
+    row.signed_name = None
+    row.signed_title = None
+    row.signature_key = None
+    row.signature_typed = False
+    row.body_hash = None
+    row.signed_ip = None
+    row.signed_user_agent = None
+
+
+def _stored_bytes(key: str | None) -> bytes | None:
+    if not key:
+        return None
+    try:
+        return get_storage().get(key)
+    except Exception:
+        return None
+
+
+def _company_logo_bytes(company: Company | None) -> bytes | None:
+    from projet.services.branding import is_stored_logo
+
+    if company is None or not is_stored_logo(company.logo_url):
+        return None
+    return _stored_bytes(company.logo_url)
+
+
 _OWN_PDF_MAX_BYTES = 8 * 1024 * 1024
+_SIGNATURE_MAX_CHARS = 400_000
+_SIGNATURE_MAX_PIXELS = (2400, 1200)
+
+
+class SignRequest(BaseModel):
+    # A drawn signature as a PNG data URL, or typed=True to sign with the name.
+    signature: str | None = Field(default=None, max_length=_SIGNATURE_MAX_CHARS)
+    typed: bool = False
+    # The signer has read the statement and means it.
+    confirm: bool = False
+
+
+def _decode_signature(data_url: str) -> bytes:
+    prefix = "data:image/png;base64,"
+    if not data_url.startswith(prefix):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Draw your signature again.")
+    try:
+        raw = base64.b64decode(data_url[len(prefix) :], validate=True)
+    except ValueError as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "That signature could not be read."
+        ) from error
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(io.BytesIO(raw)) as image:
+            image.load()
+            width, height = image.size
+            rgba = image.convert("RGBA")
+            ink = rgba.getchannel("A").getbbox()
+    except (UnidentifiedImageError, OSError) as error:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "That signature could not be read."
+        ) from error
+    if width > _SIGNATURE_MAX_PIXELS[0] or height > _SIGNATURE_MAX_PIXELS[1]:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "That signature is too large.")
+    if ink is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Draw your signature before signing."
+        )
+    return raw
+
+
+def _client_ip(request: Request) -> str | None:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()[:64] or None
+    return request.client.host[:64] if request.client else None
+
+
+@router.post(
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/sign",
+    response_model=TestimonialOut,
+)
+def sign_testimonial(
+    participant_id: uuid.UUID,
+    payload: SignRequest,
+    request: Request,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> TestimonialOut:
+    """Sign and publish. The signature is bound to the exact wording, the
+    signer, the time and where it came from, then the letter is typeset with it."""
+    if actor.is_platform:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "A testimonial is the company's word. Sign in as the company user.",
+        )
+    participant = _participant_or_404(db, programme, actor, participant_id)
+    row = db.scalar(
+        select(Testimonial)
+        .where(Testimonial.participant_id == participant.id)
+        .where(Testimonial.author_company_user_id == actor.id)
+    )
+    if row is None or not row.body.strip():
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Write the testimonial before signing it."
+        )
+    if _is_own_file(row.pdf_storage_key):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This letter is a PDF you attached. Signing is for the letter we typeset.",
+        )
+    if not payload.confirm:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Confirm that this is your testimonial."
+        )
+    if not payload.typed and not payload.signature:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY, "Draw your signature or sign with your name."
+        )
+    author = db.get(CompanyUser, row.author_company_user_id)
+    if author is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Your account could not be found.")
+
+    drawn = (
+        _decode_signature(payload.signature) if payload.signature and not payload.typed else None
+    )
+    row.signed_name = author.name
+    row.signed_title = author.title
+    row.signed_at = utcnow()
+    row.body = row.body.strip()
+    row.body_hash = _body_hash(row.body)
+    row.signed_ip = _client_ip(request)
+    ua = request.headers.get("user-agent")
+    row.signed_user_agent = ua[:500] if ua else None
+    row.signature_typed = drawn is None
+    if drawn is not None:
+        key = f"testimonials/{participant.id}/{row.id}-sig.png"
+        get_storage().put(key, drawn, "image/png")
+        row.signature_key = key
+    else:
+        row.signature_key = None
+    db.flush()
+    _store_generated_pdf(db, row=row, participant=participant, programme=programme)
+    if row.published_at is None:
+        row.published_at = utcnow()
+    db.commit()
+    return _testimonial_out(db, row)
 
 
 def _is_own_file(key: str | None) -> bool:

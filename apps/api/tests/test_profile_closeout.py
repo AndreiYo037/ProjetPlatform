@@ -361,7 +361,11 @@ def test_a_testimonial_lands_on_the_profile_at_close(client, session, programme,
     empty = client.put(url, json={"body": "   ", "publish": True})
     assert empty.status_code == 422
 
-    published = client.put(url, json={"body": "Sam read the data properly.", "publish": True})
+    unsigned = client.put(url, json={"body": "Sam read the data properly.", "publish": True})
+    assert unsigned.status_code == 409, "publishing needs a signature"
+
+    client.put(url, json={"body": "Sam read the data properly."})
+    published = client.post(f"{url}/sign", json={"typed": True, "confirm": True})
     assert published.status_code == 200, published.text
     assert published.json()["published_at"] is not None
     assert published.json()["pdf_url"]
@@ -413,11 +417,14 @@ def test_editing_a_published_testimonial_does_not_unpublish_it(
     """They may already have put it on a CV; retracting it is not ours to do."""
     sign_in_company(client, session, manager)
     url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
-    first = client.put(url, json={"body": "Good work.", "publish": True}).json()
+    client.put(url, json={"body": "Good work."})
+    first = client.post(f"{url}/sign", json={"typed": True, "confirm": True}).json()
 
     edited = client.put(url, json={"body": "Good work, and a clear memo."}).json()
     assert edited["published_at"] == first["published_at"]
     assert edited["body"] == "Good work, and a clear memo."
+    assert edited["signed"] is False, "new wording voids the old signature"
+    assert edited["needs_signature"] is True
 
 
 def test_a_testimonial_is_read_back_as_your_own(client, session, programme, company, manager, sat):
@@ -477,5 +484,96 @@ def test_a_participant_cannot_write_their_own_testimonial(client, session, progr
     refused = client.put(
         f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial",
         json={"body": "I was great."},
+    )
+    assert refused.status_code in (403, 404)
+
+
+def _drawn_signature() -> str:
+    import base64
+    import io
+
+    from PIL import Image, ImageDraw
+
+    image = Image.new("RGBA", (300, 100), (0, 0, 0, 0))
+    ImageDraw.Draw(image).line(
+        [(10, 80), (90, 20), (160, 90), (290, 40)], fill=(10, 20, 80, 255), width=4
+    )
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+    return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+
+
+def test_a_drawn_signature_signs_and_publishes_the_letter(client, session, programme, manager, sat):
+    sign_in_company(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+    client.put(url, json={"body": "Sam read the data properly."})
+
+    signed = client.post(f"{url}/sign", json={"signature": _drawn_signature(), "confirm": True})
+    assert signed.status_code == 200, signed.text
+    body = signed.json()
+    assert body["signed"] is True
+    assert body["signature_typed"] is False
+    assert body["signed_name"] == "Mo Manager"
+    assert body["signed_at"]
+    assert body["published_at"] is not None
+    assert body["needs_signature"] is False
+    assert body["pdf_url"]
+
+
+def test_signing_needs_confirmation_and_a_real_signature(client, session, programme, manager, sat):
+    sign_in_company(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+
+    nothing = client.post(f"{url}/sign", json={"typed": True, "confirm": True})
+    assert nothing.status_code == 422, "no letter written yet"
+
+    client.put(url, json={"body": "Sam read the data properly."})
+    assert client.post(f"{url}/sign", json={"typed": True}).status_code == 422
+    assert client.post(f"{url}/sign", json={"confirm": True}).status_code == 422
+    bad = client.post(
+        f"{url}/sign", json={"signature": "data:image/png;base64,AAAA", "confirm": True}
+    )
+    assert bad.status_code == 422
+    wrong_type = client.post(f"{url}/sign", json={"signature": "hello", "confirm": True})
+    assert wrong_type.status_code == 422
+
+
+def test_a_blank_signature_pad_is_refused(client, session, programme, manager, sat):
+    import base64
+    import io
+
+    from PIL import Image
+
+    sign_in_company(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+    client.put(url, json={"body": "Sam read the data properly."})
+    buffer = io.BytesIO()
+    Image.new("RGBA", (200, 80), (0, 0, 0, 0)).save(buffer, "PNG")
+    blank = "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
+    assert client.post(f"{url}/sign", json={"signature": blank, "confirm": True}).status_code == 422
+
+
+def test_editing_the_wording_after_signing_voids_the_signature(
+    client, session, programme, manager, sat
+):
+    sign_in_company(client, session, manager)
+    url = f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial"
+    client.put(url, json={"body": "Sam read the data properly."})
+    client.post(f"{url}/sign", json={"typed": True, "confirm": True})
+
+    same = client.put(url, json={"body": "Sam read the data properly.  "}).json()
+    assert same["signed"] is True, "whitespace is not a change of wording"
+
+    changed = client.put(url, json={"body": "Sam read the data very properly."}).json()
+    assert changed["signed"] is False
+    assert changed["signed_at"] is None
+    assert changed["needs_signature"] is True
+
+
+def test_a_participant_cannot_sign_a_testimonial(client, session, programme, sat):
+    sign_in_participant(client, session, sat["sam"])
+    refused = client.post(
+        f"/programmes/{programme.id}/participants/{sat['sam'].id}/testimonial/sign",
+        json={"typed": True, "confirm": True},
     )
     assert refused.status_code in (403, 404)

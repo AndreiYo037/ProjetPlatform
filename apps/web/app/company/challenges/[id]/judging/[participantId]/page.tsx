@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import ActorGateNotice from "@/components/ActorGateNotice";
 import SkillPicker from "@/components/SkillPicker";
 import {
@@ -9,6 +9,7 @@ import {
   externalHref,
   getScoringCard,
   getTestimonial,
+  signTestimonial,
   updateScoringCard,
   uploadTestimonialFile,
   writeTestimonial,
@@ -246,6 +247,7 @@ export default function ScoringCardPage({
       <TestimonialBox
         programmeId={id}
         participantId={participantId}
+        personName={card.name}
         skillsSaving={saving}
       />
 
@@ -287,10 +289,12 @@ export default function ScoringCardPage({
 function TestimonialBox({
   programmeId,
   participantId,
+  personName,
   skillsSaving,
 }: {
   programmeId: string;
   participantId: string;
+  personName: string;
   skillsSaving: boolean;
 }) {
   const [existing, setExisting] = useState<TestimonialOut | null>(null);
@@ -341,26 +345,36 @@ function TestimonialBox({
     }
   }
 
-  async function publish() {
+  async function sign(signature: { drawn: string | null; typed: boolean }) {
     setBusy(true);
     setError(null);
     setFlash(null);
     try {
-      const saved = await writeTestimonial(programmeId, participantId, {
-        body: body.trim(),
-        publish: true,
+      // Make sure the server holds the wording on screen before signing it.
+      if (body.trim() !== baseline.trim()) {
+        const current = await writeTestimonial(programmeId, participantId, {
+          body: body.trim(),
+          publish: false,
+        });
+        setBaseline(current.body);
+      }
+      const saved = await signTestimonial(programmeId, participantId, {
+        ...(signature.drawn ? { signature: signature.drawn } : {}),
+        typed: signature.typed,
+        confirm: true,
       });
       setExisting(saved);
       setBaseline(saved.body);
-      setFlash("PDF generated.");
+      setFlash("Signed and published. The letter now carries your signature.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not generate that PDF.");
+      setError(err instanceof Error ? err.message : "Could not sign that letter.");
     } finally {
       setBusy(false);
     }
   }
 
   const published = existing?.published_at != null;
+  const signed = Boolean(existing?.signed);
   const hasPdf = Boolean(existing?.pdf_url);
   const locked = busy || skillsSaving;
 
@@ -372,9 +386,11 @@ function TestimonialBox({
       <p className="small muted">
         Only if you mean it. One you chose to write is worth more than one everyone
         was made to, and this is the part they will actually carry with them.
-        {published
-          ? " PDF generated. You can still edit the wording."
-          : " A draft stays private and saves as you type. Generate a PDF when the wording is finished, or attach your own PDF if you reformatted it. It goes on their profile only when you Close and issue."}
+        {signed
+          ? " Signed. Changing the wording clears the signature and you sign again."
+          : published
+            ? " You can still edit the wording."
+            : " A draft stays private and saves as you type. Sign it when the wording is finished, or attach your own PDF if you reformatted it. It goes on their profile only when you Close and issue."}
       </p>
       <div className="field">
         <textarea
@@ -418,14 +434,37 @@ function TestimonialBox({
         {autosaveLabel(draftStatus)
           ? `Draft ${autosaveLabel(draftStatus)?.toLowerCase()}`
           : "Draft saves as you type"}
-        {existing?.own_file ? " · your PDF attached" : published ? " · PDF generated" : ""}.
+        {existing?.own_file
+          ? " · your PDF attached"
+          : signed
+            ? " · signed"
+            : published
+              ? " · published, not signed"
+              : ""}
+        .
       </p>
-      {!published && (
-        <div className="row" style={{ gap: "0.75rem", flexWrap: "wrap" }}>
-          <button disabled={locked || !body.trim()} onClick={publish}>
-            {busy ? "Generating…" : "Generate PDF"}
-          </button>
+      {existing?.signed && existing.signed_at && (
+        <div className="notice good">
+          Signed by {existing.signed_name} on {formatSlot(existing.signed_at)}
+          {existing.signature_typed ? " with a typed name" : ""}.
         </div>
+      )}
+      {existing?.needs_signature && (
+        <div className="notice warn">
+          <strong>Published without a signature.</strong> This letter went out before signing
+          existed. Sign it below to reissue it as a signed letter.
+        </div>
+      )}
+      {!existing?.own_file && !signed && existing && body.trim() && (
+        <SigningPanel
+          name={existing.author_name ?? "the author"}
+          title={existing.author_title}
+          personName={personName}
+          reissue={Boolean(existing.needs_signature)}
+          disabled={locked}
+          busy={busy}
+          onSign={sign}
+        />
       )}
     </>
   );
@@ -499,6 +538,204 @@ function OwnScoreInput({
           Enter a whole number from 0 to {max}.
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Sign and publish. Draw a signature (finger or mouse), or sign with the typed
+ * name, and confirm in words that this is your testimonial. Nothing is sent
+ * until the box is ticked and a signature exists.
+ */
+function SigningPanel({
+  name,
+  title,
+  personName,
+  reissue,
+  disabled,
+  busy,
+  onSign,
+}: {
+  name: string;
+  title: string | null | undefined;
+  personName: string;
+  reissue: boolean;
+  disabled: boolean;
+  busy: boolean;
+  onSign: (signature: { drawn: string | null; typed: boolean }) => Promise<void> | void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawing = useRef(false);
+  const last = useRef<{ x: number; y: number } | null>(null);
+  const [hasInk, setHasInk] = useState(false);
+  const [typed, setTyped] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ratio = window.devicePixelRatio || 1;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "#0b1a5c";
+  }, [typed]);
+
+  function point(event: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+
+  function start(event: React.PointerEvent<HTMLCanvasElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    drawing.current = true;
+    const p = point(event);
+    last.current = p;
+    const ctx = event.currentTarget.getContext("2d");
+    if (ctx) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 0.8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    setHasInk(true);
+  }
+
+  function move(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (!drawing.current || !last.current) return;
+    const ctx = event.currentTarget.getContext("2d");
+    if (!ctx) return;
+    const p = point(event);
+    ctx.beginPath();
+    ctx.moveTo(last.current.x, last.current.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    last.current = p;
+  }
+
+  function end() {
+    drawing.current = false;
+    last.current = null;
+  }
+
+  function clear() {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    setHasInk(false);
+  }
+
+  const ready = confirmed && (typed || hasInk);
+
+  function submit() {
+    if (!ready) return;
+    if (typed) {
+      void onSign({ drawn: null, typed: true });
+      return;
+    }
+    const data = canvasRef.current?.toDataURL("image/png") ?? null;
+    void onSign({ drawn: data, typed: false });
+  }
+
+  return (
+    <div className="rubric" style={{ border: "2px solid var(--accent)", marginTop: "1rem" }}>
+      <strong>{reissue ? "Sign and reissue this letter" : "Sign and publish"}</strong>
+      <p className="small muted" style={{ margin: "0.25rem 0 0.75rem" }}>
+        Your signature goes on the letter with the date, and is tied to this exact wording.
+        Change a word afterwards and you will need to sign again.
+      </p>
+
+      {typed ? (
+        <div
+          style={{
+            border: "1px dashed var(--line)",
+            borderRadius: 8,
+            padding: "1rem",
+            background: "#fff",
+            color: "#0b1a5c",
+            fontFamily: "Georgia, 'Times New Roman', serif",
+            fontStyle: "italic",
+            fontSize: "1.8rem",
+          }}
+        >
+          {name}
+        </div>
+      ) : (
+        <div>
+          <canvas
+            ref={canvasRef}
+            aria-label="Draw your signature here"
+            onPointerDown={start}
+            onPointerMove={move}
+            onPointerUp={end}
+            onPointerCancel={end}
+            style={{
+              width: "100%",
+              maxWidth: "34rem",
+              height: "9rem",
+              display: "block",
+              border: "1px dashed var(--line)",
+              borderRadius: 8,
+              background: "#fff",
+              touchAction: "none",
+              cursor: "crosshair",
+            }}
+          />
+          {!hasInk && (
+            <p className="small muted" style={{ margin: "0.35rem 0 0" }}>
+              Sign here with your finger or mouse.
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="row" style={{ gap: "0.5rem", margin: "0.6rem 0", flexWrap: "wrap" }}>
+        {!typed && (
+          <button type="button" className="secondary small" onClick={clear} disabled={!hasInk}>
+            Clear
+          </button>
+        )}
+        <button
+          type="button"
+          className="secondary small"
+          onClick={() => {
+            setTyped((value) => !value);
+            setHasInk(false);
+          }}
+        >
+          {typed ? "Draw my signature instead" : "Sign with my typed name instead"}
+        </button>
+      </div>
+
+      <label style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+        <input
+          type="checkbox"
+          checked={confirmed}
+          onChange={(event) => setConfirmed(event.target.checked)}
+          style={{ marginTop: "0.25rem" }}
+        />
+        <span className="small">
+          I am {name}
+          {title ? `, ${title}` : ""}, and this is my testimonial for {personName}. I am signing
+          it electronically.
+        </span>
+      </label>
+
+      <div className="row" style={{ marginTop: "0.75rem" }}>
+        <button disabled={disabled || !ready} onClick={submit}>
+          {busy ? "Signing…" : reissue ? "Sign and reissue" : "Sign and publish"}
+        </button>
+      </div>
     </div>
   );
 }

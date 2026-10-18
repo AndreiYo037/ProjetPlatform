@@ -1,29 +1,109 @@
-"""Placeholder letter PDF from the company testimonial text.
+"""The testimonial letter, typeset as a real business letter.
 
-Layout, fonts, and letterhead will be specified later. This exists so a
-published testimonial is already a downloadable PDF on the profile.
+Letterhead (logo and company name), the date, an addressee, a Re: line naming
+the person and the work, the body, and a signature block. Built on ReportLab:
+the earlier hand-written writer could only place one size of Helvetica and no
+images, so a letterhead or a signature was impossible.
+
+A letter that has been signed carries the signature and a one-line record of
+who signed it and when. An unsigned one is typeset the same way, with a blank
+signature line, so the layout never changes shape on signing.
 """
 
 from __future__ import annotations
 
-_PUNCT = str.maketrans(
-    {
-        "\u2014": "-",
-        "\u2013": "-",
-        "\u2018": "'",
-        "\u2019": "'",
-        "\u201c": '"',
-        "\u201d": '"',
-        "\u2026": "...",
-        "\xa0": " ",
-    }
+import io
+import re
+from datetime import datetime
+from xml.sax.saxutils import escape
+
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.lib.utils import ImageReader
+from reportlab.platypus import (
+    Flowable,
+    Image,
+    KeepTogether,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
 )
 
-PAGE_W = 612
-PAGE_H = 792
-MARGIN = 72
-CHARS = 88
-LINES_PER_PAGE = 38
+PAGE_W, PAGE_H = A4
+MARGIN = 25.4 * mm  # one inch, as business-letter guidance asks
+LOGO_BOX = (46 * mm, 16 * mm)
+SIGNATURE_WIDTH = 52 * mm
+SIGNATURE_MAX_HEIGHT = 22 * mm
+
+INK = colors.HexColor("#1b1f27")
+MUTED = colors.HexColor("#5d6674")
+RULE = colors.HexColor("#c9ced6")
+
+_CLOSING = re.compile(
+    r"^\s*(yours\s+(sincerely|faithfully|truly)|sincerely|best\s+regards|kind\s+regards|"
+    r"warm\s+regards|regards|best\s+wishes|with\s+thanks)\b",
+    re.IGNORECASE,
+)
+
+
+def _safe(text: str) -> str:
+    """The built-in fonts are Latin-1 (cp1252). Anything outside it would
+    print as a black box, so it becomes a question mark instead."""
+    return text.encode("cp1252", "replace").decode("cp1252")
+
+
+def _p(text: str) -> str:
+    return escape(_safe(text))
+
+
+def has_closing(body: str) -> bool:
+    """Did the writer already type their own sign-off ("Yours sincerely, ...")?
+
+    If so the letter does not add a second one; it only places the signature."""
+    lines = [line for line in body.strip().splitlines() if line.strip()]
+    return any(_CLOSING.match(line) for line in lines[-12:])
+
+
+def format_date(moment: datetime) -> str:
+    return f"{moment.day} {moment.strftime('%B %Y')}"
+
+
+class _Letterhead(Flowable):
+    """Logo on the left, company name on the right, a rule beneath."""
+
+    def __init__(self, company_name: str, logo_png: bytes | None, width: float) -> None:
+        super().__init__()
+        self.company_name = company_name
+        self.logo = logo_png
+        self.width = width
+        self.height = LOGO_BOX[1] + 5 * mm
+
+    def draw(self) -> None:
+        canvas = self.canv
+        if self.logo:
+            try:
+                reader = ImageReader(io.BytesIO(self.logo))
+                iw, ih = reader.getSize()
+                scale = min(LOGO_BOX[0] / iw, LOGO_BOX[1] / ih)
+                canvas.drawImage(
+                    reader,
+                    0,
+                    5 * mm + (LOGO_BOX[1] - ih * scale) / 2,
+                    width=iw * scale,
+                    height=ih * scale,
+                    mask="auto",
+                )
+            except Exception:
+                pass  # a logo we cannot read must not stop the letter
+        canvas.setFillColor(INK)
+        canvas.setFont("Helvetica-Bold", 13)
+        canvas.drawRightString(self.width, 5 * mm + LOGO_BOX[1] / 2 - 4, _safe(self.company_name))
+        canvas.setStrokeColor(RULE)
+        canvas.setLineWidth(0.8)
+        canvas.line(0, 1 * mm, self.width, 1 * mm)
 
 
 def render_testimonial_pdf(
@@ -33,107 +113,100 @@ def render_testimonial_pdf(
     author_title: str | None = None,
     company_name: str = "",
     programme_title: str = "",
+    recipient_name: str = "",
+    logo_png: bytes | None = None,
+    signature_png: bytes | None = None,
+    signature_typed: bool = False,
+    signed_at: datetime | None = None,
+    letter_date: datetime | None = None,
 ) -> bytes:
-    lines = _wrap("Testimonial")
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=MARGIN,
+        rightMargin=MARGIN,
+        topMargin=18 * mm,
+        bottomMargin=22 * mm,
+        title=f"Testimonial for {recipient_name}" if recipient_name else "Testimonial",
+        author=author_name or company_name or "Projet",
+    )
+    width = PAGE_W - 2 * MARGIN
+
+    base = ParagraphStyle(
+        "body", fontName="Times-Roman", fontSize=11, leading=15.5, textColor=INK, alignment=TA_LEFT
+    )
+    small = ParagraphStyle("small", parent=base, fontSize=9, leading=12, textColor=MUTED)
+    re_style = ParagraphStyle("re", parent=base, fontName="Times-Bold")
+    typed_style = ParagraphStyle(
+        "typed", parent=base, fontName="Times-Italic", fontSize=24, leading=28
+    )
+
+    story: list[Flowable] = [_Letterhead(company_name, logo_png, width), Spacer(1, 9 * mm)]
+    story.append(Paragraph(_p(format_date(letter_date or signed_at or datetime.now())), base))
+    story.append(Spacer(1, 6 * mm))
+    story.append(Paragraph("To whom it may concern", base))
+    story.append(Spacer(1, 5 * mm))
+
+    subject = recipient_name or "Participant"
+    re_line = f"Re: {_p(subject)}"
     if programme_title:
-        lines.extend(_wrap(programme_title))
-    if company_name:
-        lines.extend(_wrap(company_name))
-    lines.append("")
-    lines.extend(_wrap(body.strip()))
-    sign_off = [""]
-    if author_name:
-        sign_off.append(author_name)
-    if author_title:
-        sign_off.append(author_title)
-    if company_name and author_name:
-        sign_off.append(company_name)
-    lines.extend(sign_off)
+        re_line += f"<br/>{_p(programme_title)}"
+    story.append(Paragraph(re_line, re_style))
+    story.append(Spacer(1, 5 * mm))
 
-    pages: list[list[str]] = []
-    for i in range(0, max(len(lines), 1), LINES_PER_PAGE):
-        pages.append(lines[i : i + LINES_PER_PAGE])
+    for paragraph in re.split(r"\n\s*\n", body.strip()):
+        text = "<br/>".join(_p(line.rstrip()) for line in paragraph.splitlines())
+        if text.strip():
+            story.append(Paragraph(text, base))
+            story.append(Spacer(1, 3.2 * mm))
 
-    font = b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"
-    contents = [_content_stream(page) for page in pages]
-    page_count = len(contents)
-    # 1 Catalog, 2 Pages, 3 Font, then page + stream pairs.
-    page_ids = [4 + i * 2 for i in range(page_count)]
-    stream_ids = [5 + i * 2 for i in range(page_count)]
-    kids = " ".join(f"{pid} 0 R" for pid in page_ids)
-    objects: list[bytes] = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        f"<< /Type /Pages /Kids [{kids}] /Count {page_count} >>".encode(),
-        font,
-    ]
-    for stream_id, stream in zip(stream_ids, contents, strict=True):
-        objects.append(
-            (
-                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {PAGE_W} {PAGE_H}] "
-                f"/Contents {stream_id} 0 R /Resources << /Font << /F1 3 0 R >> >> >>"
-            ).encode()
+    own_closing = has_closing(body)
+    sign: list[Flowable] = [Spacer(1, 3 * mm)]
+    if not own_closing:
+        sign.append(Paragraph("Sincerely,", base))
+        sign.append(Spacer(1, 2 * mm))
+    if signature_png:
+        try:
+            reader = ImageReader(io.BytesIO(signature_png))
+            iw, ih = reader.getSize()
+            scale = min(SIGNATURE_WIDTH / iw, SIGNATURE_MAX_HEIGHT / ih)
+            sign.append(
+                Image(io.BytesIO(signature_png), width=iw * scale, height=ih * scale, hAlign="LEFT")
+            )
+        except Exception:
+            sign.append(Spacer(1, 14 * mm))
+    elif signature_typed and author_name:
+        sign.append(Paragraph(_p(author_name), typed_style))
+    else:
+        sign.append(Spacer(1, 14 * mm))
+    if not own_closing:
+        sign.append(Spacer(1, 1.5 * mm))
+        sign.append(Paragraph(f"<b>{_p(author_name)}</b>", base))
+        if author_title:
+            sign.append(Paragraph(_p(author_title), base))
+        if company_name:
+            sign.append(Paragraph(_p(company_name), base))
+    if signed_at and author_name:
+        sign.append(Spacer(1, 4 * mm))
+        sign.append(
+            Paragraph(
+                f"Signed electronically by {_p(author_name)} on {_p(format_date(signed_at))}.",
+                small,
+            )
         )
-        objects.append(f"<< /Length {len(stream)} >>\nstream\n".encode() + stream + b"\nendstream")
-    return _assemble(objects)
+    story.append(KeepTogether(sign))
 
+    def footer(canvas, _doc) -> None:  # type: ignore[no-untyped-def]
+        canvas.saveState()
+        canvas.setStrokeColor(RULE)
+        canvas.setLineWidth(0.6)
+        canvas.line(MARGIN, 16 * mm, PAGE_W - MARGIN, 16 * mm)
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(MUTED)
+        canvas.drawString(MARGIN, 11.5 * mm, "Issued through Projet")
+        canvas.drawRightString(PAGE_W - MARGIN, 11.5 * mm, f"Page {canvas.getPageNumber()}")
+        canvas.restoreState()
 
-def _wrap(text: str) -> list[str]:
-    safe = text.translate(_PUNCT).encode("ascii", "replace").decode("ascii")
-    out: list[str] = []
-    paragraphs = safe.splitlines() or [""]
-    for paragraph in paragraphs:
-        words = paragraph.split()
-        if not words:
-            out.append("")
-            continue
-        current = ""
-        for word in words:
-            trial = f"{current} {word}".strip()
-            if len(trial) <= CHARS:
-                current = trial
-            else:
-                if current:
-                    out.append(current)
-                current = word
-        if current:
-            out.append(current)
-    return out
-
-
-def _pdf_string(text: str) -> bytes:
-    escaped = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").replace("\r", " ")
-    return f"({escaped})".encode("ascii")
-
-
-def _content_stream(lines: list[str]) -> bytes:
-    y = PAGE_H - MARGIN
-    chunks = [b"BT\n/F1 12 Tf\n"]
-    first = True
-    for line in lines:
-        if first:
-            chunks.append(f"1 0 0 1 {MARGIN} {y} Tm\n".encode())
-            first = False
-        else:
-            chunks.append(b"0 -16 Td\n")
-        chunks.append(_pdf_string(line) + b" Tj\n")
-    chunks.append(b"ET\n")
-    return b"".join(chunks)
-
-
-def _assemble(objects: list[bytes]) -> bytes:
-    header = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"
-    parts = [header]
-    offsets: list[int] = []
-    pos = len(header)
-    for index, obj in enumerate(objects, start=1):
-        chunk = f"{index} 0 obj\n".encode() + obj + b"\nendobj\n"
-        offsets.append(pos)
-        parts.append(chunk)
-        pos += len(chunk)
-    xref = [f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()]
-    for offset in offsets:
-        xref.append(f"{offset:010d} 00000 n \n".encode())
-    trailer = (
-        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{pos}\n%%EOF\n"
-    ).encode()
-    return b"".join(parts) + b"".join(xref) + trailer
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    return buffer.getvalue()

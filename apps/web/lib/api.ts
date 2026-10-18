@@ -568,6 +568,17 @@ export const writeTestimonial = (
     `/programmes/${programmeId}/participants/${participantId}/testimonial`,
     body,
   );
+/** Sign and publish. A drawn signature (PNG data URL), or typed: true to sign
+ *  with the name. The server binds it to the exact wording, then typesets. */
+export const signTestimonial = (
+  programmeId: string,
+  participantId: string,
+  body: { signature?: string; typed?: boolean; confirm: boolean },
+) =>
+  api.post<TestimonialOut>(
+    `/programmes/${programmeId}/participants/${participantId}/testimonial/sign`,
+    body,
+  );
 export const uploadTestimonialFile = (programmeId: string, participantId: string, file: File) => {
   const form = new FormData();
   form.append("file", file);

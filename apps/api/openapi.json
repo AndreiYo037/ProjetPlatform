@@ -3489,6 +3489,86 @@
         }
       }
     },
+    "/programmes/{programme_id}/participants/{participant_id}/testimonial/sign": {
+      "post": {
+        "tags": [
+          "judging"
+        ],
+        "summary": "Sign Testimonial",
+        "description": "Sign and publish. The signature is bound to the exact wording, the\nsigner, the time and where it came from, then the letter is typeset with it.",
+        "operationId": "sign_testimonial_programmes__programme_id__participants__participant_id__testimonial_sign_post",
+        "parameters": [
+          {
+            "name": "participant_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Participant Id"
+            }
+          },
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TestimonialOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/programmes/{programme_id}/participants/{participant_id}/testimonial/file": {
       "post": {
         "tags": [
@@ -12297,6 +12377,34 @@
         "title": "SetPasswordConfirm",
         "description": "Same shape as a reset, different purpose: a freshly invited account\nchoosing its first password rather than replacing one."
       },
+      "SignRequest": {
+        "properties": {
+          "signature": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature"
+          },
+          "typed": {
+            "type": "boolean",
+            "title": "Typed",
+            "default": false
+          },
+          "confirm": {
+            "type": "boolean",
+            "title": "Confirm",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "SignRequest"
+      },
       "SignupRequest": {
         "properties": {
           "actor_type": {
@@ -12959,6 +13067,44 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "signed": {
+            "type": "boolean",
+            "title": "Signed",
+            "default": false
+          },
+          "signed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed At"
+          },
+          "signed_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Name"
+          },
+          "signature_typed": {
+            "type": "boolean",
+            "title": "Signature Typed",
+            "default": false
+          },
+          "needs_signature": {
+            "type": "boolean",
+            "title": "Needs Signature",
+            "default": false
           }
         },
         "type": "object",

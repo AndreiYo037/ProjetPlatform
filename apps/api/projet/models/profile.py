@@ -59,3 +59,16 @@ class Testimonial(Base):
     pdf_storage_key: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
     published_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
+
+    # The e-signature. A letter is signed against the exact wording: body_hash
+    # is the SHA-256 of the text at the moment of signing, so any later edit
+    # makes the signature stop matching and it is cleared.
+    signed_at: Mapped[datetime | None] = mapped_column(TimestampTZ)
+    signed_name: Mapped[str | None] = mapped_column(String(200))
+    signed_title: Mapped[str | None] = mapped_column(String(200))
+    signature_key: Mapped[str | None] = mapped_column(Text)
+    # True when the signer typed their name instead of drawing one.
+    signature_typed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    body_hash: Mapped[str | None] = mapped_column(String(64))
+    signed_ip: Mapped[str | None] = mapped_column(String(64))
+    signed_user_agent: Mapped[str | None] = mapped_column(Text)
