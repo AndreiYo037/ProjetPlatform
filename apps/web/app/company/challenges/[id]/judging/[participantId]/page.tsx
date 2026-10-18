@@ -419,8 +419,8 @@ function TestimonialBox({
           }}
         />
         <p className="small muted">
-          Use this if you reformatted the letter. Attaching replaces the generated PDF.
-          Generating a PDF afterwards replaces your file.
+          Use this if you reformatted the letter. Attaching replaces the typeset letter, and
+          your own file is not signed here.
         </p>
       </div>
       {(error || draftError) && (

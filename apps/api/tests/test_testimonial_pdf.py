@@ -66,3 +66,8 @@ def test_a_typed_sign_off_is_recognised_so_it_is_not_repeated():
 
 def test_the_date_is_written_out_in_full():
     assert format_date(datetime(2026, 10, 8, tzinfo=UTC)) == "8 October 2026"
+
+
+def test_the_letter_is_dated_in_singapore_not_utc():
+    # 16:43 UTC on the 18th is 00:43 on the 19th in Singapore.
+    assert format_date(datetime(2026, 10, 18, 16, 43, tzinfo=UTC)) == "19 October 2026"

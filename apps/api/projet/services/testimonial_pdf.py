@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import io
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -68,7 +68,11 @@ def has_closing(body: str) -> bool:
 
 
 def format_date(moment: datetime) -> str:
-    return f"{moment.day} {moment.strftime('%B %Y')}"
+    """The day in Singapore, where the programme runs, not the server's UTC."""
+    from projet.services.schedule import in_programme_tz
+
+    local = in_programme_tz(moment)
+    return f"{local.day} {local.strftime('%B %Y')}"
 
 
 class _Letterhead(Flowable):
@@ -143,7 +147,7 @@ def render_testimonial_pdf(
     )
 
     story: list[Flowable] = [_Letterhead(company_name, logo_png, width), Spacer(1, 9 * mm)]
-    story.append(Paragraph(_p(format_date(letter_date or signed_at or datetime.now())), base))
+    story.append(Paragraph(_p(format_date(letter_date or signed_at or datetime.now(UTC))), base))
     story.append(Spacer(1, 6 * mm))
     story.append(Paragraph("To whom it may concern", base))
     story.append(Spacer(1, 5 * mm))
