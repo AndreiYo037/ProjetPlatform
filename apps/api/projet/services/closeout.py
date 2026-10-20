@@ -28,6 +28,7 @@ from projet.models import (
 )
 from projet.models.enums import CredentialType, ProgrammeStatus
 from projet.outbox.profile_effects import notify_candidate_profile_updated
+from projet.services.certificates import issue_certificates, plan_certificates
 from projet.services.profile import promote_score_skill_tags
 
 # The company closes when they are ready. Draft is the exception: nothing has
@@ -158,6 +159,9 @@ def close_programme(db: Session, programme: Programme) -> CloseoutResult:
         ):
             result.credentials_issued += 1
 
+    # Certificates go out with the profile, with the names the platform holds.
+    # A company can re-issue them with corrected names afterwards.
+    issue_certificates(db, programme, plan_certificates(db, programme))
     programme.status = ProgrammeStatus.COMPLETE
     db.flush()
     return result

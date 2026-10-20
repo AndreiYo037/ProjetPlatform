@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from projet.db import Base
@@ -22,6 +22,38 @@ class Credential(Base):
     programme_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("programme.id"))
     type: Mapped[CredentialType] = mapped_column(enum_column(CredentialType))
     verify_code: Mapped[str] = mapped_column(String(64), unique=True)
+    issued_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
+
+
+class Certificate(Base):
+    """What a team is given for taking part: one per team, printed with every
+    member's name together. Merit or Completion; a company can also give a
+    placing ("3rd Place") on top of Merit.
+
+    Separate from Credential on purpose. A credential is per person and rides
+    on the profile; a certificate is a document for the whole team, and its
+    teammates may not have a Projet account at all, so the names it prints are
+    stored on the row rather than derived from accounts.
+    """
+
+    __tablename__ = "certificate"
+    __table_args__ = (UniqueConstraint("programme_id", "team_id"),)
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    programme_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("programme.id"))
+    team_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("team.id", ondelete="CASCADE"))
+    tier: Mapped[str] = mapped_column(String(20))
+    place_label: Mapped[str | None] = mapped_column(String(40))
+    rank: Mapped[int | None] = mapped_column(Integer)
+    entries: Mapped[int | None] = mapped_column(Integer)
+    names: Mapped[list[str]] = mapped_column(JSONList)
+    # Persons who can see and download it. String ids, since it is a JSON list.
+    recipient_person_ids: Mapped[list[str]] = mapped_column(JSONList)
+    applied_teams: Mapped[int | None] = mapped_column(Integer)
+    submitted_teams: Mapped[int | None] = mapped_column(Integer)
+    event_name: Mapped[str | None] = mapped_column(String(120))
+    event_date: Mapped[str | None] = mapped_column(String(40))
+    pdf_storage_key: Mapped[str | None] = mapped_column(String(300))
     issued_at: Mapped[datetime] = mapped_column(TimestampTZ, default=utcnow)
 
 

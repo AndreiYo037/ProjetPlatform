@@ -3919,6 +3919,269 @@
         }
       }
     },
+    "/programmes/{programme_id}/certificates/plan": {
+      "post": {
+        "tags": [
+          "certificates"
+        ],
+        "summary": "Plan",
+        "description": "Who would get which title. Writes nothing.",
+        "operationId": "plan_programmes__programme_id__certificates_plan_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlannedOut"
+                  },
+                  "title": "Response Plan Programmes  Programme Id  Certificates Plan Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/certificates/issue": {
+      "post": {
+        "tags": [
+          "certificates"
+        ],
+        "summary": "Issue",
+        "operationId": "issue_programmes__programme_id__certificates_issue_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssuedOut"
+                  },
+                  "title": "Response Issue Programmes  Programme Id  Certificates Issue Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/certificates": {
+      "get": {
+        "tags": [
+          "certificates"
+        ],
+        "summary": "List Issued",
+        "operationId": "list_issued_programmes__programme_id__certificates_get",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IssuedOut"
+                  },
+                  "title": "Response List Issued Programmes  Programme Id  Certificates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/certificates": {
+      "get": {
+        "tags": [
+          "certificates"
+        ],
+        "summary": "My Certificates",
+        "operationId": "my_certificates_me_certificates_get",
+        "parameters": [
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MyCertificateOut"
+                  },
+                  "title": "Response My Certificates Me Certificates Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/public/x/{company_slug}": {
       "get": {
         "tags": [
@@ -8947,6 +9210,63 @@
         ],
         "title": "Health"
       },
+      "IssuedOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Team Id"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Names"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "place_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Label"
+          },
+          "pdf_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Url"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "names",
+          "tier",
+          "place_label",
+          "pdf_url",
+          "issued_at"
+        ],
+        "title": "IssuedOut"
+      },
       "JudgingSessionCreate": {
         "properties": {
           "starts_at": {
@@ -9171,6 +9491,68 @@
           "text"
         ],
         "title": "MemoRequest"
+      },
+      "MyCertificateOut": {
+        "properties": {
+          "programme": {
+            "type": "string",
+            "title": "Programme"
+          },
+          "company": {
+            "type": "string",
+            "title": "Company"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "place_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Label"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Names"
+          },
+          "pdf_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pdf Url"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Issued At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "programme",
+          "company",
+          "tier",
+          "place_label",
+          "names",
+          "pdf_url",
+          "issued_at"
+        ],
+        "title": "MyCertificateOut",
+        "description": "What the participant sees. No rank and no score: the certificate itself\nsays what it says."
       },
       "NotifyOut": {
         "properties": {
@@ -9414,6 +9796,139 @@
           "taken"
         ],
         "title": "PitchSlotOut"
+      },
+      "PlanRequest": {
+        "properties": {
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamAwardIn"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Teams"
+          },
+          "applied_teams": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied Teams"
+          },
+          "submitted_teams": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted Teams"
+          },
+          "event_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Name"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          }
+        },
+        "type": "object",
+        "title": "PlanRequest"
+      },
+      "PlannedOut": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Team Id"
+          },
+          "names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Names"
+          },
+          "tier": {
+            "type": "string",
+            "title": "Tier"
+          },
+          "place_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Label"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "joint": {
+            "type": "boolean",
+            "title": "Joint"
+          },
+          "entries": {
+            "type": "integer",
+            "title": "Entries"
+          },
+          "share_pct": {
+            "type": "number",
+            "title": "Share Pct"
+          },
+          "applied_teams": {
+            "type": "integer",
+            "title": "Applied Teams"
+          },
+          "submitted_teams": {
+            "type": "integer",
+            "title": "Submitted Teams"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "names",
+          "tier",
+          "place_label",
+          "rank",
+          "joint",
+          "entries",
+          "share_pct",
+          "applied_teams",
+          "submitted_teams"
+        ],
+        "title": "PlannedOut"
       },
       "Portfolio": {
         "properties": {
@@ -13110,6 +13625,72 @@
           "access_status"
         ],
         "title": "SubmittedLink"
+      },
+      "TeamAwardIn": {
+        "properties": {
+          "participant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Participant Id",
+            "description": "Any member of the team"
+          },
+          "names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Names"
+          },
+          "extra_participant_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Extra Participant Ids"
+          },
+          "tier": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "merit",
+                  "completion"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tier"
+          },
+          "place_label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_id"
+        ],
+        "title": "TeamAwardIn"
       },
       "TestimonialCard": {
         "properties": {

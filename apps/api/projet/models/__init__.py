@@ -18,7 +18,7 @@ from projet.models.people import (
     normalise_email,
 )
 from projet.models.portfolio import ProjectEntry, ProjectLink, ProjectSkill
-from projet.models.profile import Credential, ProfileSkill, Testimonial
+from projet.models.profile import Certificate, Credential, ProfileSkill, Testimonial
 from projet.models.programme import (
     DataPackResource,
     Event,
@@ -47,6 +47,7 @@ __all__ = [
     "Capability",
     "Company",
     "CompanyUser",
+    "Certificate",
     "Credential",
     "CriterionScore",
     "DataPackResource",

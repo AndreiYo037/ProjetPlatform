@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from projet import __version__
 from projet.api.applications import router as applications_router
 from projet.api.auth import router as auth_router
+from projet.api.certificates import router as certificates_router
 from projet.api.companies import router as companies_router
 from projet.api.judging import router as judging_router
 from projet.api.participant import router as participant_router
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(programmes_router)
     app.include_router(applications_router)
     app.include_router(judging_router)
+    app.include_router(certificates_router)
     app.include_router(public_router)
     app.include_router(profile_public_router)
     app.include_router(participant_router)

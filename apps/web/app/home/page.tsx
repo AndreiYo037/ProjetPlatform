@@ -7,8 +7,10 @@ import ChallengeCards from "@/components/ChallengeCards";
 import { SkillTags, toTaggedSkills } from "@/components/SkillTags";
 import {
   assetUrl,
+  getMyCertificates,
   getPortfolio,
   listChallenges,
+  type MyCertificate,
   type Portfolio,
   type PublicListingSummary,
 } from "@/lib/api";
@@ -27,17 +29,20 @@ import { useActor } from "@/lib/useActor";
 export default function ParticipantHomePage() {
   const gate = useActor("participant");
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
+  const [certificates, setCertificates] = useState<MyCertificate[]>([]);
   const [openChallenges, setOpenChallenges] = useState<PublicListingSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (gate.status !== "ready") return;
     try {
-      const [nextPortfolio, challenges] = await Promise.all([
+      const [nextPortfolio, challenges, myCertificates] = await Promise.all([
         getPortfolio(),
         listChallenges({ limit: 100 }).catch(() => [] as PublicListingSummary[]),
+        getMyCertificates().catch(() => [] as MyCertificate[]),
       ]);
       setPortfolio(nextPortfolio);
+      setCertificates(myCertificates);
       setOpenChallenges(challenges);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load your profile.");
@@ -99,6 +104,33 @@ export default function ParticipantHomePage() {
             <SkillTags skills={credential.skills.map((name) => ({ name }))} />
           </div>
         ))
+      )}
+
+      {certificates.length > 0 && (
+        <>
+          <h2>Certificates</h2>
+          {certificates.map((certificate, index) => (
+            <div className="card" key={index}>
+              <strong>
+                {certificate.tier === "merit" ? "Certificate of Merit" : "Certificate of Completion"}
+                {certificate.place_label && ` · ${certificate.place_label}`}
+              </strong>
+              <div className="small muted">
+                {certificate.company} · {certificate.programme}
+              </div>
+              {certificate.names.length > 1 && (
+                <div className="small muted">With {certificate.names.join(", ")}</div>
+              )}
+              {certificate.pdf_url && (
+                <p style={{ marginBottom: 0 }}>
+                  <a href={assetUrl(certificate.pdf_url)} target="_blank" rel="noreferrer">
+                    Download certificate
+                  </a>
+                </p>
+              )}
+            </div>
+          ))}
+        </>
       )}
 
       <h2>What they said</h2>
