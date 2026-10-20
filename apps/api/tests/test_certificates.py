@@ -206,3 +206,32 @@ def test_long_team_names_wrap_onto_two_lines_and_still_render():
         names=names, tier="completion", programme_title="A challenge", company_name="Acme"
     )
     assert pdf.startswith(b"%PDF")
+
+
+def test_certificate_emails_go_once_per_issue_and_dry_run_sends_nothing(
+    client, session, programme, manager, sat, skill, google
+):
+    from projet.outbox.worker import run_once
+
+    sign_in_company(client, session, manager)
+    score_fully(client, programme, sat["sam"], skill)
+    score_fully(client, programme, sat["ada"])
+    client.post(f"/programmes/{programme.id}/close")
+    run_once(session, google)
+
+    dry = client.post(f"/programmes/{programme.id}/certificates/notify", json={"dry_run": True})
+    assert dry.status_code == 200, dry.text
+    assert dry.json()["queued"] == 0
+    assert sorted(dry.json()["recipients"]) == sorted(
+        [sat["sam"].person.name, sat["ada"].person.name]
+    )
+    run_once(session, google)
+    assert not [c for c in google.calls_of("send_email") if "Certificate" in c.payload["subject"]]
+
+    sent = client.post(f"/programmes/{programme.id}/certificates/notify", json={})
+    assert sent.json()["queued"] == 2
+    client.post(f"/programmes/{programme.id}/certificates/notify", json={})
+    run_once(session, google)
+    mails = [c for c in google.calls_of("send_email") if "Certificate" in c.payload["subject"]]
+    assert len(mails) == 2
+    assert "is ready" in mails[0].payload["html_body"]

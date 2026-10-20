@@ -3691,7 +3691,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NotifyOut"
+                  "$ref": "#/components/schemas/projet__api__judging__NotifyOut"
                 }
               }
             }
@@ -4049,6 +4049,76 @@
                     "$ref": "#/components/schemas/IssuedOut"
                   },
                   "title": "Response Issue Programmes  Programme Id  Certificates Issue Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/programmes/{programme_id}/certificates/notify": {
+      "post": {
+        "tags": [
+          "certificates"
+        ],
+        "summary": "Notify",
+        "description": "Tell each person on a certificate that it is ready.\n\nOne email per person per issued certificate: asking again for the same\nissue queues nothing new, and re-issuing a certificate is a new issue.",
+        "operationId": "notify_programmes__programme_id__certificates_notify_post",
+        "parameters": [
+          {
+            "name": "programme_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Programme Id"
+            }
+          },
+          {
+            "name": "projet_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Projet Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/projet__api__certificates__NotifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/projet__api__certificates__NotifyOut"
                 }
               }
             }
@@ -4546,7 +4616,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NotifyRequest"
+                "$ref": "#/components/schemas/projet__api__public__NotifyRequest"
               }
             }
           }
@@ -9554,33 +9624,6 @@
         "title": "MyCertificateOut",
         "description": "What the participant sees. No rank and no score: the certificate itself\nsays what it says."
       },
-      "NotifyOut": {
-        "properties": {
-          "queued": {
-            "type": "boolean",
-            "title": "Queued"
-          }
-        },
-        "type": "object",
-        "required": [
-          "queued"
-        ],
-        "title": "NotifyOut"
-      },
-      "NotifyRequest": {
-        "properties": {
-          "email": {
-            "type": "string",
-            "maxLength": 320,
-            "title": "Email"
-          }
-        },
-        "type": "object",
-        "required": [
-          "email"
-        ],
-        "title": "NotifyRequest"
-      },
       "OutboxHealth": {
         "properties": {
           "pending": {
@@ -14244,6 +14287,65 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "projet__api__certificates__NotifyOut": {
+        "properties": {
+          "recipients": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Recipients"
+          },
+          "queued": {
+            "type": "integer",
+            "title": "Queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recipients",
+          "queued"
+        ],
+        "title": "NotifyOut"
+      },
+      "projet__api__certificates__NotifyRequest": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "NotifyRequest"
+      },
+      "projet__api__judging__NotifyOut": {
+        "properties": {
+          "queued": {
+            "type": "boolean",
+            "title": "Queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queued"
+        ],
+        "title": "NotifyOut"
+      },
+      "projet__api__public__NotifyRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "title": "Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email"
+        ],
+        "title": "NotifyRequest"
       }
     }
   }

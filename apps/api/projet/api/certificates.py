@@ -21,6 +21,7 @@ from projet.api.judging import require_judge
 from projet.db import get_session
 from projet.models import Certificate, Company, Participant, Person, Programme
 from projet.models.enums import ProgrammeStatus
+from projet.outbox.profile_effects import notify_candidate_profile_updated
 from projet.services.auth import Actor
 from projet.services.certificates import (
     Planned,
@@ -84,6 +85,21 @@ class MyCertificateOut(BaseModel):
     names: list[str]
     pdf_url: str | None
     issued_at: datetime
+
+
+class NotifyRequest(BaseModel):
+    dry_run: bool = False
+
+
+class NotifyOut(BaseModel):
+    # Names of the people who are (or, on a dry run, would be) emailed.
+    recipients: list[str]
+    queued: int
+
+
+def _title(row: Certificate) -> str:
+    base = "Certificate of Merit" if row.tier == "merit" else "Certificate of Completion"
+    return f"{base}, {row.place_label}" if row.place_label else base
 
 
 def _pdf_url(key: str | None) -> str | None:
@@ -185,6 +201,56 @@ def issue(
         )
         for row in rows
     ]
+
+
+@router.post("/programmes/{programme_id}/certificates/notify", response_model=NotifyOut)
+def notify(
+    payload: NotifyRequest,
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> NotifyOut:
+    """Tell each person on a certificate that it is ready.
+
+    One email per person per issued certificate: asking again for the same
+    issue queues nothing new, and re-issuing a certificate is a new issue.
+    """
+    _require_closed(programme, actor)
+    company = db.get(Company, programme.company_id)
+    company_name = company.name if company else "the company"
+    recipients: list[str] = []
+    queued = 0
+    for row in db.scalars(select(Certificate).where(Certificate.programme_id == programme.id)):
+        if not row.pdf_storage_key:
+            continue
+        for person_id in row.recipient_person_ids or []:
+            person = db.get(Person, uuid.UUID(person_id))
+            if person is None or not person.contact_email:
+                continue
+            recipients.append(person.name)
+            if payload.dry_run:
+                continue
+            participant = db.scalar(
+                select(Participant)
+                .where(Participant.programme_id == programme.id)
+                .where(Participant.person_id == person.id)
+            )
+            notify_candidate_profile_updated(
+                db,
+                person=person,
+                participant_id=participant.id if participant else None,
+                what=(
+                    f"Your {_title(row)} for {programme.title}, set by {company_name}"
+                    f"{' at ' + row.event_name if row.event_name else ''}, is ready. "
+                    "You can view and download it on your Projet profile."
+                ),
+                key_suffix=f"certificate:{row.id}:{row.issued_at.isoformat()}",
+                subject=f"Your {_title(row)} from {company_name}",
+            )
+            queued += 1
+    if not payload.dry_run:
+        db.commit()
+    return NotifyOut(recipients=recipients, queued=queued)
 
 
 @router.get("/programmes/{programme_id}/certificates", response_model=list[IssuedOut])
