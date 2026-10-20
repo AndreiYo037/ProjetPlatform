@@ -38,7 +38,7 @@ from projet.services.certificates import (
     plan_certificates,
 )
 from projet.services.scoring import team_for_participant
-from projet.storage import sign_key
+from projet.storage import get_storage, sign_key
 
 router = APIRouter(tags=["certificates"])
 
@@ -109,6 +109,9 @@ class NotifyOut(BaseModel):
     # True once the email carries the PDF as an attachment. Lets a caller tell
     # this version of the API from the one that linked to the profile.
     attached: bool = True
+    # True once the PDF travels inside the queued email, so the sender does not
+    # need the stored file.
+    embedded: bool = True
 
 
 def _title(row: Certificate) -> str:
@@ -263,7 +266,10 @@ def notify(
                 .where(Participant.programme_id == programme.id)
                 .where(Participant.person_id == person.id)
             )
-            first = person.name.split()[0] if person.name else "there"
+            try:
+                pdf = get_storage().get(row.pdf_storage_key)
+            except Exception:
+                continue
             who = "your team" if len(row.names) > 1 else "you"
             where = f" at {row.event_name}" if row.event_name else ""
             paragraphs = [
@@ -276,7 +282,7 @@ def notify(
                     if len(row.names) > 1
                     else ""
                 ),
-                f"Thank you for taking part, {first}.",
+                "Thank you for taking part.",
             ]
             notify_certificate(
                 db,
@@ -284,7 +290,10 @@ def notify(
                 participant_id=participant.id if participant else None,
                 subject=f"Your {_title(row)} from {company_name}",
                 paragraphs=paragraphs,
-                attachment_key=row.pdf_storage_key,
+                attachment=pdf,
+                # The submitter is first on the certificate, under their real
+                # name; their account name can be a username.
+                greeting_name=row.names[0] if payload.submitter_only and row.names else None,
                 attachment_name=f"{_title(row).replace(', ', ' - ')} - {', '.join(row.names)}.pdf",
                 key_suffix=f"certificate:{row.id}:{row.issued_at.isoformat()}",
             )

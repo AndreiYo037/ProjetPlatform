@@ -14428,6 +14428,11 @@
             "type": "boolean",
             "title": "Attached",
             "default": true
+          },
+          "embedded": {
+            "type": "boolean",
+            "title": "Embedded",
+            "default": true
           }
         },
         "type": "object",

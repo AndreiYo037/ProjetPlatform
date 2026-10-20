@@ -305,3 +305,25 @@ def test_the_company_can_see_where_its_certificate_emails_stand(
     done = client.get(f"/programmes/{programme.id}/certificates/emails").json()
     assert {row["status"] for row in done} == {"done"}
     assert all(row["sent_at"] for row in done)
+
+
+def test_the_submitter_is_greeted_by_the_name_on_the_certificate(
+    client, session, programme, manager, sat, skill, google
+):
+    from projet.outbox.worker import run_once
+
+    sign_in_company(client, session, manager)
+    score_fully(client, programme, sat["sam"], skill)
+    score_fully(client, programme, sat["ada"])
+    client.post(f"/programmes/{programme.id}/close")
+    client.post(
+        f"/programmes/{programme.id}/certificates/issue",
+        json={"teams": [{"participant_id": str(sat["sam"].id), "names": ["Samuel Real Name"]}]},
+    )
+    run_once(session, google)
+    client.post(f"/programmes/{programme.id}/certificates/notify", json={"submitter_only": True})
+    run_once(session, google)
+    mails = [c for c in google.calls_of("send_email") if "Certificate" in c.payload["subject"]]
+    sam = next(c for c in mails if c.payload["to"] == sat["sam"].person.contact_email)
+    assert sam.payload["html_body"].startswith("<p>Hi Samuel Real Name,</p>")
+    assert sam.payload["attachments"]

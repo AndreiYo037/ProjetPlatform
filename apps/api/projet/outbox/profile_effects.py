@@ -34,27 +34,27 @@ def profile_updated(ctx: EffectContext) -> dict:
 
 @effect(CERTIFICATE_EMAIL)
 def certificate_email(ctx: EffectContext) -> dict:
-    """The certificate itself goes out as an attachment, read from storage at
-    send time so a re-issued PDF is the one that is sent."""
+    """The certificate goes out as an attachment.
+
+    The PDF travels inside the payload: the sweep that sends it runs apart
+    from the web service and cannot read the web service's stored files.
+    """
+    import base64
+
     from projet.integrations.google.client import Attachment
-    from projet.storage import StorageError, get_storage
 
     to = ctx.payload.get("to")
     subject = ctx.payload.get("subject")
     html = ctx.payload.get("html_body")
-    key = ctx.payload.get("attachment_key")
+    data = ctx.payload.get("attachment_b64")
     name = ctx.payload.get("attachment_name") or "certificate.pdf"
-    if not to or not subject or not html or not key:
+    if not to or not subject or not html or not data:
         raise PermanentEffectError("certificate email is missing to, subject, body or file")
-    try:
-        content = get_storage().get(key)
-    except StorageError as error:
-        raise PermanentEffectError("the certificate PDF is missing") from error
     sent = ctx.google.send_email(
         to=to,
         subject=subject,
         html_body=html,
-        attachments=[Attachment(filename=name, content=content)],
+        attachments=[Attachment(filename=name, content=base64.b64decode(data))],
     )
     return {"message_id": sent.message_id, "thread_id": getattr(sent, "thread_id", None)}
 
@@ -66,14 +66,18 @@ def notify_certificate(
     participant_id: uuid.UUID | None,
     subject: str,
     paragraphs: list[str],
-    attachment_key: str,
+    attachment: bytes,
     attachment_name: str,
     key_suffix: str,
+    greeting_name: str | None = None,
 ) -> None:
     """Email a certificate to the person, with the PDF attached."""
+    import base64
+
     if not person.contact_email:
         return
     body = "".join(f"<p>{text}</p>" for text in paragraphs)
+    greet = greeting_name or person.name or "there"
     enqueue(
         session,
         subject_type=(
@@ -86,8 +90,8 @@ def notify_certificate(
         payload={
             "to": person.contact_email,
             "subject": subject,
-            "html_body": f"<p>Hi {person.name or 'there'},</p>{body}",
-            "attachment_key": attachment_key,
+            "html_body": f"<p>Hi {greet},</p>{body}",
+            "attachment_b64": base64.b64encode(attachment).decode(),
             "attachment_name": attachment_name,
         },
     )
