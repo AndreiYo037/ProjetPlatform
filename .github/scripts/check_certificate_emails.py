@@ -14,6 +14,7 @@ import httpx
 from create_hacknhire_challenges import API_BASE, CHALLENGES
 
 PASSWORD = os.environ.get("COMPANY_PASSWORD")
+ONLY = (os.environ.get("ONLY") or "").strip().lower()
 
 
 def main() -> int:
@@ -40,10 +41,15 @@ def main() -> int:
                     print(f"  failed {reply.status_code}: {reply.text[:200]}")
                     continue
                 for row in reply.json():
+                    if ONLY and ONLY not in row["to_name"].lower():
+                        continue
                     totals[row["status"]] = totals.get(row["status"], 0) + 1
                     error = f"  error: {row['last_error'][:120]}" if row["last_error"] else ""
+                    kind = row.get("kind", "certificate")
+                    if row.get("mentions_testimonial"):
+                        kind += "+testimonial"
                     print(
-                        f"  {row['status']:<8} tries {row['attempts']}  "
+                        f"  {kind:<20} {row['subject'][:40]:<40} {row['status']:<8} tries {row['attempts']}  "
                         f"sent {row['sent_at'] or '-'}  {row['to_name']}{error}"
                     )
     print(f"\nTotals: {totals}")

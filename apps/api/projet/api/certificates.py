@@ -29,7 +29,11 @@ from projet.models import (
     TeamMember,
 )
 from projet.models.enums import ProgrammeStatus
-from projet.outbox.profile_effects import CERTIFICATE_EMAIL, notify_certificate
+from projet.outbox.profile_effects import (
+    CERTIFICATE_EMAIL,
+    PROFILE_UPDATED_EMAIL,
+    notify_certificate,
+)
 from projet.services.auth import Actor
 from projet.services.certificates import (
     Planned,
@@ -304,6 +308,7 @@ def notify(
 
 
 class EmailStatusOut(BaseModel):
+    kind: str
     to_name: str
     subject: str
     status: str
@@ -311,6 +316,7 @@ class EmailStatusOut(BaseModel):
     last_error: str | None
     queued_at: datetime
     sent_at: datetime | None
+    mentions_testimonial: bool = False
 
 
 @router.get("/programmes/{programme_id}/certificates/emails", response_model=list[EmailStatusOut])
@@ -319,14 +325,16 @@ def email_status(
     db: Session = Depends(get_session),
     actor: Actor = Depends(require_judge),
 ) -> list[EmailStatusOut]:
-    """Where each certificate email for this challenge stands in the send queue."""
+    """Where each email to this challenge's participants stands in the send
+    queue: certificates, and the profile emails (close and issue, testimonial
+    updates). `mentions_testimonial` says whether the email names one."""
     participants = {
         p.id: p
         for p in db.scalars(select(Participant).where(Participant.programme_id == programme.id))
     }
     rows = db.scalars(
         select(Outbox)
-        .where(Outbox.effect_type == CERTIFICATE_EMAIL)
+        .where(Outbox.effect_type.in_([CERTIFICATE_EMAIL, PROFILE_UPDATED_EMAIL]))
         .where(Outbox.participant_id.in_(list(participants)))
         .order_by(Outbox.created_at)
     )
@@ -336,6 +344,9 @@ def email_status(
         person = db.get(Person, participant.person_id) if participant else None
         out.append(
             EmailStatusOut(
+                kind="certificate" if row.effect_type == CERTIFICATE_EMAIL else "profile",
+                mentions_testimonial="testimonial"
+                in str((row.payload or {}).get("html_body", "")).lower(),
                 to_name=person.name if person else "",
                 subject=str((row.payload or {}).get("subject", "")),
                 status=row.status.value if hasattr(row.status, "value") else str(row.status),

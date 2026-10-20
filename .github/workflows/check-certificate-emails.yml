@@ -7,6 +7,10 @@ on:
       company_password:
         description: "Password for the company accounts"
         required: true
+      only:
+        description: "Only people whose name contains this text (optional)"
+        required: false
+        default: ""
 
 jobs:
   notify:
@@ -24,3 +28,4 @@ jobs:
         working-directory: .github/scripts
         env:
           COMPANY_PASSWORD: ${{ inputs.company_password }}
+          ONLY: ${{ inputs.only }}

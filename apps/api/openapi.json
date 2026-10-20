@@ -4142,7 +4142,7 @@
           "certificates"
         ],
         "summary": "Email Status",
-        "description": "Where each certificate email for this challenge stands in the send queue.",
+        "description": "Where each email to this challenge's participants stands in the send\nqueue: certificates, and the profile emails (close and issue, testimonial\nupdates). `mentions_testimonial` says whether the email names one.",
         "operationId": "email_status_programmes__programme_id__certificates_emails_get",
         "parameters": [
           {
@@ -9315,6 +9315,10 @@
       },
       "EmailStatusOut": {
         "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
           "to_name": {
             "type": "string",
             "title": "To Name"
@@ -9358,10 +9362,16 @@
               }
             ],
             "title": "Sent At"
+          },
+          "mentions_testimonial": {
+            "type": "boolean",
+            "title": "Mentions Testimonial",
+            "default": false
           }
         },
         "type": "object",
         "required": [
+          "kind",
           "to_name",
           "subject",
           "status",
