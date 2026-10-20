@@ -14315,6 +14315,11 @@
             "type": "boolean",
             "title": "Dry Run",
             "default": false
+          },
+          "submitter_only": {
+            "type": "boolean",
+            "title": "Submitter Only",
+            "default": false
           }
         },
         "type": "object",

@@ -1,7 +1,7 @@
 """Email the people on each issued certificate that it is ready.
 
 Dry run unless APPLY=1: a dry run lists who would be emailed and sends nothing.
-The API sends one email per person per issued certificate, so running it twice
+Only the participant who submitted gets the email (the team contact). The API sends one email per person per issued certificate, so running it twice
 does not double-send.
 """
 
@@ -37,7 +37,7 @@ def main() -> int:
                     continue
                 reply = client.post(
                     f"/programmes/{programme['id']}/certificates/notify",
-                    json={"dry_run": not APPLY},
+                    json={"dry_run": not APPLY, "submitter_only": True},
                 )
                 print("=" * 70)
                 print(programme["title"][:70])

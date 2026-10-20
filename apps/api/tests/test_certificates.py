@@ -235,3 +235,31 @@ def test_certificate_emails_go_once_per_issue_and_dry_run_sends_nothing(
     mails = [c for c in google.calls_of("send_email") if "Certificate" in c.payload["subject"]]
     assert len(mails) == 2
     assert "is ready" in mails[0].payload["html_body"]
+
+
+def test_submitter_only_skips_teammates_added_to_the_certificate(
+    client, session, programme, manager, sat, skill
+):
+    sign_in_company(client, session, manager)
+    score_fully(client, programme, sat["sam"], skill)
+    score_fully(client, programme, sat["ada"])
+    client.post(f"/programmes/{programme.id}/close")
+    mate = make_participant(session, programme, name="Sam Teammate")
+    client.post(
+        f"/programmes/{programme.id}/certificates/issue",
+        json={
+            "teams": [
+                {"participant_id": str(sat["sam"].id), "extra_participant_ids": [str(mate.id)]}
+            ]
+        },
+    )
+    everyone = client.post(
+        f"/programmes/{programme.id}/certificates/notify", json={"dry_run": True}
+    ).json()["recipients"]
+    only = client.post(
+        f"/programmes/{programme.id}/certificates/notify",
+        json={"dry_run": True, "submitter_only": True},
+    ).json()["recipients"]
+    assert "Sam Teammate" in everyone
+    assert "Sam Teammate" not in only
+    assert sat["sam"].person.name in only

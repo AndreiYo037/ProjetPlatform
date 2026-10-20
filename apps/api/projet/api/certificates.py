@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from projet.api.deps import get_programme_or_404, require_participant
 from projet.api.judging import require_judge
 from projet.db import get_session
-from projet.models import Certificate, Company, Participant, Person, Programme
+from projet.models import Certificate, Company, Participant, Person, Programme, TeamMember
 from projet.models.enums import ProgrammeStatus
 from projet.outbox.profile_effects import notify_candidate_profile_updated
 from projet.services.auth import Actor
@@ -89,6 +89,9 @@ class MyCertificateOut(BaseModel):
 
 class NotifyRequest(BaseModel):
     dry_run: bool = False
+    # Only the participant(s) who are on the team itself, the one who submitted,
+    # and not teammates added to the certificate or a second account.
+    submitter_only: bool = False
 
 
 class NotifyOut(BaseModel):
@@ -223,7 +226,21 @@ def notify(
     for row in db.scalars(select(Certificate).where(Certificate.programme_id == programme.id)):
         if not row.pdf_storage_key:
             continue
+        allowed = (
+            {
+                str(pid)
+                for pid in db.scalars(
+                    select(Participant.person_id)
+                    .join(TeamMember, TeamMember.participant_id == Participant.id)
+                    .where(TeamMember.team_id == row.team_id)
+                )
+            }
+            if payload.submitter_only
+            else None
+        )
         for person_id in row.recipient_person_ids or []:
+            if allowed is not None and person_id not in allowed:
+                continue
             person = db.get(Person, uuid.UUID(person_id))
             if person is None or not person.contact_email:
                 continue
