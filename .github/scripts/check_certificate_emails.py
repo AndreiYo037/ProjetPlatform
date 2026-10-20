@@ -34,6 +34,8 @@ def main() -> int:
             for programme in client.get("/programmes").json():
                 if programme.get("status") != "complete":
                     continue
+                cards = client.get(f"/programmes/{programme['id']}/submissions").json()
+                address = {c["name"]: c.get("contact_email") or "?" for c in cards}
                 reply = client.get(f"/programmes/{programme['id']}/certificates/emails")
                 print("=" * 70)
                 print(programme["title"][:70])
@@ -50,7 +52,7 @@ def main() -> int:
                         kind += "+testimonial"
                     print(
                         f"  {kind:<20} {row['subject'][:40]:<40} {row['status']:<8} tries {row['attempts']}  "
-                        f"sent {row['sent_at'] or '-'}  {row['to_name']}{error}"
+                        f"sent {row['sent_at'] or '-'}  {row['to_name']} <{address.get(row['to_name'], '?')}>{error}"
                     )
     print(f"\nTotals: {totals}")
     return 0
