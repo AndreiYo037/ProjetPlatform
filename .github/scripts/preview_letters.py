@@ -46,7 +46,7 @@ def main() -> int:
                     if not logo_done and ctx.get("company_logo_url"):
                         raw = client.get(ctx["company_logo_url"]).content
                         img = Image.open(io.BytesIO(raw)).convert("RGBA")
-                        img.thumbnail((360, 120))
+                        img.thumbnail((int(os.environ.get("LOGO_W", "900")), 300))
                         out = io.BytesIO()
                         img.save(out, "PNG", optimize=True)
                         print("LOGO " + base64.b64encode(out.getvalue()).decode())
