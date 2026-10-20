@@ -36,6 +36,34 @@ def join_names(names: list[str]) -> str:
     return ", ".join(names[:-1]) + " and " + names[-1]
 
 
+_NAME_MAX = W - 220
+
+
+def _name_size(c, lines: list[str]) -> float:
+    size = 38.0
+    while size > 26 and any(c.stringWidth(t, "Times-BoldItalic", size) > _NAME_MAX for t in lines):
+        size -= 1
+    return size
+
+
+def _name_lines(c, names: list[str]) -> list[str]:
+    """The names together on one line, or balanced over two when they are too long."""
+    names = [n.strip() for n in names if n and n.strip()]
+    one = join_names(names)
+    if len(names) < 2 or c.stringWidth(one, "Times-BoldItalic", 26) <= _NAME_MAX:
+        return [one]
+    best: list[str] | None = None
+    best_width = 1e9
+    for k in range(1, len(names)):
+        head = ", ".join(names[:k]) + ","
+        rest = names[k:]
+        tail = (", ".join(rest[:-1]) + " and " + rest[-1]) if len(rest) > 1 else "and " + rest[0]
+        width = max(c.stringWidth(t, "Times-BoldItalic", 30) for t in (head, tail))
+        if width < best_width:
+            best, best_width = [head, tail], width
+    return best or [one]
+
+
 def ordinal(n: int) -> str:
     if 10 <= n % 100 <= 20:
         return f"{n}th"
@@ -199,15 +227,16 @@ def render_certificate_pdf(
     c.line(W / 2 - 60, H - 186, W / 2 + 60, H - 186)
     _centre(c, H - 217, "This certificate is awarded to", "Times-Italic", 14, MUTED)
 
-    name = join_names(names)
-    size = 38.0
-    while c.stringWidth(name, "Times-BoldItalic", size) > W - 220 and size > 18:
-        size -= 1
-    _centre(c, H - 264, name, "Times-BoldItalic", size, INK)
-    half = max(190.0, c.stringWidth(name, "Times-BoldItalic", size) / 2 + 20)
+    lines = _name_lines(c, names)
+    size = _name_size(c, lines)
+    for index, text in enumerate(lines):
+        _centre(c, H - 264 - 34 * index, text, "Times-BoldItalic", size, INK)
+    dy = 34 * (len(lines) - 1)
+    widest = max(c.stringWidth(text, "Times-BoldItalic", size) for text in lines) if lines else 0
+    half = max(190.0, widest / 2 + 20)
     c.setStrokeColor(INK)
     c.setLineWidth(0.5)
-    c.line(W / 2 - half, H - 274, W / 2 + half, H - 274)
+    c.line(W / 2 - half, H - 274 - dy, W / 2 + half, H - 274 - dy)
 
     if placed:
         first = (place_label or "").split()[0].lower()
@@ -216,8 +245,8 @@ def render_certificate_pdf(
         lead = "for a strong solution to"
     else:
         lead = "for completing"
-    _centre(c, H - 302, lead, "Times-Roman", 14, INK)
-    y = _wrap(c, H - 328, programme_title, "Times-Bold", 16, NAVY, W - 300, 21)
+    _centre(c, H - 302 - dy, lead, "Times-Roman", 14, INK)
+    y = _wrap(c, H - 328 - dy, programme_title, "Times-Bold", 16, NAVY, W - 300, 21)
     _centre(c, y - 4, f"set by {company_name}", "Times-Roman", 14, INK)
     y -= 4
 

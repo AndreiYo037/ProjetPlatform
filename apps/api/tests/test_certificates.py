@@ -184,3 +184,25 @@ def test_a_participant_cannot_plan_or_issue(client, session, programme, sat):
         403,
         404,
     )
+
+
+def test_long_team_names_wrap_onto_two_lines_and_still_render():
+    from reportlab.pdfgen import canvas
+
+    from projet.services.certificate_pdf import _name_lines, render_certificate_pdf
+
+    names = [
+        "Osby Angelo Pua De Leon",
+        "Kylie Khoo Hoi Yann",
+        "Muhammad Abdul Rauf Bin Abdul Malik",
+    ]
+    lines = _name_lines(canvas.Canvas("/dev/null"), names)
+    assert len(lines) == 2
+    assert lines[1].startswith("and ")
+    assert _name_lines(canvas.Canvas("/dev/null"), ["Jade Yap", "Siaw Min En Alena"]) == [
+        "Jade Yap and Siaw Min En Alena"
+    ]
+    pdf = render_certificate_pdf(
+        names=names, tier="completion", programme_title="A challenge", company_name="Acme"
+    )
+    assert pdf.startswith(b"%PDF")
