@@ -97,7 +97,7 @@ def _header(c, logo_png: bytes | None, event_name: str | None) -> None:
             w = h * iw / ih
             if w > 150:
                 w, h = 150.0, 150.0 * ih / iw
-            c.drawImage(img, (W - w) / 2, H - 52 - h, w, h, mask="auto")
+            c.drawImage(img, (W - w) / 2, H - 112, w, h, mask="auto")
         except Exception:
             pass
     if event_name:
@@ -265,10 +265,13 @@ def render_certificate_pdf(
         _ribbon(c, W - 110, 128, numeral, accent)
     else:
         _seal(c, W - 110, 105, "MERIT" if merit else "COMPLETION", accent)
-        c.setFillColor(CREAM)
-        c.setFont("Times-Roman", 6.5)
         if event_name:
-            c.drawCentredString(W - 110, 105 - 9, event_name.upper()[:18])
+            tokens = event_name.upper().split()
+            lines = [" ".join(tokens[:-1]), tokens[-1]] if len(tokens) > 1 else tokens
+            c.setFillColor(CREAM)
+            c.setFont("Times-Roman", 6.5)
+            for index, text in enumerate(lines[:2]):
+                c.drawCentredString(W - 110, 105 - 9 - 8 * index, text)
     c.showPage()
     c.save()
     return buffer.getvalue()
