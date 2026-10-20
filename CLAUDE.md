@@ -32,6 +32,8 @@
 
 9. **Do not conflate counts.** When asked about numbers, say exactly what is being counted (platform track, people, teams, scored or submitted) before giving the figure.
 
+10. **Testimonials name real people.** The Re: line of every testimonial uses each person's full real name, never a platform username (e.g. `Leejunyuan125`, `E1591814`), a first name only, or a nickname in brackets. List every teammate. Check this before a challenge is closed and issued; SystemEarth's testimonials are not written yet and must be checked the same way.
+
 ## Secrets
 
 - `.env` files are gitignored — never commit them
