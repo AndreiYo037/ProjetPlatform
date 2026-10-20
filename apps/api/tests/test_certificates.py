@@ -299,10 +299,12 @@ def test_the_company_can_see_where_its_certificate_emails_stand(
     score_fully(client, programme, sat["ada"])
     client.post(f"/programmes/{programme.id}/close")
     client.post(f"/programmes/{programme.id}/certificates/notify", json={})
-    pending = client.get(f"/programmes/{programme.id}/certificates/emails").json()
+    rows = client.get(f"/programmes/{programme.id}/certificates/emails").json()
+    pending = [row for row in rows if row["kind"] == "certificate"]
     assert len(pending) == 2 and {row["status"] for row in pending} == {"pending"}
     run_once(session, google)
-    done = client.get(f"/programmes/{programme.id}/certificates/emails").json()
+    rows = client.get(f"/programmes/{programme.id}/certificates/emails").json()
+    done = [row for row in rows if row["kind"] == "certificate"]
     assert {row["status"] for row in done} == {"done"}
     assert all(row["sent_at"] for row in done)
 
