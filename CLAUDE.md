@@ -34,6 +34,8 @@
 
 10. **Testimonials name real people.** The Re: line of every testimonial uses each person's full real name, never a platform username (e.g. `Leejunyuan125`, `E1591814`), a first name only, or a nickname in brackets. List every teammate. Check this before a challenge is closed and issued; SystemEarth's testimonials are not written yet and must be checked the same way.
 
+11. **A code default is not the live setting.** Never state a server setting (sender address, domain, URL) as fact from `config.py` or the docs. Say it is unconfirmed, or find it from something real (a sent email, a log, the user). When corrected, say what was wrong once and move on.
+
 ## Secrets
 
 - `.env` files are gitignored — never commit them
