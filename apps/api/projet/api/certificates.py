@@ -19,9 +19,17 @@ from sqlalchemy.orm import Session
 from projet.api.deps import get_programme_or_404, require_participant
 from projet.api.judging import require_judge
 from projet.db import get_session
-from projet.models import Certificate, Company, Participant, Person, Programme, TeamMember
+from projet.models import (
+    Certificate,
+    Company,
+    Outbox,
+    Participant,
+    Person,
+    Programme,
+    TeamMember,
+)
 from projet.models.enums import ProgrammeStatus
-from projet.outbox.profile_effects import notify_certificate
+from projet.outbox.profile_effects import CERTIFICATE_EMAIL, notify_certificate
 from projet.services.auth import Actor
 from projet.services.certificates import (
     Planned,
@@ -284,6 +292,51 @@ def notify(
     if not payload.dry_run:
         db.commit()
     return NotifyOut(recipients=recipients, queued=queued)
+
+
+class EmailStatusOut(BaseModel):
+    to_name: str
+    subject: str
+    status: str
+    attempts: int
+    last_error: str | None
+    queued_at: datetime
+    sent_at: datetime | None
+
+
+@router.get("/programmes/{programme_id}/certificates/emails", response_model=list[EmailStatusOut])
+def email_status(
+    programme: Programme = Depends(get_programme_or_404),
+    db: Session = Depends(get_session),
+    actor: Actor = Depends(require_judge),
+) -> list[EmailStatusOut]:
+    """Where each certificate email for this challenge stands in the send queue."""
+    participants = {
+        p.id: p
+        for p in db.scalars(select(Participant).where(Participant.programme_id == programme.id))
+    }
+    rows = db.scalars(
+        select(Outbox)
+        .where(Outbox.effect_type == CERTIFICATE_EMAIL)
+        .where(Outbox.participant_id.in_(list(participants)))
+        .order_by(Outbox.created_at)
+    )
+    out: list[EmailStatusOut] = []
+    for row in rows:
+        participant = participants.get(row.participant_id) if row.participant_id else None
+        person = db.get(Person, participant.person_id) if participant else None
+        out.append(
+            EmailStatusOut(
+                to_name=person.name if person else "",
+                subject=str((row.payload or {}).get("subject", "")),
+                status=row.status.value if hasattr(row.status, "value") else str(row.status),
+                attempts=row.attempts,
+                last_error=row.last_error,
+                queued_at=row.created_at,
+                sent_at=row.completed_at,
+            )
+        )
+    return out
 
 
 @router.get("/programmes/{programme_id}/certificates", response_model=list[IssuedOut])
