@@ -18,6 +18,7 @@ from projet.models.enums import CompanyUserStatus, OutboxSubjectType
 from projet.outbox.effects import EffectContext, PermanentEffectError, effect, enqueue
 
 PROFILE_UPDATED_EMAIL = "profile_updated_email"
+CERTIFICATE_EMAIL = "certificate_email"
 
 
 @effect(PROFILE_UPDATED_EMAIL)
@@ -29,6 +30,67 @@ def profile_updated(ctx: EffectContext) -> dict:
         raise PermanentEffectError("profile update email is missing to, subject or body")
     sent = ctx.google.send_email(to=to, subject=subject, html_body=html)
     return {"message_id": sent.message_id, "thread_id": getattr(sent, "thread_id", None)}
+
+
+@effect(CERTIFICATE_EMAIL)
+def certificate_email(ctx: EffectContext) -> dict:
+    """The certificate itself goes out as an attachment, read from storage at
+    send time so a re-issued PDF is the one that is sent."""
+    from projet.integrations.google.client import Attachment
+    from projet.storage import StorageError, get_storage
+
+    to = ctx.payload.get("to")
+    subject = ctx.payload.get("subject")
+    html = ctx.payload.get("html_body")
+    key = ctx.payload.get("attachment_key")
+    name = ctx.payload.get("attachment_name") or "certificate.pdf"
+    if not to or not subject or not html or not key:
+        raise PermanentEffectError("certificate email is missing to, subject, body or file")
+    try:
+        content = get_storage().get(key)
+    except StorageError as error:
+        raise PermanentEffectError("the certificate PDF is missing") from error
+    sent = ctx.google.send_email(
+        to=to,
+        subject=subject,
+        html_body=html,
+        attachments=[Attachment(filename=name, content=content)],
+    )
+    return {"message_id": sent.message_id, "thread_id": getattr(sent, "thread_id", None)}
+
+
+def notify_certificate(
+    session: Session,
+    *,
+    person: Person,
+    participant_id: uuid.UUID | None,
+    subject: str,
+    paragraphs: list[str],
+    attachment_key: str,
+    attachment_name: str,
+    key_suffix: str,
+) -> None:
+    """Email a certificate to the person, with the PDF attached."""
+    if not person.contact_email:
+        return
+    body = "".join(f"<p>{text}</p>" for text in paragraphs)
+    enqueue(
+        session,
+        subject_type=(
+            OutboxSubjectType.PARTICIPANT if participant_id else OutboxSubjectType.APPLICATION
+        ),
+        subject_id=participant_id or person.id,
+        effect_type=CERTIFICATE_EMAIL,
+        participant_id=participant_id,
+        key_suffix=key_suffix,
+        payload={
+            "to": person.contact_email,
+            "subject": subject,
+            "html_body": f"<p>Hi {person.name or 'there'},</p>{body}",
+            "attachment_key": attachment_key,
+            "attachment_name": attachment_name,
+        },
+    )
 
 
 def _home_url() -> str:

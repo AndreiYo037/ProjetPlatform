@@ -234,7 +234,10 @@ def test_certificate_emails_go_once_per_issue_and_dry_run_sends_nothing(
     run_once(session, google)
     mails = [c for c in google.calls_of("send_email") if "Certificate" in c.payload["subject"]]
     assert len(mails) == 2
-    assert "is ready" in mails[0].payload["html_body"]
+    body = mails[0].payload["html_body"]
+    assert "attached as a PDF" in body
+    assert "profile" not in body.lower()
+    assert mails[0].payload["attachments"] and mails[0].payload["attachments"][0].endswith(".pdf")
 
 
 def test_submitter_only_skips_teammates_added_to_the_certificate(
@@ -263,3 +266,24 @@ def test_submitter_only_skips_teammates_added_to_the_certificate(
     assert "Sam Teammate" in everyone
     assert "Sam Teammate" not in only
     assert sat["sam"].person.name in only
+
+
+def test_the_certificate_pdf_is_attached_to_the_message():
+    import base64
+    from email import message_from_bytes
+
+    from projet.integrations.google.client import Attachment
+    from projet.integrations.google.real import build_message
+
+    raw = build_message(
+        sender="projet@example.com",
+        to="a@example.com",
+        subject="Your certificate",
+        html_body="<p>Hi</p>",
+        attachments=[Attachment(filename="Certificate.pdf", content=b"%PDF-1.4 test")],
+    )
+    message = message_from_bytes(base64.urlsafe_b64decode(raw))
+    parts = [p for p in message.walk() if p.get_filename()]
+    assert [p.get_filename() for p in parts] == ["Certificate.pdf"]
+    assert parts[0].get_content_type() == "application/pdf"
+    assert parts[0].get_payload(decode=True) == b"%PDF-1.4 test"

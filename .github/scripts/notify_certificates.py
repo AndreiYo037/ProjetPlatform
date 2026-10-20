@@ -45,6 +45,9 @@ def main() -> int:
                     print(f"  failed {reply.status_code}: {reply.text[:200]}")
                     continue
                 body = reply.json()
+                if APPLY and not body.get("attached"):
+                    print("  !! the live API is not on the attachment version yet; not sending")
+                    continue
                 total += len(body["recipients"])
                 print(f"  {'queued' if APPLY else 'would email'} {len(body['recipients'])}: "
                       f"{', '.join(body['recipients'])}")

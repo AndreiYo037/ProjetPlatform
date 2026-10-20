@@ -485,13 +485,6 @@ export type LetterContext = Schemas["LetterContext"];
 export type TestimonialDraftOut = Schemas["TestimonialDraftOut"];
 export type CloseoutOut = Schemas["CloseoutOut"];
 
-export type MyCertificate = Schemas["MyCertificateOut"];
-export type PlannedCertificate = Schemas["PlannedOut"];
-export type IssuedCertificate = Schemas["IssuedOut"];
-
-/** Certificates a team was given, with the names printed together. */
-export const getMyCertificates = () => api.get<MyCertificate[]>("/me/certificates");
-
 /** What the participant keeps: attested skills, company endorsements, testimonials. */
 export const getPortfolio = () => api.get<Portfolio>("/me/portfolio");
 

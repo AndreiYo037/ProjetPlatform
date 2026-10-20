@@ -14300,6 +14300,11 @@
           "queued": {
             "type": "integer",
             "title": "Queued"
+          },
+          "attached": {
+            "type": "boolean",
+            "title": "Attached",
+            "default": true
           }
         },
         "type": "object",

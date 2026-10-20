@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from projet.integrations.google.client import (
+    Attachment,
     Attendee,
     CalendarEvent,
     DriveProbe,
@@ -56,6 +57,7 @@ class FakeGoogleClient:
         html_body: str,
         thread_id: str | None = None,
         references: str | None = None,
+        attachments: list[Attachment] | None = None,
     ) -> SentMessage:
         self._maybe_fail()
         self.calls.append(
@@ -66,6 +68,7 @@ class FakeGoogleClient:
                     "subject": subject,
                     "thread_id": thread_id,
                     "html_body": html_body,
+                    "attachments": [a.filename for a in attachments or []],
                 },
             )
         )

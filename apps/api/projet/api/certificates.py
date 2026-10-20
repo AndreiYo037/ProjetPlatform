@@ -21,7 +21,7 @@ from projet.api.judging import require_judge
 from projet.db import get_session
 from projet.models import Certificate, Company, Participant, Person, Programme, TeamMember
 from projet.models.enums import ProgrammeStatus
-from projet.outbox.profile_effects import notify_candidate_profile_updated
+from projet.outbox.profile_effects import notify_certificate
 from projet.services.auth import Actor
 from projet.services.certificates import (
     Planned,
@@ -98,6 +98,9 @@ class NotifyOut(BaseModel):
     # Names of the people who are (or, on a dry run, would be) emailed.
     recipients: list[str]
     queued: int
+    # True once the email carries the PDF as an attachment. Lets a caller tell
+    # this version of the API from the one that linked to the profile.
+    attached: bool = True
 
 
 def _title(row: Certificate) -> str:
@@ -252,17 +255,30 @@ def notify(
                 .where(Participant.programme_id == programme.id)
                 .where(Participant.person_id == person.id)
             )
-            notify_candidate_profile_updated(
+            first = person.name.split()[0] if person.name else "there"
+            who = "your team" if len(row.names) > 1 else "you"
+            where = f" at {row.event_name}" if row.event_name else ""
+            paragraphs = [
+                f"Congratulations! {company_name} has awarded {who} a {_title(row)} for "
+                f"\u201c{programme.title}\u201d{where}.",
+                "Your certificate is attached as a PDF."
+                + (
+                    f" It carries everyone on your team ({', '.join(row.names)}), "
+                    "so please pass it on to your teammates."
+                    if len(row.names) > 1
+                    else ""
+                ),
+                f"Thank you for taking part, {first}.",
+            ]
+            notify_certificate(
                 db,
                 person=person,
                 participant_id=participant.id if participant else None,
-                what=(
-                    f"Your {_title(row)} for {programme.title}, set by {company_name}"
-                    f"{' at ' + row.event_name if row.event_name else ''}, is ready. "
-                    "You can view and download it on your Projet profile."
-                ),
-                key_suffix=f"certificate:{row.id}:{row.issued_at.isoformat()}",
                 subject=f"Your {_title(row)} from {company_name}",
+                paragraphs=paragraphs,
+                attachment_key=row.pdf_storage_key,
+                attachment_name=f"{_title(row).replace(', ', ' - ')} - {', '.join(row.names)}.pdf",
+                key_suffix=f"certificate:{row.id}:{row.issued_at.isoformat()}",
             )
             queued += 1
     if not payload.dry_run:

@@ -40,6 +40,13 @@ class SentMessage:
 
 
 @dataclass(slots=True)
+class Attachment:
+    filename: str
+    content: bytes
+    mime_type: str = "application/pdf"
+
+
+@dataclass(slots=True)
 class CalendarEvent:
     event_id: str
     html_link: str | None = None
@@ -96,6 +103,7 @@ class GoogleClient(Protocol):
         html_body: str,
         thread_id: str | None = None,
         references: str | None = None,
+        attachments: list[Attachment] | None = None,
     ) -> SentMessage: ...
 
     def create_event(self, spec: EventSpec) -> CalendarEvent: ...

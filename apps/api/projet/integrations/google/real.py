@@ -18,6 +18,7 @@ from typing import Any
 from projet.config import get_settings
 from projet.integrations.google.client import (
     SCOPES,
+    Attachment,
     Attendee,
     CalendarEvent,
     DriveProbe,
@@ -116,6 +117,7 @@ def build_message(
     subject: str,
     html_body: str,
     references: str | None = None,
+    attachments: list[Attachment] | None = None,
 ) -> str:
     """Base64url-encoded RFC822.
 
@@ -132,6 +134,14 @@ def build_message(
         message["References"] = references
     message.set_content("This message requires an HTML-capable client.")
     message.add_alternative(html_body, subtype="html")
+    for item in attachments or []:
+        maintype, _, subtype = item.mime_type.partition("/")
+        message.add_attachment(
+            item.content,
+            maintype=maintype,
+            subtype=subtype or "octet-stream",
+            filename=item.filename,
+        )
     return base64.urlsafe_b64encode(message.as_bytes()).decode()
 
 
@@ -180,6 +190,7 @@ class RealGoogleClient:
         html_body: str,
         thread_id: str | None = None,
         references: str | None = None,
+        attachments: list[Attachment] | None = None,
     ) -> SentMessage:
         from googleapiclient.errors import HttpError
 
@@ -190,6 +201,7 @@ class RealGoogleClient:
                 subject=subject,
                 html_body=html_body,
                 references=references,
+                attachments=attachments,
             )
         }
         if thread_id:
