@@ -51,7 +51,7 @@ export default async function ChallengesPage({
       <p className="lede">
         Live problems from real companies. Apply while the window is open — closed
         windows still show until the challenge week ends, and a finished challenge
-        stays visible for two weeks after.
+        stays visible for a month after.
       </p>
 
       {clusters.length > 0 && (
@@ -85,7 +85,7 @@ export default async function ChallengesPage({
         <>
           <h2 style={{ marginTop: "2.5rem" }}>Past challenges</h2>
           <p className="small muted" style={{ marginTop: "-0.5rem" }}>
-            Finished challenges stay here for two weeks after they end.
+            Finished challenges stay here for a month after they end.
           </p>
           <ChallengeCards items={past} />
         </>

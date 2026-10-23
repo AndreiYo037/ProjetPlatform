@@ -107,7 +107,7 @@ _ONSITE_EARLY_APPLY_SLUGS = frozenset({"business-partnerships-intern"})
 # How long a finished challenge stays visible in the public listings after it
 # ends, before dropping off entirely — a past challenge is still worth seeing
 # for a while, just not forever.
-LISTING_RETENTION = timedelta(days=14)
+LISTING_RETENTION = timedelta(days=30)
 
 
 def _past_retention(programme: Programme, now: datetime) -> bool:
@@ -117,11 +117,11 @@ def _past_retention(programme: Programme, now: datetime) -> bool:
 
     A company setting status to COMPLETE while its own schedule still has
     time left is a deliberate "stop showing this" — it leaves immediately,
-    no 14-day grace period, same as before this window existed. A challenge
+    no 30-day grace period, same as before this window existed. A challenge
     that simply ran its course (the submit deadline or pitch date passed on
     its own) is the case LISTING_RETENTION is for: it stays past-but-visible
     for a while rather than vanishing the instant the clock passes. With no
-    end date at all there is nothing to count 14 days from, so it never
+    end date at all there is nothing to count 30 days from, so it never
     expires that way — DRAFT exclusion is the only gate left for those.
     """
     if programme.status == ProgrammeStatus.COMPLETE and not programme_is_past(programme, now):

@@ -324,12 +324,39 @@ def test_a_naturally_ended_programme_drops_off_after_retention(client, session, 
     )
     programme = session.get(Programme, uuid.UUID(programme_id))
     assert programme is not None
-    programme.submit_deadline_at = utcnow() - timedelta(days=15)
+    programme.submit_deadline_at = utcnow() - timedelta(days=31)
     session.flush()
 
     client.cookies.clear()
     slugs = [row["programme_slug"] for row in client.get("/public/challenges").json()]
     assert "long-over" not in slugs
+
+
+def test_a_challenge_that_ended_three_weeks_ago_is_still_listed(client, session, admin, roles):
+    import uuid
+
+    from projet.models import Programme
+    from projet.models.base import utcnow
+
+    role_id = roles["data-analytics"].id
+    acme = make_company(client, session, admin, name="Acme3w", slug="acme3w")
+    programme_id = make_programme(
+        client,
+        session,
+        admin,
+        company_id=acme,
+        role_id=role_id,
+        title="Three weeks over",
+        slug="three-weeks-over",
+    )
+    programme = session.get(Programme, uuid.UUID(programme_id))
+    assert programme is not None
+    programme.submit_deadline_at = utcnow() - timedelta(days=21)
+    session.flush()
+
+    client.cookies.clear()
+    slugs = [row["programme_slug"] for row in client.get("/public/challenges").json()]
+    assert "three-weeks-over" in slugs
 
 
 def test_the_directory_filters_by_role_slug(client, session, admin, roles):
