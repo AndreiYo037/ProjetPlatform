@@ -16,6 +16,8 @@ from create_hacknhire_challenges import API_BASE, CHALLENGES
 
 PASSWORD = os.environ.get("COMPANY_PASSWORD")
 APPLY = os.environ.get("APPLY") == "1"
+# Only challenges whose title starts with this (empty = all closed challenges).
+ONLY = (os.environ.get("ONLY") or "").strip().lower()
 
 
 def main() -> int:
@@ -34,6 +36,8 @@ def main() -> int:
                 return 1
             for programme in client.get("/programmes").json():
                 if programme.get("status") != "complete":
+                    continue
+                if ONLY and not programme["title"].lower().startswith(ONLY):
                     continue
                 reply = client.post(
                     f"/programmes/{programme['id']}/certificates/notify",
