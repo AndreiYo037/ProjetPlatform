@@ -21,6 +21,8 @@ from create_hacknhire_challenges import API_BASE, CHALLENGES
 
 PASSWORD = os.environ.get("COMPANY_PASSWORD")
 APPLY = os.environ.get("APPLY") == "1"
+# Only challenges whose title starts with this (empty = all closed challenges).
+ONLY = (os.environ.get("ONLY") or "").strip().lower()
 EVENT = "Hack n Hire 2026"
 EVENT_DATE = "17 October 2026"
 
@@ -54,6 +56,20 @@ TEAMS: dict[str, dict] = {
         "names": ["William Hansel", "Tan Wee Teck Alfonso", "Ngo Thuy Linh"],
         "extra": ["Tan wee teck alfonso"],
     },
+    # SystemEarth
+    "Guruprasath Gopal": {
+        "names": ["Guruprasath Gopal", "Mrigakshi Roy Choudhury", "Ibrahim Mammadov"],
+        "extra": [],
+    },
+    "Rafael Macam": {"names": ["Rafael Macam"], "extra": []},
+    "Sean Chin Wei En": {
+        "names": ["Sean Chin Wei En", "Frederick Adlim", "Yeo Zhang Han"],
+        "extra": ["Frederick Adlim"],
+    },
+    "Travis Ang": {
+        "names": ["Travis Ang", "Joe Ong Teng Kiat", "Cheng Jing Jie"],
+        "extra": ["Joe Ong"],
+    },
     # beez-fm
     "Wang Jianan": {"names": ["Wang Jianan"], "extra": []},
     "Nathaniel Sim": {"names": ["Nathaniel Sim", "Audric Fuster"], "extra": ["Audric Fuster"]},
@@ -67,6 +83,7 @@ COUNTS: dict[str, tuple[int, int]] = {
     "Improving Water Treatment": (8, 5),
     "Measuring and Communicating": (9, 4),
     "Visualising Technology Fit": (12, 6),
+    "Building Multi-Layer": (9, 5),
 }
 
 
@@ -85,6 +102,8 @@ def main() -> int:
                 return 1
             for programme in client.get("/programmes").json():
                 if programme.get("status") != "complete":
+                    continue
+                if ONLY and not programme["title"].lower().startswith(ONLY):
                     continue
                 pid = programme["id"]
                 cards = client.get(f"/programmes/{pid}/submissions").json()
