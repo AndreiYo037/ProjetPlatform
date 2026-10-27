@@ -1,0 +1,19 @@
+name: List Beans&Beats participants
+
+# Read-only report, manual trigger.
+on:
+  workflow_dispatch:
+
+jobs:
+  list:
+    name: List participants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/list_beansbeats_participants.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
