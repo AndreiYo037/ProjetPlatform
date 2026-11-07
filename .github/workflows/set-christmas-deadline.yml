@@ -1,0 +1,18 @@
+name: Set Christmas Together deadline
+
+# Manual. Moves the submission deadline to 8 Nov 2026, 12:00 SGT.
+on:
+  workflow_dispatch:
+
+jobs:
+  open:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/set_christmas_deadline.py
+        env:
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
