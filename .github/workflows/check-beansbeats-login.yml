@@ -1,0 +1,24 @@
+name: Check Beans&Beats login
+
+# Read-only, manual trigger. Tries one password on the login and prints the status.
+on:
+  workflow_dispatch:
+    inputs:
+      password:
+        description: "Password to try"
+        required: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mask password
+        run: echo "::add-mask::${{ inputs.password }}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install httpx
+      - run: python .github/scripts/check_beansbeats_login.py
+        env:
+          CANDIDATE_PASSWORD: ${{ inputs.password }}
