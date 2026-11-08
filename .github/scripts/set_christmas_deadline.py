@@ -1,4 +1,4 @@
-"""Move the Christmas Together submission deadline to 8 Nov 2026, 12:00 SGT.
+"""Move the Christmas Together submission deadline to 8 Nov 2026, 16:00 SGT.
 
 Changes only submit_deadline_at. Prints before and after.
 """
@@ -14,7 +14,7 @@ API_BASE = os.environ.get("PROJET_API_BASE_URL", "https://projetplatform.onrende
 PASSWORD = os.environ.get("SEED_PASSWORD")
 EMAIL = "hello@thirdspacesmarketing.com"
 SLUG = "christmas-together-2026-queue-management-system"
-DEADLINE = "2026-11-08T12:00:00+08:00"
+DEADLINE = "2026-11-08T16:00:00+08:00"
 
 
 def main() -> int:

@@ -1,6 +1,6 @@
 name: Set Christmas Together deadline
 
-# Manual. Moves the submission deadline to 8 Nov 2026, 12:00 SGT.
+# Manual. Moves the submission deadline to 8 Nov 2026, 16:00 SGT.
 on:
   workflow_dispatch:
 
